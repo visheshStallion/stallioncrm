@@ -53,7 +53,9 @@ export const SETUP_CATEGORIES: SetupCategory[] = [
     description: "Assignment rules, workflows and approvals",
     items: [
       { href: "/admin/assignment-rules/leads", label: "Lead assignment rules", available: true },
-      { href: "/admin/workflows", label: "Workflow rules", available: false },
+      { href: "/admin/workflows", label: "Workflow rules", available: true },
+      { href: "/admin/approval-processes", label: "Approval processes", available: true },
+      { href: "/admin/jobs", label: "Automation run log", available: true },
     ],
   },
   {

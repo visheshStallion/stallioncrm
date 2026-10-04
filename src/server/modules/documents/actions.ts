@@ -72,8 +72,8 @@ export async function convertAction(type: string, id: string) {
 export async function decideApprovalAction(requestId: string, approve: boolean, note: string) {
   return safeAction(async () => {
     const res = await svc.decideApproval(await requireContext(), requestId, approve, note);
-    revalidatePath(`/quotes/${res.entityId}`);
-    return { message: approve ? "Approved" : "Rejected – the quote is a draft again" };
+    revalidatePath("/", "layout");
+    return { message: !approve ? "Rejected – the quote is a draft again" : res.status === "PENDING" ? "Approved – waiting for the next approver" : "Approved" };
   });
 }
 

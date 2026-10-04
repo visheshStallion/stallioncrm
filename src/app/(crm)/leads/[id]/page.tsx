@@ -3,6 +3,7 @@ import { forbidden, notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { OwnerPicker } from "@/components/crm/fields";
 import { ActivityPanel } from "@/components/crm/ActivityPanel";
+import { MoveRecordCard, PendingApprovals } from "@/components/crm/RecordApprovals";
 import { RecordNav } from "@/components/crm/KeyboardShortcuts";
 import { AttachmentsCard, NotesCard } from "@/components/crm/NotesAttachments";
 import { StatusPill } from "@/components/crm/primitives";
@@ -14,6 +15,7 @@ import { can, hasPermission } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
 import { fieldAccess } from "@/server/access/field-mask";
 import { recordActivities } from "@/server/modules/activities/queries";
+import { pendingApprovalsFor } from "@/server/modules/approvals/service";
 import { changeOwnerAction } from "@/server/modules/leads/actions";
 import { getLead, leadFormLookups, leadTimeline } from "@/server/modules/leads/queries";
 import { PAYMENT_LABELS, SOURCE_LABELS, STATUS_LABELS, WINDOW_LABELS } from "@/server/modules/leads/schema";
@@ -32,7 +34,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
     if (isAccessError(e)) notFound();
     throw e;
   });
-  const [dir, prefs, lookups, notes, attachments, activities, mentionable] = await Promise.all([
+  const [dir, prefs, lookups, notes, attachments, activities, mentionable, approvals] = await Promise.all([
     getDirectory(ctx),
     getPreferences(ctx),
     leadFormLookups(ctx),
@@ -40,13 +42,16 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
     listAttachments(ctx, "Lead", id),
     hasPermission(ctx, "activities", "read") ? recordActivities(ctx, "Lead", id) : { overdue: [], upcoming: [], history: [] },
     mentionableUsers(ctx, lead.brandId, lead.regionId),
+    pendingApprovalsFor(ctx, "Lead", id),
   ]);
   const current = tab === "timeline" ? "timeline" : "overview";
   const timeline = current === "timeline" ? await leadTimeline(ctx, id) : [];
   const brand = dir.brands.find((b) => b.id === lead.brandId);
   const region = dir.regions.find((r) => r.id === lead.regionId);
   const converted = lead.status === "CONVERTED";
-  const canEdit = !converted && can(ctx, "leads", "edit", lead);
+  // Locked while an approval is pending (administrators excepted).
+  const mayEdit = !converted && can(ctx, "leads", "edit", lead);
+  const canEdit = mayEdit && (approvals.length === 0 || ctx.isAdmin);
   const canConvert = canEdit && can(ctx, "deals", "create", lead);
   const level = (f: string) => fieldAccess(ctx, "leads", f);
   const df = prefs.dateFormat;
@@ -93,6 +98,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           </>
         }
       />
+      <PendingApprovals approvals={approvals} dateFormat={df} />
       <DetailTabs
         current={current}
         tabs={[
@@ -160,6 +166,15 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
                   </SubmitButton>
                 </ActionForm>
               </section>
+            ) : null}
+            {mayEdit && approvals.length === 0 ? (
+              <MoveRecordCard
+                entity="Lead"
+                id={lead.id}
+                brands={dir.brands.filter((b) => b.id !== lead.brandId && b.status === "ACTIVE").map((b) => ({ id: b.id, label: `${b.code} – ${b.name}` }))}
+                regions={dir.regions.filter((r) => r.id !== lead.regionId).map((r) => ({ id: r.id, label: r.name }))}
+                users={lookups.users}
+              />
             ) : null}
             <NotesCard entity="Lead" entityId={lead.id} path={`/leads/${lead.id}`} notes={notes} canEdit={canEdit} dateFormat={df} mentionable={mentionable.filter((u) => u.id !== ctx.userId)} />
             <AttachmentsCard entity="Lead" entityId={lead.id} path={`/leads/${lead.id}`} attachments={attachments} canEdit={canEdit} dateFormat={df} />

@@ -7,6 +7,7 @@ import { formatDate, formatDateTime, formatMoney, formatMoneyCompact, formatTime
 import { hasPermission } from "@/server/access/can";
 import { scopedDb } from "@/server/db";
 import { listActivities } from "@/server/modules/activities/queries";
+import { KIND_LABELS, myApprovalTasks } from "@/server/modules/approvals/service";
 import { TYPE_LABELS, type ActivityTypeKey } from "@/server/modules/activities/schema";
 import { OPEN_DEALS } from "@/server/modules/deals/queries";
 import { getDirectory } from "@/server/modules/org/queries";
@@ -88,6 +89,7 @@ export default async function HomePage() {
     ? await Promise.all([listActivities(ctx, { view: "my", type: "TASK" }, {}, { take: 8 }), listActivities(ctx, { view: "today" }, {}, { take: 8 })])
     : [{ rows: [] }, { rows: [] }];
   const meetings = todays.rows.filter((a) => a.type !== "TASK");
+  const approvalTasks = await myApprovalTasks(ctx, "PENDING", 8);
   const brand = (id: string) => dir.brands.find((b) => b.id === id);
   // Pipelines are per brand: group the stage totals by stage key so brands line up.
   const stageInfo = byStage.length
@@ -204,8 +206,22 @@ export default async function HomePage() {
             )}
           </Widget>
         ) : null}
-        <Widget title="Approvals pending">
-          <EmptyState title="No approvals waiting" text="Discount and brand-change approvals arrive with the Approvals module." />
+        <Widget title="Approvals pending" href="/approvals" testId="widget-approvals">
+          {approvalTasks.length ? (
+            <ul className="divide-y divide-border">
+              {approvalTasks.map((t) => (
+                <li key={t.taskId} className="flex items-center gap-2 py-1.5">
+                  <BrandBadge brand={brand(t.brandId)} />
+                  <Link href="/approvals" className="flex-1 truncate text-primary hover:underline">
+                    {t.title}
+                  </Link>
+                  <span className="text-xs text-text-muted">{KIND_LABELS[t.kind] ?? t.kind}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState title="No approvals waiting" />
+          )}
         </Widget>
       </div>
     </div>

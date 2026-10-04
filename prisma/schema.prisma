@@ -49,24 +49,26 @@ model Brand {
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
 
-  aliases          BrandCodeAlias[]
-  territories      Territory[]
-  deals            Deal[]
-  leads            Lead[]
-  products         Product[]
-  assignmentRules  AssignmentRule[]
-  customerLinks    CustomerBrandLink[]
-  pipelines        Pipeline[]
-  priceBooks       PriceBook[]
-  quotes           Quote[]
-  salesOrders      SalesOrder[]
-  invoices         Invoice[]
-  approvalRequests ApprovalRequest[]
-  activities       Activity[]
-  stockRefs        VehicleStockRef[]
-  notes            Note[]
-  attachments      Attachment[]
-  contactConsents  ContactBrandConsent[]
+  aliases           BrandCodeAlias[]
+  territories       Territory[]
+  deals             Deal[]
+  leads             Lead[]
+  products          Product[]
+  assignmentRules   AssignmentRule[]
+  customerLinks     CustomerBrandLink[]
+  pipelines         Pipeline[]
+  priceBooks        PriceBook[]
+  quotes            Quote[]
+  salesOrders       SalesOrder[]
+  invoices          Invoice[]
+  approvalRequests  ApprovalRequest[]
+  activities        Activity[]
+  stockRefs         VehicleStockRef[]
+  notes             Note[]
+  attachments       Attachment[]
+  contactConsents   ContactBrandConsent[]
+  approvalProcesses ApprovalProcess[]
+  workflowRules     WorkflowRule[]
 }
 
 /// Legacy company codes (e.g. from the HR rep file) mapped to a brand. Configurable, never hard-coded.
@@ -190,6 +192,7 @@ model User {
   ownedAttachments   Attachment[]      @relation("AttachmentOwner")
   assignmentRules    AssignmentRule[]
   userPreferences    UserPreference[]
+  approvalTasks      ApprovalTask[]    @relation("ApprovalTaskApprover")
 }
 
 model TerritoryMember {
@@ -1027,18 +1030,28 @@ enum ApprovalStatus {
   CANCELLED
 }
 
-/// Approval request (minimal for discount approvals; prompt 08 extends it). Brand-owned: owner = requester.
+/// Approval request of the approval engine (prompt 08). Brand-owned: brand of the record, owner = requester.
 model ApprovalRequest {
-  id           String         @id @default(cuid())
-  /// DISCOUNT (more kinds in prompt 08)
+  id           String           @id @default(cuid())
+  /// = process key: DISCOUNT | BRAND_CHANGE | OWNER_TRANSFER | custom
   kind         String
   entity       String
   entityId     String
-  status       ApprovalStatus @default(PENDING)
+  status       ApprovalStatus   @default(PENDING)
   /// 1 = Brand Manager, 2 = Head of Sales
-  level        Int            @default(1)
+  level        Int              @default(1)
+  processId    String?
+  process      ApprovalProcess? @relation(fields: [processId], references: [id])
+  /// order of the step currently waiting for a decision
+  currentStep  Int              @default(1)
+  /// what is applied on approval, e.g. { newBrandId, newRegionId, newOwnerId }
+  payload      Json             @default("{}")
+  /// [{ at, userId, userName, action, note }]
+  comments     Json             @default("[]")
+  title        String           @default("")
+  tasks        ApprovalTask[]
   approverId   String?
-  approver     User?          @relation("ApprovalApprover", fields: [approverId], references: [id])
+  approver     User?            @relation("ApprovalApprover", fields: [approverId], references: [id])
   reason       String?
   decidedAt    DateTime?
   decisionNote String?
@@ -1189,4 +1202,145 @@ model Notification {
   createdAt DateTime  @default(now())
 
   @@index([userId, readAt, createdAt])
+}
+
+// ───────────────────────── Approvals & workflow automation (prompt 08) ─────────────────────────
+
+enum ApproverType {
+  BRAND_MANAGER_OF_RECORD
+  BRAND_MANAGER_OF_NEW_BRAND
+  ROLE
+  USER
+  RSM
+}
+
+/// Approval process: which records need approval (criteria) and who decides (steps).
+model ApprovalProcess {
+  id        String            @id @default(cuid())
+  /// DISCOUNT | BRAND_CHANGE | OWNER_TRANSFER | custom key
+  key       String            @unique
+  name      String
+  /// module key (quotes, deals, leads) or * for any brand-owned record
+  module    String
+  /// NULL = all brands
+  brandId   String?
+  brand     Brand?            @relation(fields: [brandId], references: [id])
+  /// criteria tree evaluated on the request facts ({} = always)
+  criteria  Json              @default("{}")
+  active    Boolean           @default(true)
+  steps     ApprovalStep[]
+  requests  ApprovalRequest[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+/// Steps with the same order run in parallel; steps sharing a slot are alternatives (any one approver decides).
+model ApprovalStep {
+  id                    String          @id @default(cuid())
+  processId             String
+  process               ApprovalProcess @relation(fields: [processId], references: [id], onDelete: Cascade)
+  order                 Int
+  slot                  String?
+  approverType          ApproverType
+  /// ROLE: role name
+  roleName              String?
+  /// USER: user id
+  userId                String?
+  /// criteria tree on the request facts; the step is skipped when it does not match
+  condition             Json?
+  autoApproveAfterHours Int?
+
+  @@index([processId, order])
+}
+
+/// One approver's pending decision. Readable by the approver and by users who can see the record.
+model ApprovalTask {
+  id            String          @id @default(cuid())
+  requestId     String
+  request       ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  stepOrder     Int
+  slot          String
+  approverId    String
+  approver      User            @relation("ApprovalTaskApprover", fields: [approverId], references: [id])
+  status        ApprovalStatus  @default(PENDING)
+  note          String?
+  decidedAt     DateTime?
+  autoApproveAt DateTime?
+  // denormalised from the request: lets an approver of ANOTHER brand (brand change) see what they decide
+  kind          String
+  title         String
+  summary       String?
+  entity        String
+  entityId      String
+  brandId       String
+  regionId      String
+  requesterId   String
+  requesterName String
+  createdAt     DateTime        @default(now())
+
+  @@index([approverId, status])
+  @@index([requestId])
+}
+
+enum WorkflowTrigger {
+  ON_CREATE
+  ON_EDIT
+  FIELD_CHANGE
+  DATE_BASED
+  SCHEDULED
+}
+
+/// Workflow rule: trigger + criteria + actions. brandId NULL = all brands; a brand rule never touches other brands.
+model WorkflowRule {
+  id            String          @id @default(cuid())
+  /// stable key of seeded rules
+  key           String?         @unique
+  name          String
+  description   String?
+  /// leads | deals | quotes | salesOrders
+  module        String
+  trigger       WorkflowTrigger
+  /// FIELD_CHANGE: { field } · DATE_BASED: { dateField, offsetDays } · SCHEDULED: { repeat: ONCE | PER_UPDATE }
+  triggerConfig Json            @default("{}")
+  brandId       String?
+  brand         Brand?          @relation(fields: [brandId], references: [id])
+  criteria      Json            @default("{}")
+  actions       Json            @default("[]")
+  active        Boolean         @default(true)
+  createdById   String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([module, trigger, active])
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+  DEAD
+}
+
+/// Job queue on Postgres (FOR UPDATE SKIP LOCKED) with retries and idempotency keys. System-only table.
+model Job {
+  id             String    @id @default(cuid())
+  type           String
+  payload        Json      @default("{}")
+  status         JobStatus @default(QUEUED)
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5)
+  runAt          DateTime  @default(now())
+  /// a second enqueue with the same key is a no-op
+  idempotencyKey String?   @unique
+  lastError      String?
+  result         Json?
+  brandId        String?
+  ruleId         String?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([status, runAt])
+  @@index([ruleId, createdAt])
 }

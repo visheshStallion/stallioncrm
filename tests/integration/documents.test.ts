@@ -135,9 +135,17 @@ describe("totals and approval", () => {
     const { quoteId } = await newQuote();
     await svc.saveDocument(exec, "quote", quoteId, { lines: [lineOf({ discountPct: 8 })] as never });
     const res = await svc.submitQuote(exec, quoteId);
-    expect(res).toMatchObject({ status: "PENDING_APPROVAL", approverId: await userId("hos") });
+    // two steps (prompt 08): the Brand Manager first, then the Head of Sales
+    expect(res).toMatchObject({ status: "PENDING_APPROVAL", approverId: await userId("bm.hmnl") });
     const pending = await pendingApproval(exec, "Quote", quoteId);
-    await svc.decideApproval(await ctxFor("hos"), pending!.id, false, "Too high");
+    expect(pending!.level).toBe(2);
+    await expect(svc.decideApproval(await ctxFor("hos"), pending!.id, false, "Too early")).resolves.toMatchObject({ status: "REJECTED" }); // management may override
+    await svc.submitQuote(exec, quoteId);
+    const again = await pendingApproval(exec, "Quote", quoteId);
+    expect((await svc.decideApproval(bm, again!.id, true)).status).toBe("PENDING");
+    expect((await getDocument(exec, "quote", quoteId)).status).toBe("PENDING_APPROVAL");
+    expect((await pendingApproval(exec, "Quote", quoteId))!.approverId).toBe(await userId("hos"));
+    await svc.decideApproval(await ctxFor("hos"), again!.id, false, "Too high");
     expect((await getDocument(exec, "quote", quoteId)).status).toBe("DRAFT");
 
     // price book max for this product is 3 % (Standard) – lower it to 1 % and quote 2 %

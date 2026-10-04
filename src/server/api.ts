@@ -32,6 +32,9 @@ export function toErrorResponse(err: unknown): { status: number; body: ApiErrorB
     const message = first ? `${first.path.join(".") || "input"}: ${first.message}` : "Invalid input";
     return { status: 400, body: { error: { code: "VALIDATION", message, issues: err.issues } } };
   }
+  if (err instanceof Error && err.message.includes("RECORD_LOCKED")) {
+    return { status: 409, body: { error: { code: "LOCKED", message: "This record is locked while an approval is pending" } } };
+  }
   if (err instanceof BadRequestError) {
     return { status: 400, body: { error: { code: err.code, message: err.message } } };
   }

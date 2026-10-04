@@ -16,6 +16,8 @@ export function rlsSettings(ctx: AccessContext) {
     userId: ctx.userId,
     scope: ctx.scope,
     memberships: JSON.stringify(rlsMemberships(ctx)),
+    /** "1" exempts administrators from the pending-approval record lock */
+    admin: ctx.isAdmin ? "1" : "0",
   };
 }
 
@@ -26,6 +28,7 @@ export function rlsSessionQueries(db: UnsafeDb, ctx: AccessContext) {
     db.$executeRawUnsafe(`SET LOCAL ROLE ${RLS_ROLE}`),
     db.$queryRaw`SELECT set_config('app.user_id', ${s.userId}, true) AS "userId",
                         set_config('app.scope', ${s.scope}, true) AS "scope",
-                        set_config('app.memberships', ${s.memberships}, true) AS "memberships"`,
+                        set_config('app.memberships', ${s.memberships}, true) AS "memberships",
+                        set_config('app.admin', ${s.admin}, true) AS "admin"`,
   ] as const;
 }

@@ -1,14 +1,16 @@
 import "server-only";
 import { assertSameBrand } from "@/server/access/brand-tag";
-import { assertCan, hasPermission } from "@/server/access/can";
-import { ForbiddenError, NotFoundError } from "@/server/access/errors";
+import { assertCan } from "@/server/access/can";
+import { ForbiddenError } from "@/server/access/errors";
 import type { AccessContext } from "@/server/access/types";
 import { audit, scopedDb } from "@/server/db";
+import { cancelPendingApprovals } from "@/server/db/approval-engine";
 import { BadRequestError } from "@/server/errors";
 import { emitEvent } from "@/server/events";
 import { getPrice } from "@/server/modules/catalogue/queries";
 import { defaultBookFor } from "@/server/modules/catalogue/pricing";
 import { getDeal } from "@/server/modules/deals/queries";
+import { decide, submitForApproval } from "@/server/modules/approvals/service";
 import { advanceDealToStage } from "@/server/modules/deals/service";
 import { DOCS, paymentSchema, saveSchema, type DocConfig, type DocType, type LineData, type SaveInput } from "./config";
 import { getDocument, type DocDetail } from "./queries";
@@ -153,19 +155,10 @@ export async function quoteApprovalDecision(ctx: AccessContext, doc: DocDetail):
   });
 }
 
-/** Level 1 → the brand's Brand Manager; level 2 → the Head of Sales (falls back to the other when missing). */
-async function findApprover(ctx: AccessContext, brandId: string, level: 1 | 2): Promise<string | null> {
-  const db = scopedDb(ctx);
-  const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId }, select: { brandManager: { select: { id: true, active: true } } } });
-  const hos = await db.user.findFirst({ where: { active: true, role: { name: "Head of Sales" } }, select: { id: true } });
-  const bm = brand.brandManager?.active ? brand.brandManager.id : null;
-  return level === 2 ? hos?.id ?? bm : bm ?? hos?.id ?? null;
-}
-
 /**
- * Submits a draft quote. Discounts within the limits → Approved. Otherwise → Pending Approval with an approval
- * request routed to the Brand Manager (or the Head of Sales above the escalation threshold). When the submitter
- * is that approver the quote is approved directly.
+ * Submits a draft quote. Discounts within the limits → Approved. Otherwise → Pending Approval through the
+ * DISCOUNT approval process: above the brand's threshold A the Brand Manager decides, above threshold B the
+ * Head of Sales decides after them. Steps whose approver is the submitter are approved on the spot.
  */
 export async function submitQuote(ctx: AccessContext, id: string) {
   const doc = await load(ctx, "quote", id);
@@ -176,44 +169,43 @@ export async function submitQuote(ctx: AccessContext, id: string) {
     await setStatus(ctx, "quote", id, "APPROVED");
     return { status: "APPROVED" as const, decision };
   }
-  const approverId = await findApprover(ctx, doc.brandId, decision.level);
-  if (!approverId) throw new BadRequestError("No approver is configured for this brand (set a Brand Manager)");
-  if (approverId === ctx.userId && hasPermission(ctx, "quotes", "approve")) {
-    await setStatus(ctx, "quote", id, "APPROVED");
-    await audit({ ctx, action: "UPDATE", entity: "Quote", entityId: id, brandId: doc.brandId, after: { selfApprovedDiscount: decision.effectivePct, reasons: decision.reasons } });
-    return { status: "APPROVED" as const, decision };
-  }
-  const db = scopedDb(ctx);
-  await db.approvalRequest.updateMany({ where: { entity: "Quote", entityId: id, status: "PENDING" }, data: { status: "CANCELLED" } });
-  const request = await db.approvalRequest.create({
-    data: { kind: "DISCOUNT", entity: "Quote", entityId: id, level: decision.level, approverId, reason: decision.reasons.join("; "), brandId: doc.brandId, regionId: doc.regionId, ownerId: ctx.userId },
-    select: { id: true },
-  });
+  const brand = await scopedDb(ctx).brand.findUniqueOrThrow({ where: { id: doc.brandId }, select: { discountApprovalPct: true, discountEscalationPct: true } });
+  // Status first: the quote is locked as soon as the request exists.
   await setStatus(ctx, "quote", id, "PENDING_APPROVAL");
-  return { status: "PENDING_APPROVAL" as const, decision, approvalRequestId: request.id, approverId };
+  try {
+    const out = await submitForApproval(ctx, {
+      processKey: "DISCOUNT",
+      entity: "Quote",
+      entityId: id,
+      brandId: doc.brandId,
+      regionId: doc.regionId,
+      title: `Quote ${doc.number}: discount ${decision.effectivePct}%`,
+      summary: decision.reasons.join("; "),
+      facts: { discountPct: decision.effectivePct, approvalPct: Number(brand.discountApprovalPct.toString()), escalationPct: Number(brand.discountEscalationPct.toString()), total: doc.total },
+    });
+    if (out.status === "APPROVED") {
+      await audit({ ctx, action: "UPDATE", entity: "Quote", entityId: id, brandId: doc.brandId, after: { selfApprovedDiscount: decision.effectivePct, reasons: decision.reasons } });
+      return { status: "APPROVED" as const, decision };
+    }
+    return { status: "PENDING_APPROVAL" as const, decision, approvalRequestId: out.requestId!, approverId: out.pendingApproverIds[0] ?? null };
+  } catch (err) {
+    // No request was created (e.g. no approver configured): the quote stays a draft.
+    await setStatus(ctx, "quote", id, "DRAFT").catch(() => undefined);
+    throw err;
+  }
 }
 
 /** The assigned approver – or Management / Administrator with approve permission – decides. */
 export async function decideApproval(ctx: AccessContext, requestId: string, approve: boolean, note?: string | null) {
-  const db = scopedDb(ctx);
-  const req = await db.approvalRequest.findUnique({ where: { id: requestId } });
-  if (!req) throw new NotFoundError();
-  if (req.status !== "PENDING") throw new BadRequestError("This request has already been decided");
-  const may = req.approverId === ctx.userId || (ctx.scope === "ALL" && hasPermission(ctx, "quotes", "approve"));
-  if (!may) throw new ForbiddenError("Only the assigned approver can decide this request");
-  await db.approvalRequest.update({ where: { id: requestId }, data: { status: approve ? "APPROVED" : "REJECTED", decidedAt: new Date(), decisionNote: note?.trim() || null } });
-  if (req.entity === "Quote") {
-    // Rejected approvals send the quote back to draft so it can be revised.
-    await db.quote.updateMany({ where: { id: req.entityId, status: "PENDING_APPROVAL" }, data: { status: approve ? "APPROVED" : "DRAFT" } });
-  }
-  return { entity: req.entity, entityId: req.entityId, approved: approve };
+  const out = await decide(ctx, requestId, approve, note);
+  return { entity: out.entity, entityId: out.entityId, approved: approve, status: out.status };
 }
 
 /** Back to draft for changes; cancels a pending approval. */
 export async function reviseQuote(ctx: AccessContext, id: string) {
   const doc = await load(ctx, "quote", id);
   if (!["PENDING_APPROVAL", "APPROVED", "SENT", "EXPIRED"].includes(doc.status)) throw new BadRequestError("This quote cannot be revised");
-  await scopedDb(ctx).approvalRequest.updateMany({ where: { entity: "Quote", entityId: id, status: "PENDING" }, data: { status: "CANCELLED" } });
+  await cancelPendingApprovals("Quote", id);
   await setStatus(ctx, "quote", id, "DRAFT");
 }
 

@@ -11,6 +11,9 @@ const ADMIN_PAGES = [
   "/admin/users",
   "/admin/users/import",
   "/admin/audit",
+  "/admin/workflows",
+  "/admin/jobs",
+  "/admin/approval-processes",
 ];
 const ADMIN_APIS = ["/api/v1/admin/brands", "/api/v1/admin/users", "/api/v1/admin/audit", "/api/v1/admin/audit/export"];
 

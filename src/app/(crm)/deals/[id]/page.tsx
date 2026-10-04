@@ -4,6 +4,7 @@ import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { OwnerPicker } from "@/components/crm/fields";
 import { RecordNav } from "@/components/crm/KeyboardShortcuts";
 import { ActivityPanel } from "@/components/crm/ActivityPanel";
+import { MoveRecordCard, PendingApprovals } from "@/components/crm/RecordApprovals";
 import { AttachmentsCard, NotesCard } from "@/components/crm/NotesAttachments";
 import { StatusPill } from "@/components/crm/primitives";
 import { DetailTabs, Field, FieldSection, RecordHeader, RelatedListCard, RelatedNav, StageProgressBar, Timeline } from "@/components/crm/record";
@@ -22,6 +23,7 @@ import { changeDealOwnerAction } from "@/server/modules/deals/actions";
 import { allowedTargets } from "@/server/modules/deals/blueprint";
 import { dealFormLookups, dealStageHistory, dealTimeline, getDeal, getPipeline } from "@/server/modules/deals/queries";
 import { recordActivities } from "@/server/modules/activities/queries";
+import { pendingApprovalsFor } from "@/server/modules/approvals/service";
 import { listAttachments, listNotes, mentionableUsers } from "@/server/modules/notes/service";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
@@ -43,7 +45,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
     throw e;
   });
   const current = tab === "timeline" ? "timeline" : "overview";
-  const [dir, prefs, pipeline, lookups, notes, attachments, users, stock, documents, activities, mentionable] = await Promise.all([
+  const [dir, prefs, pipeline, lookups, notes, attachments, users, stock, documents, activities, mentionable, approvals] = await Promise.all([
     getDirectory(ctx),
     getPreferences(ctx),
     getPipeline(ctx, deal.pipelineId),
@@ -58,6 +60,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
     dealDocuments(ctx, id),
     hasPermission(ctx, "activities", "read") ? recordActivities(ctx, "Deal", id) : { overdue: [], upcoming: [], history: [] },
     mentionableUsers(ctx, deal.brandId, deal.regionId),
+    pendingApprovalsFor(ctx, "Deal", id),
   ]);
   const reserved = stock.filter((s) => s.dealId === id);
   const available = stock.filter((s) => s.dealId !== id);
@@ -65,7 +68,10 @@ export default async function DealPage({ params, searchParams }: { params: Promi
   const brand = dir.brands.find((b) => b.id === deal.brandId);
   const region = dir.regions.find((r) => r.id === deal.regionId);
   const df = prefs.dateFormat;
-  const canEdit = can(ctx, "deals", "edit", deal) && brand?.status !== "INACTIVE";
+  // Locked while an approval is pending (administrators excepted).
+  const locked = approvals.length > 0 && !ctx.isAdmin;
+  const mayEdit = can(ctx, "deals", "edit", deal) && brand?.status !== "INACTIVE";
+  const canEdit = mayEdit && !locked;
   const manager = isManagerOf(ctx, deal.brandId, deal.regionId);
   const stages = pipeline?.stages ?? [];
   const from = stages.find((s) => s.id === deal.stageId);
@@ -119,6 +125,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
           </>
         }
       />
+      <PendingApprovals approvals={approvals} dateFormat={df} />
       {pipeline && targets.length ? <BlueprintButtons deal={deal} pipeline={pipeline} targets={targets} products={lookups.products} /> : null}
       <StageProgressBar stages={stages.filter((s) => (lost ? s.type !== "WON" : s.type !== "LOST")).map((s) => ({ key: s.id, label: s.name }))} current={deal.stageId} lost={lost} />
       <DetailTabs
@@ -200,6 +207,15 @@ export default async function DealPage({ params, searchParams }: { params: Promi
                   </SubmitButton>
                 </ActionForm>
               </section>
+            ) : null}
+            {mayEdit && approvals.length === 0 && deal.stageType === "OPEN" ? (
+              <MoveRecordCard
+                entity="Deal"
+                id={deal.id}
+                brands={dir.brands.filter((b) => b.id !== deal.brandId && b.status === "ACTIVE").map((b) => ({ id: b.id, label: `${b.code} – ${b.name}` }))}
+                regions={dir.regions.filter((r) => r.id !== deal.regionId).map((r) => ({ id: r.id, label: r.name }))}
+                users={users}
+              />
             ) : null}
             <RelatedListCard id="vehicle-reservation" title="Vehicle reservation">
               {reserved.length ? (

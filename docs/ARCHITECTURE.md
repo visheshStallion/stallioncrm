@@ -313,7 +313,69 @@ Module `src/server/modules/activities` (+ `notifications`), UI under `src/app/(c
   messaging service of prompt 10; the indemnity file upload uses the generic attachments of the parent record;
   drag-and-drop rescheduling in the calendar is not implemented (reschedule on the activity page).
 
-## 15. Local development
+## 15. Approvals & workflow automation (prompt 08)
+
+### Approval engine (`src/server/db/approval-engine.ts`, `src/server/modules/approvals`)
+
+- **Model.** `ApprovalProcess` (key, module, optional brand, criteria) → `ApprovalStep` (order, slot, approver type,
+  condition, auto-approve hours). `ApprovalRequest` (brand-owned: the record's brand, owner = requester, payload,
+  comment trail) → `ApprovalTask` (one per approver). Steps with the same **order** run in parallel; steps that
+  share a **slot** are alternatives (any one approver decides). A step whose approver is the requester is
+  approved on the spot.
+- **Why it lives in the db layer.** Approvals deliberately cross what one user may write: the manager of the NEW
+  brand decides a brand change on a record they cannot see, and applying it moves a record between brands. The
+  engine authorises the caller (can see the record / holds a task / may override) and then works with the system
+  client in ONE transaction; nothing else in the app does.
+- **Isolation.** Tasks are readable by their approver and by users who can see the record's brand-region (RLS
+  policy `approval_task_read`); they can only be written by the engine. An SNMNL manager never sees an HMNL
+  request – not in the inbox, not through SQL, and deciding it is a 404. The inbox shows a link to the record
+  only when the viewer can open it.
+- **Seeded processes** (`app_seed_automation()` in the migration; also called by the dev seed):
+  1. `DISCOUNT` (quotes): above the brand's threshold A (`Brand.discountApprovalPct`, default 3 %) or the price
+     book maximum → Brand Manager; above threshold B (`discountEscalationPct`, default 7 %) → then Head of Sales.
+     Thresholds are edited per brand in Setup → Brands.
+  2. `BRAND_CHANGE` (leads, deals): Brand Managers of the OLD and the NEW brand in parallel. On approval the
+     record moves atomically: territory recalculated, deal pipeline follows the brand (stage kept by key),
+     quotes / activities / notes / attachments move with it, one audit entry with before / after. Brand-specific
+     links cannot follow: the model and reserved vehicle are cleared, quotes return to Draft without product
+     links (their number keeps the old prefix). A deal with sales orders or invoices cannot change brand.
+  3. `OWNER_TRANSFER` (leads, deals) to another region: the RSM of the old / new region **or** the Brand Manager.
+- **Lock.** While a request is pending the record is read-only: trigger `app_lock_pending_approval` on Lead, Deal
+  and Quote rejects updates from the RLS role unless `app.admin = 1` (administrators). The API answers 409
+  `LOCKED`; the UI hides the edit actions and shows the banner with approve / reject / recall.
+- **Overrides and timing.** Administrators, and Management with an approve permission, may decide in place of the
+  assigned approvers. A step can auto-approve after N hours (Setup → Approval processes); the scheduler applies it.
+- **Notifications.** New approvers and the requester get an in-app notification; the rail shows the number of
+  pending decisions. Email delivery joins with prompt 10.
+
+### Workflow rules (`src/server/modules/workflow`, `src/server/db/workflow-store.ts`, `src/server/db/jobs.ts`)
+
+- **Rule** = module (leads, deals, quotes, sales orders) + trigger + optional brand + criteria + actions.
+  Triggers: on create, on edit, field change (from the `scopedDb` write hook), date-based and scheduled (from the
+  scheduler tick). Criteria are AND / OR trees over the module schema (`modules.ts`); the same tree is evaluated
+  in memory and translated to a Prisma `where` for scheduled scans (`src/server/automation/criteria.ts`).
+- **Actions:** field update (whitelisted fields), create task / call, notification, email (outbox event
+  `email.requested`, delivered by prompt 10), webhook (https only, public addresses only, HMAC signature with
+  `WEBHOOK_SECRET`, ids only in the payload), assign owner, call function.
+- **Brand boundary.** Actions run with a system context bound to the record's brand (`automationContext`): every
+  read and write still goes through `scopedDb` + RLS with a single brand-level membership. A rule scoped to HMNL
+  only matches HMNL records, and notifications only reach users who can see the record. Writes made by rules do
+  not trigger rules again (no cascades).
+- **Job queue.** Table `Job` (system-only): `FOR UPDATE SKIP LOCKED` claiming, exponential back-off, `DEAD` after
+  5 attempts, idempotency keys (`wf:<rule>:<record>:<once | updatedAt | day>`) so a scheduled rule fires once per
+  record / staleness episode, and per-action progress so a retry never repeats a completed action. Event jobs
+  run right after the request (`JOBS_INLINE`, on by default); `POST /api/public/cron/tick` (Bearer
+  `CRON_SECRET`) is the heartbeat: scheduled rules, due jobs, activity reminders, approval auto-approvals. pg-boss
+  was not needed at this volume – the table gives the same guarantees and is the run log (Setup → Automation run log).
+- **Seeded rules:** quote / sales order inherit brand and region from the deal (safety net on top of the DB
+  trigger), deal not updated for 7 days → task for the owner + notification to the Brand Manager, hot lead not
+  contacted in 2 hours → escalation to the Brand Manager, deal Closed Won → thank-you task + follow-up call after
+  3 days.
+- **Limits.** Bulk writes (`updateMany`, imports) do not fire event rules; the builder edits one AND group plus one
+  OR group (deeper trees are accepted by the engine and API); approval processes are seeded and tunable (active,
+  auto-approve) – a full process designer is not part of this prompt.
+
+## 16. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.

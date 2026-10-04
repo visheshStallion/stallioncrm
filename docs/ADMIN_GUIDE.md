@@ -212,3 +212,18 @@ standard stages and stages that contain deals cannot be removed).
 - **PDF**: every document prints on the brand's template – logo, legal entity, address, bank details and terms from
   *Setup → Brands*.
 - Users of other brands cannot open, print or list these documents.
+
+## Automation (Setup → Automation)
+
+- **Workflow rules** – create a rule: choose the module, the trigger, an optional brand scope, the criteria and
+  the actions. Use `{{name}}` in task subjects and notification titles to insert the record name. Deactivate a
+  rule instead of deleting it when you may need it again.
+- **Approval processes** – switch a process on or off and set "auto-approve after N hours" per step. Discount
+  thresholds A and B are set per brand in **Brands**.
+- **Automation run log** – every rule run with its result, attempts and last error. Failed runs are retried
+  automatically (up to 5 times); use **Retry** for dead jobs and **Run scheduler now** to evaluate scheduled rules
+  immediately.
+- The scheduler must call `POST /api/public/cron/tick` every minute with `Authorization: Bearer $CRON_SECRET`.
+- A record with a pending approval is locked for everyone except administrators. Requests can be recalled by
+  the requester from the record page.
+

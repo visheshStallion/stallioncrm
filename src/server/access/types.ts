@@ -50,6 +50,8 @@ export interface AccessContext {
    * audit entries have no user. Its memberships still bound what it can create.
    */
   system?: boolean;
+  /** Workflow automation context: its writes do not trigger workflow rules again (no cascades). */
+  automation?: boolean;
 }
 
 /** The minimum shape of a brand-owned record needed for visibility decisions. */

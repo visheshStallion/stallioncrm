@@ -27,6 +27,8 @@ await maintenance(`CREATE DATABASE "${fileDb}" TEMPLATE "${templateDb}"`);
 const fileUrl = new URL(templateUrl);
 fileUrl.pathname = `/${fileDb}`;
 process.env.DATABASE_URL = fileUrl.toString();
+// Workflow jobs run only when a test calls runDueJobs() (no background worker racing the assertions).
+process.env.JOBS_INLINE = "0";
 // Never reuse a client cached on globalThis by a previous file in the same worker.
 delete (globalThis as { __stallionPrisma?: unknown }).__stallionPrisma;
 

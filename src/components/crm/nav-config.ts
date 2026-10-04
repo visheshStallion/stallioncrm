@@ -33,7 +33,7 @@ export const RAIL_ORDER: RailItem[] = [
 ];
 
 /** Shown in the rail before "More" unless the user pinned differently. */
-export const DEFAULT_PINNED = ["home", "leads", "contacts", "accounts", "deals", "activities", "quotes", "salesOrders", "invoices", "products", "reports", "dashboards"];
+export const DEFAULT_PINNED = ["home", "leads", "contacts", "accounts", "deals", "activities", "approvals", "quotes", "salesOrders", "invoices", "products", "reports", "dashboards"];
 
 export interface QuickCreateItem {
   key: string;

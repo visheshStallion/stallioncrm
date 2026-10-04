@@ -307,6 +307,9 @@ async function scopeBrandOwnedArgs(
   return { args: a };
 }
 
+/** Models with workflow rules (src/server/modules/workflow/modules.ts). */
+const WORKFLOW_MODELS = new Set(["Lead", "Deal", "Quote", "SalesOrder"]);
+
 const AUDITED: Record<string, AuditAction> = {
   create: "CREATE",
   createMany: "CREATE",
@@ -384,6 +387,11 @@ function buildScopedDb(ctx: AccessContext) {
 
         if (model && isBrandOwnedModel(model) && operation in AUDITED) {
           await auditWrite(ctx, model, operation, finalArgs, before, result);
+        }
+        // Workflow rules (prompt 08): single creates / updates of rule-enabled modules enqueue matching rules.
+        if (model && WORKFLOW_MODELS.has(model) && (operation === "create" || operation === "update") && !ctx.automation) {
+          const { onRecordWritten } = await import("@/server/modules/workflow/engine");
+          await onRecordWritten(ctx, model, operation, before, result, isObj(finalArgs.data) ? finalArgs.data : {});
         }
         return result;
       },
