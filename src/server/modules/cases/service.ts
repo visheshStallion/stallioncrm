@@ -17,6 +17,7 @@ import { defaultInboundRegion } from "@/server/db/messaging-system";
 import { BadRequestError } from "@/server/errors";
 import { logger } from "@/server/log";
 import { usersWhoCanSee } from "@/server/modules/activities/queries";
+import { prepareCustomFields } from "@/server/modules/customization/service";
 import { assignRecord } from "@/server/modules/leads/assignment";
 import { notify } from "@/server/modules/notifications/service";
 import { automationContext } from "@/server/modules/workflow/engine";
@@ -72,8 +73,10 @@ export async function createCase(ctx: AccessContext, input: CreateCaseInput, opt
   if (!ownerId) throw new BadRequestError("No user is available to own this case – add members to the brand-region territory");
 
   const now = new Date();
+  const customFields = await prepareCustomFields(ctx, "cases", brandId, data, (input as { customFields?: unknown }).customFields);
   const created = await db.case.create({
     data: {
+      customFields,
       subject: data.subject,
       description: data.description,
       type: data.type,
@@ -115,7 +118,9 @@ export async function updateCase(ctx: AccessContext, id: string, input: UpdateCa
   }
   // A new priority restarts the SLA clock from the case's creation.
   const sla = data.priority && data.priority !== current.priority ? await slaDates(ctx, current.brandId, data.priority, new Date(current.createdAt)) : {};
-  await db.case.update({ where: { id: current.id }, data: { ...data, ...(data.customerPhone ? { customerPhone: normalizePhone(data.customerPhone) ?? data.customerPhone } : {}), ...sla }, select: { id: true } });
+  const stored = await db.case.findUniqueOrThrow({ where: { id: current.id }, select: { customFields: true } });
+  const customFields = await prepareCustomFields(ctx, "cases", current.brandId, { ...current, ...data }, (input as { customFields?: unknown }).customFields, stored.customFields);
+  await db.case.update({ where: { id: current.id }, data: { ...data, customFields, ...(data.customerPhone ? { customerPhone: normalizePhone(data.customerPhone) ?? data.customerPhone } : {}), ...sla }, select: { id: true } });
   return { id: current.id };
 }
 

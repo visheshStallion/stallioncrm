@@ -4,6 +4,7 @@ import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { OwnerPicker } from "@/components/crm/fields";
 import { ActivityPanel } from "@/components/crm/ActivityPanel";
 import { MoveRecordCard, PendingApprovals } from "@/components/crm/RecordApprovals";
+import { CustomFieldsSection } from "@/components/crm/CustomFieldsSection";
 import { RecordNav } from "@/components/crm/KeyboardShortcuts";
 import { AttachmentsCard, NotesCard } from "@/components/crm/NotesAttachments";
 import { StatusPill } from "@/components/crm/primitives";
@@ -152,6 +153,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
               <Field label="Trade-in" value={lead.tradeIn ? `Yes${lead.tradeInNotes ? ` – ${lead.tradeInNotes}` : ""}` : "No"} />
               <Field label="Marketing consent" value={lead.consentMarketing ? `Yes (${formatDate(lead.consentAt, df)})` : "No"} />
             </FieldSection>
+            <CustomFieldsSection ctx={ctx} module="leads" id={lead.id} dateFormat={df} />
             {canEdit ? (
               <section className="rounded-lg border border-border bg-surface p-4">
                 <h2 className="mb-2 text-[13px] font-semibold">Change owner</h2>

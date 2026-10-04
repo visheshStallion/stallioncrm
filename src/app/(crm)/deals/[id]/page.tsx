@@ -2,6 +2,7 @@ import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { OwnerPicker } from "@/components/crm/fields";
+import { CustomFieldsSection } from "@/components/crm/CustomFieldsSection";
 import { RecordNav } from "@/components/crm/KeyboardShortcuts";
 import { ActivityPanel } from "@/components/crm/ActivityPanel";
 import { MoveRecordCard, PendingApprovals } from "@/components/crm/RecordApprovals";
@@ -196,6 +197,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
               {lost ? <Field label="Loss reason" value={deal.lossReason} /> : null}
               {lost ? <Field label="Lost to" value={deal.lossCompetitorBrand} /> : null}
             </FieldSection>
+            <CustomFieldsSection ctx={ctx} module="deals" id={deal.id} dateFormat={df} />
             {canEdit ? (
               <section className="rounded-lg border border-border bg-surface p-4">
                 <h2 className="mb-1 text-[13px] font-semibold">Change owner</h2>

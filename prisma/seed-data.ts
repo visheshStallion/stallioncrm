@@ -120,6 +120,8 @@ export const PROFILE_DEFS: Array<{
         reports: { read: true, create: true, edit: true, export: true },
         campaigns: { read: true, create: true, edit: true, massEmail: true },
         ...EXPORT_ACCESS,
+        // imports into the own brand only (enforced per row by the import planner)
+        import: { read: true, create: true },
         // sets targets for the own brand (enforced per brand in the forecasts service)
         forecasts: { read: true, export: true, edit: true },
       },

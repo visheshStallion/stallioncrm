@@ -8,6 +8,7 @@ import type { AccessContext } from "@/server/access/types";
 import { audit, scopedDb } from "@/server/db";
 import { BadRequestError } from "@/server/errors";
 import { moveLeadActivitiesToDeal } from "@/server/modules/activities/service";
+import { prepareCustomFields } from "@/server/modules/customization/service";
 import { assignLead } from "./assignment";
 import { leadName, leadWhere, listLeads } from "./queries";
 import {
@@ -46,10 +47,12 @@ export async function createLead(ctx: AccessContext, input: CreateLeadInput, opt
     ownerId = decision.userId ?? ownerId;
   }
   if (!ownerId) throw new BadRequestError("No user is available to own this lead – configure an assignment rule");
+  const customFields = await prepareCustomFields(ctx, "leads", data.brandId, data, (input as { customFields?: unknown }).customFields);
 
   return scopedDb(ctx).lead.create({
     data: {
       ...data,
+      customFields,
       ownerId,
       consentAt: data.consentMarketing ? new Date() : null,
       utm: undefined,
@@ -73,10 +76,13 @@ export async function updateLead(ctx: AccessContext, id: string, input: UpdateLe
   assertCan(ctx, "leads", "edit", current);
   if (current.status === "CONVERTED") throw new ForbiddenError("Converted leads are read-only");
   await assertProductOfBrand(ctx, data.modelOfInterestId, current.brandId);
+  const stored = await scopedDb(ctx).lead.findUniqueOrThrow({ where: { id } });
+  const customFields = await prepareCustomFields(ctx, "leads", current.brandId, { ...stored, ...data }, (input as { customFields?: unknown }).customFields, stored.customFields);
   return scopedDb(ctx).lead.update({
     where: { id },
     data: {
       ...data,
+      customFields,
       ...(data.consentMarketing !== undefined && data.consentMarketing !== current.consentMarketing
         ? { consentAt: data.consentMarketing ? new Date() : null }
         : {}),

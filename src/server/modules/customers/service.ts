@@ -7,6 +7,7 @@ import type { AccessContext } from "@/server/access/types";
 import { audit, scopedDb } from "@/server/db";
 import { repointCustomerChildren } from "@/server/db/system";
 import { BadRequestError } from "@/server/errors";
+import { prepareCustomFields } from "@/server/modules/customization/service";
 import { getAccount, getContact, listAccounts, listContacts } from "./queries";
 import { ACCOUNT_BASIC_FIELDS, accountSchema, CONTACT_BASIC_FIELDS, contactSchema, type AccountInput, type ContactInput } from "./schema";
 
@@ -22,9 +23,11 @@ export async function createAccount(ctx: AccessContext, input: AccountInput) {
   const data = accountSchema.parse(input);
   // Sensitive fields only for users who would see them on any customer (scope ALL).
   const sensitive = ctx.scope === "ALL";
+  const customFields = await prepareCustomFields(ctx, "accounts", null, data, (input as { customFields?: unknown }).customFields);
   const account = await scopedDb(ctx).account.create({
     data: {
       ...data,
+      customFields,
       rcNumber: data.rcNumber, // RC number may be captured at creation by anyone (needed for dedupe)
       creditLimit: sensitive ? data.creditLimit : null,
       kycStatus: sensitive ? data.kycStatus ?? "NOT_STARTED" : "NOT_STARTED",
@@ -49,7 +52,8 @@ export async function updateAccount(ctx: AccessContext, id: string, input: Parti
   if (denied.length) throw new ForbiddenError(`You cannot change: ${denied.join(", ")}`);
   const data = pick(parsed, input, allowed);
   if (data.name !== undefined && !data.name) throw new BadRequestError("Name is required");
-  const after = await db.account.update({ where: { id }, data: { ...data, updatedById: ctx.userId } });
+  const customFields = await prepareCustomFields(ctx, "accounts", null, { ...before, ...data }, (input as { customFields?: unknown }).customFields, before.customFields);
+  const after = await db.account.update({ where: { id }, data: { ...data, customFields, updatedById: ctx.userId } });
   await audit({ ctx, action: "UPDATE", entity: "Account", entityId: id, before, after });
   return { id };
 }
@@ -63,7 +67,8 @@ export async function createContact(ctx: AccessContext, input: ContactInput) {
   if (data.accountId && !(await db.account.findFirst({ where: { id: data.accountId, deletedAt: null }, select: { id: true } }))) {
     throw new BadRequestError("Unknown account");
   }
-  const contact = await db.contact.create({ data: { ...data, ownerId: ctx.userId, createdById: ctx.userId, updatedById: ctx.userId } });
+  const customFields = await prepareCustomFields(ctx, "contacts", null, data, (input as { customFields?: unknown }).customFields);
+  const contact = await db.contact.create({ data: { ...data, customFields, ownerId: ctx.userId, createdById: ctx.userId, updatedById: ctx.userId } });
   await audit({ ctx, action: "CREATE", entity: "Contact", entityId: contact.id, after: contact });
   return { id: contact.id };
 }
@@ -77,7 +82,8 @@ export async function updateContact(ctx: AccessContext, id: string, input: Parti
   const allowed = writableFields(current.tier, CONTACT_TIERS, CONTACT_BASIC_FIELDS);
   const denied = Object.keys(input).filter((k) => k in contactSchema.shape && !allowed.has(k));
   if (denied.length) throw new ForbiddenError(`You cannot change: ${denied.join(", ")}`);
-  const after = await db.contact.update({ where: { id }, data: { ...pick(parsed, input, allowed), updatedById: ctx.userId } });
+  const customFields = await prepareCustomFields(ctx, "contacts", null, { ...before, ...parsed }, (input as { customFields?: unknown }).customFields, before.customFields);
+  const after = await db.contact.update({ where: { id }, data: { ...pick(parsed, input, allowed), customFields, updatedById: ctx.userId } });
   await audit({ ctx, action: "UPDATE", entity: "Contact", entityId: id, before, after });
   return { id };
 }

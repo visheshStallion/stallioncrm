@@ -7,6 +7,7 @@ import type { AccessContext } from "@/server/access/types";
 import { isManagerOf } from "@/server/access/visibility";
 import { audit, scopedDb } from "@/server/db";
 import { BadRequestError } from "@/server/errors";
+import { prepareCustomFields } from "@/server/modules/customization/service";
 import { assertAdmin } from "@/server/modules/admin/guard";
 import { onDealStageChanged } from "@/server/modules/catalogue/service";
 import {
@@ -60,7 +61,8 @@ export async function createDeal(ctx: AccessContext, input: CreateDealInput) {
   const data = createDealSchema.parse(input);
   assertCan(ctx, "deals", "create", { brandId: data.brandId, regionId: data.regionId });
   await assertRefs(ctx, data.brandId, data);
-  return guarded(() => scopedDb(ctx).deal.create({ data: { ...data, ownerId: data.ownerId ?? ctx.userId }, select: { id: true } }));
+  const customFields = await prepareCustomFields(ctx, "deals", data.brandId, data, (input as { customFields?: unknown }).customFields);
+  return guarded(() => scopedDb(ctx).deal.create({ data: { ...data, customFields, ownerId: data.ownerId ?? ctx.userId }, select: { id: true } }));
 }
 
 /**
@@ -80,6 +82,8 @@ export async function updateDeal(ctx: AccessContext, id: string, input: UpdateDe
     data.regionId = input.regionId;
   }
   await assertRefs(ctx, current.brandId, data);
+  const stored = await scopedDb(ctx).deal.findUniqueOrThrow({ where: { id }, select: { customFields: true } });
+  data.customFields = await prepareCustomFields(ctx, "deals", current.brandId, { ...current, ...data }, (input as { customFields?: unknown }).customFields, stored.customFields);
   return guarded(() => scopedDb(ctx).deal.update({ where: { id }, data, select: { id: true } }));
 }
 

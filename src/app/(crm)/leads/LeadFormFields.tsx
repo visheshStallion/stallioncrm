@@ -54,7 +54,7 @@ export interface LeadFormValues {
 
 function Field({ label, htmlFor, children, required }: { label: string; htmlFor: string; children: React.ReactNode; required?: boolean }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1" data-field={htmlFor}>
       <Label htmlFor={htmlFor}>
         {label}
         {required ? <Required /> : null}

@@ -5,6 +5,7 @@ import { ViewActions } from "@/components/crm/ViewActions";
 import { can, hasPermission } from "@/server/access/can";
 import { scopedDb } from "@/server/db";
 import { conditionsToWhere, parseConditions, parsePaging, SYSTEM_FILTERS, systemFilterWhere } from "@/server/list/filters";
+import { customFilterFields } from "@/server/modules/customization/service";
 import { leadFilterFields, listLeads, listSavedViews } from "@/server/modules/leads/queries";
 import { parseLeadFilters, type LeadFilters } from "@/server/modules/leads/schema";
 import { getDirectory } from "@/server/modules/org/queries";
@@ -47,7 +48,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const system = SYSTEM_VIEWS.find((v) => v.id === viewId);
   const saved = savedViews.find((v) => v.id === viewId);
   const savedFilters = (saved?.filters ?? {}) as Record<string, unknown>;
-  const fields = leadFilterFields({ brands: dir.myBrands, regions: dir.myRegions, users });
+  const fields = [...leadFilterFields({ brands: dir.myBrands, regions: dir.myRegions, users }), ...(await customFilterFields(ctx, "leads"))];
 
   // The view's filters, then the user's panel filters on top (they narrow, never replace).
   const base: LeadFilters = system ? system.filters() : saved ? parseLeadFilters(savedFilters as Record<string, string>) : SYSTEM_VIEWS[1]!.filters();
@@ -89,6 +90,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           <ActionsMenu>
             <ViewActions module="leads" filters={{ ...base, ...(q ? { q } : {}), f: conditions.map((c) => [c.field, c.op, c.value ?? "", c.value2 ?? ""].join("~")), ...(sys ? { sys } : {}) }} savedViewId={saved?.id ?? null} />
             {exportHref ? <MenuItem href={exportHref}>Export view (CSV)</MenuItem> : null}
+            {exportHref ? <MenuItem href={exportHref.replace("/api/v1/leads/export?", "/api/v1/export/leads?format=xlsx&")}>Export view (XLSX)</MenuItem> : null}
           </ActionsMenu>
           <LayoutToggle layout={layout} />
         </>

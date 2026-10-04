@@ -19,6 +19,8 @@ export interface FieldDef {
   /** Filter on a to-one relation's column: { relation: "stage", column: "key" } → where: { stage: { key: … } }. */
   relation?: string;
   column?: string;
+  /** Custom field: filter on customFields-><jsonPath> (text / enum / number / boolean). */
+  jsonPath?: string;
 }
 
 export interface Condition {
@@ -91,7 +93,32 @@ function isValid(def: FieldDef, c: Condition): boolean {
 
 type Where = Record<string, unknown>;
 
+/** Custom fields live in the JSONB column "customFields"; Prisma's JSON path filters translate to ->> expressions. */
+function jsonLeaf(def: FieldDef, c: Condition): Where {
+  const at = (cond: Where): Where => ({ customFields: { path: [def.jsonPath!], ...cond } });
+  const value = (v: string | undefined) => (def.type === "number" ? Number(v) : def.type === "boolean" ? v === "true" : (v ?? ""));
+  switch (c.op) {
+    case "is":
+      return def.type === "enum" ? { OR: (c.value ?? "").split(",").map((v) => at({ equals: v })) } : at({ equals: value(c.value) });
+    case "isnt":
+      return { NOT: def.type === "enum" ? { OR: (c.value ?? "").split(",").map((v) => at({ equals: v })) } : at({ equals: value(c.value) }) };
+    case "contains":
+      return at({ string_contains: c.value ?? "" });
+    case "startsWith":
+      return at({ string_starts_with: c.value ?? "" });
+    case "gt":
+      return at({ gt: Number(c.value) });
+    case "lt":
+      return at({ lt: Number(c.value) });
+    case "between":
+      return { AND: [at({ gte: def.type === "number" ? Number(c.value) : c.value }), at({ lte: def.type === "number" ? Number(c.value2) : c.value2 })] };
+    default:
+      return {};
+  }
+}
+
 function one(def: FieldDef, c: Condition, now: Date): Where {
+  if (def.jsonPath) return jsonLeaf(def, c);
   const where = leaf(def, c, now);
   return def.relation ? { [def.relation]: where } : where;
 }

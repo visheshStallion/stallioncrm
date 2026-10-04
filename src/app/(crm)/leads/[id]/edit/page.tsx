@@ -1,10 +1,13 @@
 import { forbidden, notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { BrandBadge } from "@/components/BrandBadge";
+import { CustomFieldsForm } from "@/components/crm/CustomFields";
 import { PageTitleRow } from "@/components/crm/primitives";
 import { StickyFormFooter } from "@/components/crm/record";
 import { can } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
+import { scopedDb } from "@/server/db";
+import { customFormProps, storedCustomValues } from "@/server/modules/customization/form";
 import { updateLeadAction } from "@/server/modules/leads/actions";
 import { getLead, leadFormLookups } from "@/server/modules/leads/queries";
 import { getDirectory } from "@/server/modules/org/queries";
@@ -21,7 +24,7 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
     throw e;
   });
   if (lead.status === "CONVERTED" || !can(ctx, "leads", "edit", lead)) forbidden();
-  const [lookups, dir] = await Promise.all([leadFormLookups(ctx), getDirectory(ctx)]);
+  const [lookups, dir, custom, stored] = await Promise.all([leadFormLookups(ctx), getDirectory(ctx), customFormProps(ctx, "leads"), scopedDb(ctx).lead.findUnique({ where: { id }, select: { customFields: true } })]);
   const brand = dir.brands.find((b) => b.id === lead.brandId);
   const region = dir.regions.find((r) => r.id === lead.regionId);
   // The edit form needs the lead's own brand / region even if the user could not create there.
@@ -36,6 +39,7 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
       <ActionForm action={updateLeadAction} className="space-y-4">
         <input type="hidden" name="id" value={lead.id} />
         <LeadFormFields lookups={formLookups} values={lead} mode="edit" />
+        <CustomFieldsForm {...custom} fixedBrandId={lead.brandId} values={storedCustomValues(stored)} />
         <StickyFormFooter cancelHref={`/leads/${lead.id}`}>
           <SubmitButton>Save</SubmitButton>
         </StickyFormFooter>

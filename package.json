@@ -18,6 +18,7 @@
     "test:integration": "vitest run --project integration",
     "test:watch": "vitest",
     "e2e": "playwright test --project=e2e",
+    "backup:decrypt": "node --import tsx scripts/decrypt-backup.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",

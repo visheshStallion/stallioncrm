@@ -20,7 +20,7 @@ interface Lookups {
 
 function F({ label, id, required, children, hint }: { label: string; id: string; required?: boolean; children: React.ReactNode; hint?: string }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1" data-field={id}>
       <Label htmlFor={id}>
         {label}
         {required ? <Required /> : null}

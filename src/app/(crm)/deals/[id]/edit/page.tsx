@@ -1,11 +1,14 @@
 import { forbidden, notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { BrandBadge } from "@/components/BrandBadge";
+import { CustomFieldsForm } from "@/components/crm/CustomFields";
 import { PageTitleRow } from "@/components/crm/primitives";
 import { StickyFormFooter } from "@/components/crm/record";
 import { can } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
 import { isManagerOf } from "@/server/access/visibility";
+import { scopedDb } from "@/server/db";
+import { customFormProps, storedCustomValues } from "@/server/modules/customization/form";
 import { updateDealFormAction } from "@/server/modules/deals/actions";
 import { dealFormLookups, getDeal } from "@/server/modules/deals/queries";
 import { getDirectory } from "@/server/modules/org/queries";
@@ -22,7 +25,7 @@ export default async function EditDealPage({ params }: { params: Promise<{ id: s
     throw e;
   });
   if (!can(ctx, "deals", "edit", deal)) forbidden();
-  const [dir, extra] = await Promise.all([getDirectory(ctx), dealFormLookups(ctx)]);
+  const [dir, extra, custom, stored] = await Promise.all([getDirectory(ctx), dealFormLookups(ctx), customFormProps(ctx, "deals"), scopedDb(ctx).deal.findUnique({ where: { id }, select: { customFields: true } })]);
   const brand = dir.brands.find((b) => b.id === deal.brandId);
   return (
     <div className="mx-auto max-w-5xl">
@@ -35,6 +38,7 @@ export default async function EditDealPage({ params }: { params: Promise<{ id: s
           canChangeRegion={isManagerOf(ctx, deal.brandId, deal.regionId)}
           lookups={{ brands: dir.brands, regions: dir.regions, defaultBrandId: null, defaultRegionId: null, ...extra }}
         />
+        <CustomFieldsForm {...custom} fixedBrandId={deal.brandId} values={storedCustomValues(stored)} />
         <StickyFormFooter cancelHref={`/deals/${deal.id}`}>
           <SubmitButton>Save</SubmitButton>
         </StickyFormFooter>

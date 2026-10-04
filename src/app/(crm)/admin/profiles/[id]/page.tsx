@@ -8,6 +8,8 @@ import { parseFieldPermissions, parsePermissions } from "@/server/access/permiss
 import { ACTIONS } from "@/server/access/types";
 import { saveFieldPermissionsAction, savePermissionsAction } from "@/server/modules/admin/actions";
 import { getProfile, profileModuleFields } from "@/server/modules/admin/queries";
+import { cfKey } from "@/server/modules/customization/engine";
+import { listCustomFields } from "@/server/modules/customization/service";
 import { requireContext } from "@/server/request";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +35,8 @@ export default async function ProfilePage({
   const fieldPerms = parseFieldPermissions(profile.fieldPermissions);
   const tab = sp.tab === "fields" ? "fields" : "permissions";
   const moduleKey: ModuleKey = sp.module && isModuleKey(sp.module) ? sp.module : "accounts";
-  const fields = profileModuleFields(moduleKey, profile.fieldPermissions);
+  const custom = (await listCustomFields(ctx, moduleKey)).map((c) => cfKey(c.apiName));
+  const fields = [...new Set([...profileModuleFields(moduleKey, profile.fieldPermissions), ...custom])];
 
   return (
     <div className="space-y-4">

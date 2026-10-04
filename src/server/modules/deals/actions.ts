@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { safeAction, type ActionResult } from "@/server/api";
 import { BadRequestError } from "@/server/errors";
+import { customFromForm } from "@/server/modules/customization/form";
 import * as notes from "@/server/modules/notes/service";
 import { requireContext } from "@/server/request";
 import { DEAL_FIELD_KEYS, type UpdateDealInput } from "./schema";
@@ -16,7 +17,7 @@ const fields = (fd: FormData) => Object.fromEntries(DEAL_FIELD_KEYS.filter((k) =
 export async function createDealFormAction(_prev: unknown, fd: FormData): Promise<ActionResult<Outcome>> {
   return safeAction(async () => {
     const ctx = await requireContext();
-    const deal = await svc.createDeal(ctx, { ...fields(fd), brandId: str(fd, "brandId"), regionId: str(fd, "regionId"), pipelineId: str(fd, "pipelineId") } as never);
+    const deal = await svc.createDeal(ctx, { ...fields(fd), brandId: str(fd, "brandId"), regionId: str(fd, "regionId"), pipelineId: str(fd, "pipelineId"), customFields: customFromForm(fd) } as never);
     revalidatePath("/deals");
     return { message: "Deal created successfully", redirect: fd.get("_saveAndNew") ? "/deals/new" : `/deals/${deal.id}` };
   });
@@ -26,7 +27,7 @@ export async function updateDealFormAction(_prev: unknown, fd: FormData): Promis
   return safeAction(async () => {
     const ctx = await requireContext();
     const id = str(fd, "id");
-    await svc.updateDeal(ctx, id, { ...fields(fd), ...(fd.has("regionId") ? { regionId: str(fd, "regionId") } : {}) } as never);
+    await svc.updateDeal(ctx, id, { ...fields(fd), ...(fd.has("regionId") ? { regionId: str(fd, "regionId") } : {}), customFields: customFromForm(fd) } as never);
     revalidatePath(`/deals/${id}`);
     return { message: "Deal updated successfully", redirect: `/deals/${id}` };
   });

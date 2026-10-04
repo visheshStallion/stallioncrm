@@ -5,6 +5,7 @@ import { can, hasPermission } from "@/server/access/can";
 import { scopedDb } from "@/server/db";
 import { conditionsToWhere, parseConditions, parsePaging, SYSTEM_FILTERS, systemFilterWhere } from "@/server/list/filters";
 import { listSavedViews } from "@/server/modules/leads/queries";
+import { customFilterFields } from "@/server/modules/customization/service";
 import { dealFilterFields, dealFormLookups, listDeals, listPipelines, OPEN_DEALS } from "@/server/modules/deals/queries";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getColumnLayout, getPreferences } from "@/server/modules/preferences/queries";
@@ -56,7 +57,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
   const boards = selected ? [selected] : pipelines.filter((p) => p.isDefault);
 
   const stageKeys = [...new Map((selected ? selected.stages : pipelines.flatMap((p) => p.stages)).map((s) => [s.key, { key: s.key, name: s.name }])).values()];
-  const fields = dealFilterFields({ brands: dir.myBrands, regions: dir.myRegions, users, stageKeys });
+  const fields = [...dealFilterFields({ brands: dir.myBrands, regions: dir.myRegions, users, stageKeys }), ...(await customFilterFields(ctx, "deals"))];
   const urlConds = parseConditions(sp.f, fields);
   const conditions = urlConds.length ? urlConds : saved ? parseConditions(savedFilters.f, fields) : [];
   const q = (one(sp.q) ?? (saved ? savedFilters.q : undefined))?.trim();

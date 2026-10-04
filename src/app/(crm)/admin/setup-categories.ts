@@ -44,7 +44,7 @@ export const SETUP_CATEGORIES: SetupCategory[] = [
     description: "Modules, fields, layouts and pipelines",
     items: [
       { href: "/admin/pipelines", label: "Pipelines & Blueprint", available: true },
-      { href: "/admin/customization", label: "Fields & layouts", available: false },
+      { href: "/admin/customization", label: "Fields & layouts", available: true },
     ],
   },
   {
@@ -62,7 +62,11 @@ export const SETUP_CATEGORIES: SetupCategory[] = [
     key: "data",
     title: "Data Administration",
     description: "Audit log, import, export and storage",
-    items: [{ href: "/admin/audit", label: "Audit log", available: true }],
+    items: [
+      { href: "/admin/audit", label: "Audit log", available: true },
+      { href: "/imports", label: "Import data", available: true },
+      { href: "/exports", label: "Export & backup", available: true },
+    ],
   },
   {
     key: "developer",

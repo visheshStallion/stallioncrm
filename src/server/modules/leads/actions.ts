@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { safeAction, type ActionResult } from "@/server/api";
 import { BadRequestError } from "@/server/errors";
+import { customFromForm } from "@/server/modules/customization/form";
 import { requireContext } from "@/server/request";
 import * as rules from "./assignment-admin";
 import { findDuplicates } from "./queries";
@@ -39,7 +40,7 @@ export async function createLeadAction(_p: unknown, fd: FormData): Promise<Actio
     const ctx = await requireContext();
     const lead = await svc.createLead(
       ctx,
-      { ...leadInput(fd), brandId: str(fd, "brandId"), ownerId: str(fd, "ownerId") || undefined },
+      { ...leadInput(fd), brandId: str(fd, "brandId"), ownerId: str(fd, "ownerId") || undefined, customFields: customFromForm(fd) } as CreateLeadInput,
       { autoAssign: fd.get("autoAssign") === "on" },
     );
     revalidatePath("/leads");
@@ -51,7 +52,7 @@ export async function updateLeadAction(_p: unknown, fd: FormData): Promise<Actio
   return safeAction(async () => {
     const ctx = await requireContext();
     const id = str(fd, "id");
-    await svc.updateLead(ctx, id, leadInput(fd) as UpdateLeadInput);
+    await svc.updateLead(ctx, id, { ...leadInput(fd), customFields: customFromForm(fd) } as UpdateLeadInput);
     revalidatePath(`/leads/${id}`);
     return { message: "Lead updated successfully", redirect: `/leads/${id}` };
   });

@@ -88,6 +88,8 @@ model Brand {
   cases             Case[]
   slaPolicies       SlaPolicy[]
   solutions         Solution[]
+  customFields      CustomField[]
+  layouts           Layout[]
 }
 
 /// Legacy company codes (e.g. from the HR rep file) mapped to a brand. Configurable, never hard-coded.
@@ -220,6 +222,9 @@ model User {
   forecastNotes      ForecastNote[]
   ownedMessages      Message[]         @relation("MessageOwner")
   ownedCases         Case[]            @relation("CaseOwner")
+  importJobs         ImportJob[]
+  importMappings     ImportMapping[]
+  exportJobs         ExportJob[]
 }
 
 model TerritoryMember {
@@ -374,6 +379,8 @@ model Deal {
   invoices     Invoice[]
   campaign     Campaign?          @relation(fields: [campaignId], references: [id])
   cases        Case[]
+  /// values of custom fields by api name (prompt 12); validated against the CustomField definitions
+  customFields Json               @default("{}")
 
   /// VIN / chassis number is unique per brand
   @@unique([brandId, vinChassisNo])
@@ -496,10 +503,12 @@ model Account {
   /// set when this record was merged into another (soft-deleted)
   mergedIntoId     String?
 
-  contacts   Contact[]
-  deals      Deal[]
-  brandLinks CustomerBrandLink[]
-  cases      Case[]
+  contacts     Contact[]
+  deals        Deal[]
+  brandLinks   CustomerBrandLink[]
+  cases        Case[]
+  /// values of custom fields by api name (prompt 12); validated against the CustomField definitions
+  customFields Json                @default("{}")
 
   @@index([phone])
   @@index([email])
@@ -536,6 +545,8 @@ model Contact {
   consents        ContactBrandConsent[]
   campaignMembers CampaignMember[]
   cases           Case[]
+  /// values of custom fields by api name (prompt 12); validated against the CustomField definitions
+  customFields    Json                  @default("{}")
 
   @@index([mobile])
   @@index([email])
@@ -772,6 +783,8 @@ model Lead {
   campaignId      String?
   campaign        Campaign?        @relation(fields: [campaignId], references: [id])
   campaignMembers CampaignMember[]
+  /// values of custom fields by api name (prompt 12); validated against the CustomField definitions
+  customFields    Json             @default("{}")
 
   @@index([brandId, regionId])
   @@index([ownerId])
@@ -1709,18 +1722,20 @@ model Case {
   surveySentAt       DateTime?
 
   // ── brand-owned base mixin ──
-  brandId     String
-  brand       Brand     @relation(fields: [brandId], references: [id])
-  regionId    String
-  region      Region    @relation(fields: [regionId], references: [id])
-  territoryId String?
-  ownerId     String
-  owner       User      @relation("CaseOwner", fields: [ownerId], references: [id])
-  createdById String?
-  updatedById String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+  brandId      String
+  brand        Brand     @relation(fields: [brandId], references: [id])
+  regionId     String
+  region       Region    @relation(fields: [regionId], references: [id])
+  territoryId  String?
+  ownerId      String
+  owner        User      @relation("CaseOwner", fields: [ownerId], references: [id])
+  createdById  String?
+  updatedById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  /// values of custom fields by api name (prompt 12); validated against the CustomField definitions
+  customFields Json      @default("{}")
 
   @@index([brandId, regionId])
   @@index([ownerId, status])
@@ -1775,4 +1790,133 @@ model BusinessHours {
 model Holiday {
   date DateTime @id @db.Date
   name String
+}
+
+// ───────────────────────── Data tools: import, export, custom fields & layouts (prompt 12) ─────────────────────────
+
+/// Custom field of a module. brandId NULL = all brands; otherwise the field exists only on that brand's records.
+model CustomField {
+  id           String   @id @default(cuid())
+  /// leads | deals | accounts | contacts | cases
+  module       String
+  /// key inside the record's customFields JSON (camelCase, immutable)
+  apiName      String
+  label        String
+  /// TEXT | NUMBER | CURRENCY | DATE | PICKLIST | MULTI_PICKLIST | LOOKUP | BOOLEAN | FORMULA
+  type         String
+  options      String[] @default([])
+  /// LOOKUP: users | products
+  lookupTarget String?
+  /// FORMULA: expression of the safe formula engine
+  formula      String?
+  brandId      String?
+  brand        Brand?   @relation(fields: [brandId], references: [id])
+  required     Boolean  @default(false)
+  /// an expression index exists for filtering / sorting on this field
+  indexed      Boolean  @default(false)
+  active       Boolean  @default(true)
+  position     Int      @default(0)
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([module, apiName])
+  @@index([module, brandId])
+}
+
+/// Layout of a module (sections of the custom-field block, required flags, layout rules). brandId = per-brand variant.
+model Layout {
+  id          String   @id @default(cuid())
+  module      String
+  brandId     String?
+  brand       Brand?   @relation(fields: [brandId], references: [id])
+  definition  Json     @default("{}")
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  @@index([module])
+}
+
+enum ImportStatus {
+  DRAFT
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+  UNDONE
+}
+
+/// One import run. The uploaded rows are kept in `data` only until the job has run.
+model ImportJob {
+  id         String       @id @default(cuid())
+  module     String
+  fileName   String
+  status     ImportStatus @default(DRAFT)
+  /// column mapping, value mapping, dedupe rule, defaults
+  mapping    Json         @default("{}")
+  /// parsed rows of the file (header first) – deleted when the job finishes
+  data       Json?
+  /// { total, created, updated, skipped, failed, byBrand }
+  summary    Json?
+  /// row problems of the run: [{ line, message }]
+  problems   Json?
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime     @default(now())
+  startedAt  DateTime?
+  finishedAt DateTime?
+  undoneAt   DateTime?
+
+  records ImportRecord[]
+
+  @@index([userId, createdAt])
+}
+
+/// A record created or updated by an import (undo soft-deletes the created ones).
+model ImportRecord {
+  id       String    @id @default(cuid())
+  importId String
+  import   ImportJob @relation(fields: [importId], references: [id], onDelete: Cascade)
+  model    String
+  recordId String
+  /// CREATED | UPDATED
+  action   String
+
+  @@index([importId])
+}
+
+/// Saved column / value mapping (e.g. "Zoho Deals export").
+model ImportMapping {
+  id        String   @id @default(cuid())
+  name      String
+  module    String
+  mapping   Json
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// visible to every importer (not only the author)
+  shared    Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, module, name])
+}
+
+/// Large export running as a job; the file expires.
+model ExportJob {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module     String
+  format     String
+  params     Json      @default("{}")
+  /// QUEUED | RUNNING | DONE | FAILED | EXPIRED
+  status     String    @default("QUEUED")
+  rowCount   Int?
+  fileName   String?
+  storageKey String?
+  error      String?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([userId, createdAt])
 }

@@ -1,8 +1,10 @@
 import { forbidden } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
+import { CustomFieldsForm } from "@/components/crm/CustomFields";
 import { PageTitleRow } from "@/components/crm/primitives";
 import { StickyFormFooter } from "@/components/crm/record";
 import { hasPermission } from "@/server/access/can";
+import { customFormProps } from "@/server/modules/customization/form";
 import { createDealFormAction } from "@/server/modules/deals/actions";
 import { dealFormLookups } from "@/server/modules/deals/queries";
 import { leadFormLookups } from "@/server/modules/leads/queries";
@@ -15,7 +17,7 @@ export default async function NewDealPage({ searchParams }: { searchParams: Prom
   const { accountId } = await searchParams;
   const ctx = await requireContext();
   if (!hasPermission(ctx, "deals", "create")) forbidden();
-  const [base, extra] = await Promise.all([leadFormLookups(ctx), dealFormLookups(ctx)]);
+  const [base, extra, custom] = await Promise.all([leadFormLookups(ctx), dealFormLookups(ctx), customFormProps(ctx, "deals")]);
   return (
     <div className="mx-auto max-w-5xl">
       <PageTitleRow title="Create Deal" />
@@ -26,6 +28,7 @@ export default async function NewDealPage({ searchParams }: { searchParams: Prom
           values={{ accountId: accountId ?? null }}
           lookups={{ brands: base.brands, regions: base.regions, defaultBrandId: base.defaultBrandId, defaultRegionId: base.defaultRegionId, ...extra }}
         />
+        <CustomFieldsForm {...custom} />
         <StickyFormFooter
           cancelHref="/deals"
           saveAndNew={

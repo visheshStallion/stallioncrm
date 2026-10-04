@@ -519,7 +519,39 @@ Module `src/server/modules/cases` (`schema`, `queries`, `service`, `admin`, `bus
 - **Reports.** The report builder has a Cases module; standard reports: cases by brand and type, SLA compliance,
   customer satisfaction.
 
-## 19. Local development
+## 19. Import, export & customization (prompt 12)
+
+Modules `src/server/modules/{imports,exports,customization}`, system helpers `src/server/db/{backup,customization-system}.ts`,
+UI under `/imports`, `/exports` and `/admin/customization`. Runbook: [MIGRATION_FROM_ZOHO.md](MIGRATION_FROM_ZOHO.md).
+
+- **Import wizard.** Upload (CSV / XLSX, parsed by `src/lib/xlsx-read.ts`, max 5 MB / 5,000 rows) → column and
+  value mapping (Zoho column names and stage names recognised, legacy company codes through brand aliases,
+  saved mapping templates) → **dry run** (`imports/plan.ts`, a pure function: per row the resolved brand, the
+  action and its errors) → commit as job `import.run` → result and **undo** (`ImportRecord` remembers what an
+  import created). The plan is rebuilt at commit time, never trusted from the browser.
+- **Brand isolation.** Rows are written through `scopedDb` with the importer's context, so RLS applies. Brand
+  Managers may import into their own brands only: a row resolving to another brand is an error – never
+  re-mapped. `ImportJob`s are visible to their owner and administrators.
+- **Exports.** `GET /api/v1/export/<module>?format=csv|xlsx` reuses the list queries, so scoping, masking and
+  filters are those of the list view; profile field permissions are applied again per column. Needs the
+  module's `export` permission; every export is audited with its filters and row count. Above
+  `EXPORT_SYNC_LIMIT` rows the export becomes job `export.run`, built with the requester's access *at run
+  time*; the file is stored for 24 hours, downloadable by its owner only and purged by the scheduler tick.
+- **Full backup.** `POST /api/v1/admin/backup` (administrators; 404 otherwise): one CSV per table in a zip,
+  encrypted with AES-256-GCM (scrypt key from the passphrase, `src/lib/backup-crypto.ts`). The passphrase
+  travels in the POST body and is never stored; secrets such as password hashes are excluded.
+- **Custom fields.** Definitions in `CustomField` (per module, optionally per brand), values in the record's
+  `customFields` JSONB. `customization/engine.ts` validates values against the definitions that apply to the
+  record's brand (values of other brands' fields are dropped), computes formula fields with the safe expression
+  parser `src/server/automation/formula.ts` (no `eval`) and feeds list filters (`jsonPath`). Definitions of
+  a brand are hidden from other brands by RLS. An administrator can switch on an expression index per field.
+  Field-level security uses the key `cf_<apiName>` in the profile's field permissions.
+- **Layouts.** `Layout` per module with optional brand variants: sections of the custom-field block,
+  additionally required fields and rules (SHOW / HIDE / REQUIRE fields WHEN a field matches). Rules are
+  evaluated in the browser for the form and **again on the server** when saving. Standard fields keep their
+  position; forms for custom fields exist on leads and deals, other modules take them through the API.
+
+## 20. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.

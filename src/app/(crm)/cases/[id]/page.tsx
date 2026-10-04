@@ -2,6 +2,7 @@ import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { ActivityPanel } from "@/components/crm/ActivityPanel";
+import { CustomFieldsSection } from "@/components/crm/CustomFieldsSection";
 import { AttachmentsCard, NotesCard } from "@/components/crm/NotesAttachments";
 import { StatusPill } from "@/components/crm/primitives";
 import { Field, FieldSection, RecordHeader, RelatedListCard, RelatedNav } from "@/components/crm/record";
@@ -134,6 +135,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
             {c.resolution ? <Field label="Resolution" value={<span className="whitespace-pre-wrap">{c.resolution}</span>} /> : null}
             <Field label="Satisfaction" value={c.satisfactionScore ? `${c.satisfactionScore} / 5${c.satisfactionNote ? ` – “${c.satisfactionNote}”` : ""}` : c.surveySentAt ? "Survey sent, no answer yet" : null} />
           </FieldSection>
+          <CustomFieldsSection ctx={ctx} module="cases" id={c.id} dateFormat={df} />
           {canEdit ? (
             <section className="rounded-lg border border-border bg-surface p-4" id="work">
               <h2 className="mb-2 text-[13px] font-semibold">Status &amp; Resolution</h2>

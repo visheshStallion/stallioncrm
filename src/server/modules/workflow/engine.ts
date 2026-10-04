@@ -273,6 +273,8 @@ const HANDLERS: Record<string, (job: Job) => Promise<unknown>> = {
   "workflow.rule": executeRule,
   // lazy imports: the messaging module itself uses the automation context of this file
   "campaign.batch": async (job) => (await import("@/server/modules/messaging/campaigns")).processCampaignBatch(job),
+  "import.run": async (job) => (await import("@/server/modules/imports/service")).runImport(job),
+  "export.run": async (job) => (await import("@/server/modules/exports/service")).runExport(job),
   "email.users": async (job) => {
     const p = job.payload as { userIds: string[]; subject: string; text: string; brandId?: string | null };
     return { sent: await (await import("@/server/modules/messaging/service")).emailUsers(p.userIds, p.subject, p.text, p.brandId) };
@@ -318,5 +320,6 @@ export async function tick(now = new Date()) {
   const jobs = await runDueJobs(100);
   const reminders = await processReminders(automationContext("", "ALL"), now);
   const autoApproved = (await autoApproveDue(now)).length;
-  return { scheduled, ...jobs, reminders, autoApproved };
+  const expiredExports = await (await import("@/server/modules/exports/service")).purgeExpiredExports();
+  return { scheduled, ...jobs, reminders, autoApproved, expiredExports };
 }

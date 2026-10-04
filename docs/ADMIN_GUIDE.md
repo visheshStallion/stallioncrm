@@ -267,3 +267,21 @@ standard stages and stages that contain deals cannot be removed).
   `email`, `type`, `region`, `vin`.
 - **Solutions**: brand managers write articles for their brand; management and administrators write group articles.
 
+
+## Import, export & customization
+
+- **Import data** (Setup → Data Administration → Import data): see [MIGRATION_FROM_ZOHO.md](MIGRATION_FROM_ZOHO.md).
+  Administrators import into any brand, Brand Managers into their own. Always read the dry run before starting;
+  an import can be undone from the history.
+- **Exports** (`/exports` or "Export view" on a list): allowed by the `Export` permission of the profile per
+  module. Large exports are prepared in the background (needs the scheduler tick); links expire after 24 hours.
+- **Full backup** (`/exports`, administrators): choose a passphrase of at least 12 characters and keep it in the
+  password manager – it is not stored and the file cannot be opened without it. Decrypt with
+  `pnpm backup:decrypt <file.zip.enc> <out.zip>`.
+- **Custom fields** (Setup → Fields & layouts): key, module, type and brand cannot change after creation;
+  deactivate a field instead of deleting it (values are kept). Brand-specific fields exist only on that brand's
+  records. Use "Index" for fields that are filtered often on large modules. Set who may see or edit a field in
+  Setup → Profiles → Field permissions (key `cf_…`).
+- **Layouts**: one default per module plus optional brand variants. Notation, one item per line –
+  sections `Title: cf_a, cf_b`; rules `REQUIRE cf_financeBank WHEN paymentType eq FINANCE`
+  (actions SHOW, HIDE, REQUIRE; operators eq, neq, in, isEmpty, notEmpty, gt, lt).
