@@ -13,7 +13,7 @@ import { FilterBar } from "./FilterBar";
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireContext();
   const [dir, filters] = await Promise.all([getDirectory(ctx), getUiFilters(ctx)]);
-  const nav = MODULES.filter((m) => hasPermission(ctx, m.key, "read"));
+  const nav = MODULES.filter((m) => m.nav && hasPermission(ctx, m.key, "read"));
 
   return (
     <div className="flex min-h-screen">
@@ -51,7 +51,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           />
           <div className="ml-auto flex items-center gap-3">
             <div className="hidden gap-1 lg:flex">
-              {dir.myBrands.slice(0, 5).map((b) => (
+              {dir.myBrands.filter((b) => b.status === "ACTIVE").slice(0, 5).map((b) => (
                 <BrandBadge key={b.id} brand={b} />
               ))}
             </div>

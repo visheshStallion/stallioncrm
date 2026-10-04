@@ -30,7 +30,7 @@ export const getDirectory = cache(async (ctx: AccessContext) => {
   return {
     brands: brands as BrandInfo[],
     regions: regions as RegionInfo[],
-    myBrands: brands.filter((b) => ctx.brandIds.includes(b.id)) as BrandInfo[],
+    myBrands: brands.filter((b) => ctx.brandIds.includes(b.id) && b.status !== "INACTIVE") as BrandInfo[],
     myRegions: (allowedRegions === null
       ? regions
       : regions.filter((r) => allowedRegions.includes(r.id))) as RegionInfo[],
