@@ -20,7 +20,7 @@ export function Kanban({ columns }: { columns: KanbanColumn[] }) {
   return (
     <div className="flex gap-3 overflow-x-auto pb-2">
       {columns.map((col) => (
-        <section key={col.key} className="flex w-64 shrink-0 flex-col rounded-lg bg-muted/60 p-2">
+        <section key={col.key} data-testid="kanban-column" className="flex w-64 shrink-0 flex-col rounded-lg bg-muted/60 p-2">
           <header className="mb-2 flex items-center justify-between px-1 text-xs font-semibold uppercase text-muted-foreground">
             {col.label}
             <span className="rounded bg-background px-1.5 py-0.5">{col.cards.length}</span>

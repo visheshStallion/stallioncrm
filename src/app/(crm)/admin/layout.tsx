@@ -10,6 +10,8 @@ const SECTIONS = [
   { href: "/admin/profiles", label: "Profiles" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/users/import", label: "Import users" },
+  { href: "/admin/assignment-rules/leads", label: "Lead assignment" },
+  { href: "/admin/web-forms", label: "Web forms" },
   { href: "/admin/audit", label: "Audit log" },
 ];
 
