@@ -15,9 +15,9 @@ export interface WfField extends WhereField {
 }
 
 export interface WfModule {
-  key: "leads" | "deals" | "quotes" | "salesOrders";
+  key: "leads" | "deals" | "quotes" | "salesOrders" | "cases";
   label: string;
-  model: "Lead" | "Deal" | "Quote" | "SalesOrder";
+  model: "Lead" | "Deal" | "Quote" | "SalesOrder" | "Case";
   fields: WfField[];
 }
 
@@ -97,6 +97,31 @@ export const WF_MODULES: WfModule[] = [
       updated,
     ],
   },
+  {
+    key: "cases",
+    label: "Cases",
+    model: "Case",
+    fields: [
+      { key: "status", label: "Status", type: "enum", options: ["NEW", "IN_PROGRESS", "WAITING_ON_CUSTOMER", "ESCALATED", "RESOLVED", "CLOSED"], watchable: true },
+      { key: "priority", label: "Priority", type: "enum", options: ["LOW", "MEDIUM", "HIGH", "URGENT"], updatable: true, watchable: true },
+      { key: "type", label: "Type", type: "enum", options: ["COMPLAINT", "ENQUIRY", "DELIVERY_ISSUE", "WARRANTY", "DOCUMENTATION", "BILLING"], watchable: true },
+      { key: "channel", label: "Channel", type: "enum", options: ["PHONE", "EMAIL", "WHATSAPP", "WALK_IN", "WEB"] },
+      { key: "isOpen", label: "Is open", type: "boolean", where: boolWhere({ status: { in: ["NEW", "IN_PROGRESS", "WAITING_ON_CUSTOMER", "ESCALATED"] } }) },
+      {
+        key: "slaBreached",
+        label: "SLA breached (first response or resolution)",
+        type: "boolean",
+        // evaluated when the scheduler runs
+        where: (op, value) => boolWhere({ OR: [{ slaDueAt: { lt: new Date() } }, { firstRespondedAt: null, firstResponseDueAt: { lt: new Date() } }] })(op, value),
+      },
+      { key: "unassigned", label: "Unassigned", type: "boolean" },
+      { key: "satisfactionScore", label: "Satisfaction score", type: "number", watchable: true },
+      { key: "slaDueAt", label: "Resolution due", type: "date" },
+      owner,
+      created,
+      updated,
+    ],
+  },
 ];
 
 export const wfModule = (key: string) => WF_MODULES.find((m) => m.key === key);
@@ -120,4 +145,7 @@ export const ACTION_LABELS: Record<string, string> = {
   CALL_FUNCTION: "Call a function",
 };
 export const RECIPIENTS = ["OWNER", "BRAND_MANAGER", "ROLE"] as const;
-export const FUNCTIONS = [{ name: "copyBrandFromDeal", label: "Copy brand and region from the deal (quotes, sales orders)" }] as const;
+export const FUNCTIONS = [
+  { name: "copyBrandFromDeal", label: "Copy brand and region from the deal (quotes, sales orders)" },
+  { name: "escalateCase", label: "Escalate the case to the role of its SLA policy (cases)" },
+] as const;

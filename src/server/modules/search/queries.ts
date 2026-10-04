@@ -3,6 +3,7 @@ import { hasPermission } from "@/server/access/can";
 import type { AccessContext } from "@/server/access/types";
 import { searchActivities } from "@/server/modules/activities/queries";
 import { TYPE_LABELS, type ActivityTypeKey } from "@/server/modules/activities/schema";
+import { searchCases } from "@/server/modules/cases/queries";
 import { listAccounts, listContacts } from "@/server/modules/customers/queries";
 import { searchDeals } from "@/server/modules/deals/queries";
 import { leadName, searchLeads } from "@/server/modules/leads/queries";
@@ -60,6 +61,11 @@ export async function globalSearch(ctx: AccessContext, rawQuery: string): Promis
   if (hasPermission(ctx, "contacts", "read")) {
     for (const c of (await listContacts(ctx, { q, take: 10 })).rows) {
       hits.push({ module: "contacts", id: c.id, title: c.name, subtitle: [c.accountName, c.mobile].filter(Boolean).join(" · "), brandId: null, regionId: null, href: `/contacts/${c.id}` });
+    }
+  }
+  if (hasPermission(ctx, "cases", "read")) {
+    for (const c of await searchCases(ctx, q)) {
+      hits.push({ module: "cases", id: c.id, title: `${c.number} – ${c.subject}`, subtitle: c.status.toLowerCase().replace(/_/g, " "), brandId: c.brandId, regionId: c.regionId, href: `/cases/${c.id}` });
     }
   }
   if (hasPermission(ctx, "activities", "read")) {

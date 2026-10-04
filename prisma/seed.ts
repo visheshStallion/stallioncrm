@@ -34,11 +34,12 @@ import {
 
 export async function seed(prisma: PrismaClient): Promise<void> {
   await prisma.$executeRawUnsafe(
-    `TRUNCATE "AuditLog", "VehicleStockRef", "PriceBookEntry", "PriceBook", "Note", "Attachment", "DealStageHistory", "Pipeline", "SavedView", "AssignmentRule", "Lead", "Deal", "Contact", "Account", "Product", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region", "Job" CASCADE`,
+    `TRUNCATE "AuditLog", "VehicleStockRef", "PriceBookEntry", "PriceBook", "Note", "Attachment", "DealStageHistory", "Pipeline", "SavedView", "AssignmentRule", "Lead", "Deal", "Contact", "Account", "Product", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region", "Job", "Holiday", "BusinessHours" CASCADE`,
   );
   // The cascade also empties the approval processes and workflow rules (they reference Brand): restore the defaults.
   await prisma.$executeRawUnsafe(`SELECT app_seed_automation()`);
   await prisma.$executeRawUnsafe(`SELECT app_seed_reports()`);
+  await prisma.$executeRawUnsafe(`SELECT app_seed_cases()`);
 
   // Regions
   const regions = new Map<string, string>();

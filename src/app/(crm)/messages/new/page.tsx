@@ -37,7 +37,7 @@ export default async function NewMessagePage({ searchParams }: { searchParams: P
   const template = templates.find((t) => t.id === sp.templateId);
   const sender = channel === "EMAIL" ? (brand.fromEmail ? `${brand.fromName || brand.name} <${brand.fromEmail}>` : null) : channel === "SMS" ? brand.smsSenderId : brand.whatsappNumber;
   const to = channel === "EMAIL" ? record.recipient.email : record.recipient.mobile;
-  const back = `${record.parentType === "Lead" ? "/leads" : "/deals"}/${record.parentId}`;
+  const back = `${record.parentType === "Lead" ? "/leads" : record.parentType === "Case" ? "/cases" : "/deals"}/${record.parentId}`;
   const href = (p: Partial<SP>) => `/messages/new?${new URLSearchParams({ channel, parentType: record.parentType, parentId: record.parentId, ...p } as Record<string, string>)}`;
 
   return (
@@ -96,7 +96,7 @@ export default async function NewMessagePage({ searchParams }: { searchParams: P
               <textarea id="body" name="body" rows={channel === "EMAIL" ? 9 : 4} maxLength={4000} required key={template?.id ?? "none"} defaultValue={template ? renderMerge(template.body, record.merge) : ""} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm" />
             )}
             <p className="text-xs text-text-muted">
-              Merge fields: {MERGE_FIELDS.filter((m) => m.field !== "unsubscribeUrl").map((m) => `{{${m.field}}}`).join("  ")}
+              Merge fields: {MERGE_FIELDS.filter((m) => m.field !== "unsubscribeUrl" && m.field !== "surveyUrl" && (record.parentType === "Case" || !m.field.startsWith("case."))).map((m) => `{{${m.field}}}`).join("  ")}
               {channel === "WHATSAPP" ? " · Free text only within 24 hours of the customer's last WhatsApp message." : ""}
             </p>
           </div>

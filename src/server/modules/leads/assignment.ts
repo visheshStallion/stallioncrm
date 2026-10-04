@@ -3,7 +3,7 @@ import { loadAccessContext } from "@/server/access/context";
 import type { AccessContext } from "@/server/access/types";
 import { hasTerritoryAccess } from "@/server/access/visibility";
 import { scopedDb } from "@/server/db";
-import { countLeadsInTerritory } from "@/server/db/system";
+import { countCasesInTerritory, countLeadsInTerritory } from "@/server/db/system";
 import { decideAssignment, pickRule, type AssignmentDecision, type LeadFacts, type RuleLike } from "./assignment-engine";
 
 /**
@@ -11,9 +11,17 @@ import { decideAssignment, pickRule, type AssignmentDecision, type LeadFacts, ty
  * pointer of the winning rule is claimed atomically, so concurrent web leads never pick the same slot.
  */
 export async function assignLead(ctx: AccessContext, lead: LeadFacts): Promise<AssignmentDecision> {
+  return assignRecord(ctx, "leads", lead);
+}
+
+/**
+ * The same engine for other modules (cases, prompt 11): the module's ordered rules, then round-robin within the
+ * record's brand-region territory, then the territory / brand manager.
+ */
+export async function assignRecord(ctx: AccessContext, module: "leads" | "cases", lead: LeadFacts): Promise<AssignmentDecision> {
   const db = scopedDb(ctx);
   const [rules, territory, brand] = await Promise.all([
-    db.assignmentRule.findMany({ where: { module: "leads" } }),
+    db.assignmentRule.findMany({ where: { module } }),
     db.territory.findUnique({
       where: { brandId_regionId: { brandId: lead.brandId, regionId: lead.regionId } },
       include: {
@@ -49,6 +57,6 @@ export async function assignLead(ctx: AccessContext, lead: LeadFacts): Promise<A
       brandManager: brand?.brandManager ?? null,
       specificUser,
     },
-    await countLeadsInTerritory(lead.brandId, lead.regionId),
+    module === "leads" ? await countLeadsInTerritory(lead.brandId, lead.regionId) : await countCasesInTerritory(lead.brandId, lead.regionId),
   );
 }

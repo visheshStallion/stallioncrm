@@ -9,6 +9,7 @@ import { formatDateTime, formatMoney } from "@/lib/format";
 import { can, hasPermission } from "@/server/access/can";
 import { tierAtLeast } from "@/server/access/customer-tier";
 import { isAccessError } from "@/server/access/errors";
+import { listCases } from "@/server/modules/cases/queries";
 import { accountBrands, accountDeals, getAccount, listContacts } from "@/server/modules/customers/queries";
 import { ACCOUNT_TYPE_LABELS, KYC_LABELS } from "@/server/modules/customers/schema";
 import { getDirectory } from "@/server/modules/org/queries";
@@ -30,12 +31,14 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
     if (isAccessError(e)) notFound();
     throw e;
   });
-  const [dir, prefs, brandIds, deals, contacts] = await Promise.all([
+  const [dir, prefs, brandIds, deals, contacts, cases] = await Promise.all([
     getDirectory(ctx),
     getPreferences(ctx),
     accountBrands(ctx, id),
     hasPermission(ctx, "deals", "read") ? accountDeals(ctx, { accountId: id }) : Promise.resolve([]),
     hasPermission(ctx, "contacts", "read") ? listContacts(ctx, { where: { accountId: id }, take: 50 }) : Promise.resolve({ rows: [], total: 0 }),
+    // only cases of the viewer's brands (cases are brand-owned)
+    hasPermission(ctx, "cases", "read") ? listCases(ctx, { queue: "all", accountId: id }, {}, { take: 20 }).then((r) => r.rows) : Promise.resolve([]),
   ]);
   const contact = tierAtLeast(account.tier, "CONTACT");
   const sensitive = tierAtLeast(account.tier, "SENSITIVE");
@@ -121,7 +124,21 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
           </RelatedListCard>
           <RelatedDeals deals={deals} brands={dir.brands} dateFormat={prefs.dateFormat} />
           <RelatedListCard id="quotes" title="Quotes / Sales Orders" empty="Quotes arrive with prompt 06." />
-          <RelatedListCard id="cases" title="Cases" empty="Cases arrive with prompt 11." />
+          <RelatedListCard id="cases" title="Cases" count={cases.length} newHref={hasPermission(ctx, "cases", "create") ? `/cases/new?accountId=${account.id}` : undefined} empty="No cases in your brands.">
+            {cases.length ? (
+              <ul className="divide-y divide-border">
+                {cases.map((c) => (
+                  <li key={c.id} className="flex items-center gap-3 py-1.5">
+                    <Link href={`/cases/${c.id}`} className="font-medium text-primary hover:underline">
+                      {c.number}
+                    </Link>
+                    <span className="min-w-0 flex-1 truncate">{c.subject}</span>
+                    <span className="text-xs text-text-muted">{c.status.charAt(0) + c.status.slice(1).toLowerCase().replace(/_/g, " ")}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : undefined}
+          </RelatedListCard>
           <RelatedListCard id="activities" title="Activities" empty="Activities arrive with prompt 07." />
         </div>
       </div>

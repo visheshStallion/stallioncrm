@@ -29,7 +29,7 @@ export const ruleSchema = z
   .object({
     name: text(120),
     description: z.string().trim().max(500).optional().transform((v) => v || null),
-    module: z.enum(["leads", "deals", "quotes", "salesOrders"]),
+    module: z.enum(["leads", "deals", "quotes", "salesOrders", "cases"]),
     trigger: z.enum(TRIGGERS),
     triggerConfig: z
       .object({ field: z.string().max(60).optional(), dateField: z.string().max(60).optional(), offsetDays: z.coerce.number().int().min(-365).max(365).optional(), repeat: z.enum(["ONCE", "PER_UPDATE"]).optional() })
@@ -49,6 +49,7 @@ export const ruleSchema = z
     if (r.trigger === "SCHEDULED" && !(r.criteria.all?.length || r.criteria.any?.length)) issue("criteria", "A scheduled rule needs criteria");
     r.actions.forEach((a) => {
       if (a.type === "FIELD_UPDATE" && !fields[a.field]?.updatable) issue("actions", `Field "${a.field}" cannot be updated by a rule`);
+      if (a.type === "CALL_FUNCTION" && a.name === "escalateCase" && r.module !== "cases") issue("actions", "escalateCase applies to cases");
       if (a.type === "CALL_FUNCTION" && a.name === "copyBrandFromDeal" && r.module !== "quotes" && r.module !== "salesOrders") issue("actions", "copyBrandFromDeal applies to quotes and sales orders");
       if ((a.type === "SEND_NOTIFICATION" || a.type === "SEND_EMAIL") && a.to === "ROLE" && !a.roleName) issue("actions", "Choose the role to notify");
       if (a.type === "ASSIGN_OWNER" && a.to === "USER" && !a.userId) issue("actions", "Choose the new owner");

@@ -17,7 +17,7 @@ export interface RField {
 }
 
 export interface RModule {
-  key: "deals" | "leads" | "quotes" | "activities";
+  key: "deals" | "leads" | "quotes" | "activities" | "cases";
   label: string;
   /** base table (alias t); soft-deleted rows are always excluded */
   table: string;
@@ -163,6 +163,42 @@ export const REPORT_MODULES: RModule[] = [
       { key: "when", label: "Due / start", type: "date", sql: `coalesce(t."startAt", t."dueAt")` },
       { key: "completedAt", label: "Closed on", type: "date", sql: `t."completedAt"` },
       { key: "durationSec", label: "Call duration (s)", type: "number", sql: `t."durationSec"` },
+    ],
+  },
+  {
+    key: "cases",
+    label: "Cases",
+    table: `"Case"`,
+    path: "/cases",
+    defaultSort: "createdAt",
+    joins: { ...baseJoins, account: `LEFT JOIN "Account" a ON a.id = t."accountId"`, deal: `LEFT JOIN "Deal" d ON d.id = t."dealId"` },
+    defaultColumns: ["number", "subject", "brand", "type", "priority", "status", "owner", "createdAt"],
+    fields: [
+      { key: "number", label: "Case no.", type: "text", sql: `t.number` },
+      { key: "subject", label: "Subject", type: "text", sql: `t.subject` },
+      ...common,
+      { key: "type", label: "Type", type: "enum", sql: `t.type`, options: ["COMPLAINT", "ENQUIRY", "DELIVERY_ISSUE", "WARRANTY", "DOCUMENTATION", "BILLING"] },
+      { key: "priority", label: "Priority", type: "enum", sql: `t.priority`, options: ["LOW", "MEDIUM", "HIGH", "URGENT"] },
+      { key: "channel", label: "Channel", type: "enum", sql: `t.channel`, options: ["PHONE", "EMAIL", "WHATSAPP", "WALK_IN", "WEB"] },
+      { key: "status", label: "Status", type: "enum", sql: `t.status`, options: ["NEW", "IN_PROGRESS", "WAITING_ON_CUSTOMER", "ESCALATED", "RESOLVED", "CLOSED"] },
+      { key: "slaDueAt", label: "Resolution due", type: "date", sql: `t."slaDueAt"` },
+      { key: "resolvedAt", label: "Resolved on", type: "date", sql: `t."resolvedAt"` },
+      {
+        key: "slaOutcome",
+        label: "SLA outcome",
+        type: "text",
+        sql: `CASE WHEN t."slaDueAt" IS NULL THEN 'No SLA'
+                   WHEN t."resolvedAt" IS NOT NULL AND t."resolvedAt" <= t."slaDueAt" THEN 'Resolved within SLA'
+                   WHEN t."resolvedAt" IS NOT NULL THEN 'Resolved late'
+                   WHEN t."slaDueAt" < (now() AT TIME ZONE 'UTC') THEN 'Open - overdue'
+                   ELSE 'Open - on time' END`,
+      },
+      { key: "hoursToResolve", label: "Hours to resolve", type: "number", sql: `round((extract(epoch FROM (t."resolvedAt" - t."createdAt")) / 3600)::numeric, 1)` },
+      { key: "escalated", label: "Escalated", type: "text", sql: `CASE WHEN t."escalatedAt" IS NULL THEN 'No' ELSE 'Yes' END` },
+      { key: "satisfactionScore", label: "Satisfaction (1-5)", type: "number", sql: `t."satisfactionScore"` },
+      { key: "account", label: "Account", type: "text", sql: `a.name`, joins: ["account"] },
+      { key: "deal", label: "Deal", type: "text", sql: `d.name`, joins: ["deal"] },
+      { key: "vin", label: "VIN", type: "text", sql: `t.vin` },
     ],
   },
 ];

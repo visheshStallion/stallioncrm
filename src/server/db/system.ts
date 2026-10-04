@@ -162,6 +162,10 @@ export function countLeadsInTerritory(brandId: string, regionId: string): Promis
   return unsafeDb.lead.count({ where: { brandId, regionId } });
 }
 
+export function countCasesInTerritory(brandId: string, regionId: string): Promise<number> {
+  return unsafeDb.case.count({ where: { brandId, regionId } });
+}
+
 /**
  * Customer merge (admin / management): re-points every child of `fromId` to `intoId`, INCLUDING soft-deleted
  * rows and rows of every brand (the merge keeps all brand-owned children). Caller checks permission and audits.

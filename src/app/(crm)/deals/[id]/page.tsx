@@ -24,6 +24,7 @@ import { allowedTargets } from "@/server/modules/deals/blueprint";
 import { dealFormLookups, dealStageHistory, dealTimeline, getDeal, getPipeline } from "@/server/modules/deals/queries";
 import { recordActivities } from "@/server/modules/activities/queries";
 import { pendingApprovalsFor } from "@/server/modules/approvals/service";
+import { listCases } from "@/server/modules/cases/queries";
 import { listAttachments, listNotes, mentionableUsers } from "@/server/modules/notes/service";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
@@ -45,7 +46,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
     throw e;
   });
   const current = tab === "timeline" ? "timeline" : "overview";
-  const [dir, prefs, pipeline, lookups, notes, attachments, users, stock, documents, activities, mentionable, approvals] = await Promise.all([
+  const [dir, prefs, pipeline, lookups, notes, attachments, users, stock, documents, activities, mentionable, approvals, cases] = await Promise.all([
     getDirectory(ctx),
     getPreferences(ctx),
     getPipeline(ctx, deal.pipelineId),
@@ -61,6 +62,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
     hasPermission(ctx, "activities", "read") ? recordActivities(ctx, "Deal", id) : { overdue: [], upcoming: [], history: [] },
     mentionableUsers(ctx, deal.brandId, deal.regionId),
     pendingApprovalsFor(ctx, "Deal", id),
+    hasPermission(ctx, "cases", "read") ? listCases(ctx, { queue: "all", dealId: id }, {}, { take: 20 }).then((r) => r.rows) : [],
   ]);
   const reserved = stock.filter((s) => s.dealId === id);
   const available = stock.filter((s) => s.dealId !== id);
@@ -149,6 +151,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
               { id: "notes", label: "Notes", count: notes.length },
               { id: "attachments", label: "Attachments", count: attachments.length },
               { id: "open-activities", label: "Activities" },
+              { id: "cases", label: "Cases", count: cases.length },
               { id: "quotes", label: "Quotes / Sales Orders" },
             ]}
           />
@@ -274,6 +277,21 @@ export default async function DealPage({ params, searchParams }: { params: Promi
               dateFormat={df}
               testDrive={deal.stageType === "OPEN"}
             />
+            <RelatedListCard id="cases" title="Cases" count={cases.length} newHref={can(ctx, "cases", "create", deal) ? `/cases/new?dealId=${deal.id}` : undefined} empty="No cases for this deal.">
+              {cases.length ? (
+                <ul className="divide-y divide-border" data-testid="deal-cases">
+                  {cases.map((c) => (
+                    <li key={c.id} className="flex items-center gap-3 py-1.5">
+                      <Link href={`/cases/${c.id}`} className="font-medium text-primary hover:underline">
+                        {c.number}
+                      </Link>
+                      <span className="min-w-0 flex-1 truncate">{c.subject}</span>
+                      <StatusPill>{c.status.charAt(0) + c.status.slice(1).toLowerCase().replace(/_/g, " ")}</StatusPill>
+                    </li>
+                  ))}
+                </ul>
+              ) : undefined}
+            </RelatedListCard>
             <RelatedListCard id="quotes" title="Quotes / Sales Orders / Invoices" count={documents.length} empty="No documents yet – use Create Quote. A sales order is created from an accepted quote, an invoice from a confirmed order.">
               {documents.length ? (
                 <ul className="divide-y divide-border" data-testid="deal-documents">

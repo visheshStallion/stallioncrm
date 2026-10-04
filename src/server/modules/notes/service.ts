@@ -15,7 +15,7 @@ import { notify } from "@/server/modules/notifications/service";
 import { storage } from "@/server/storage";
 
 /** Parent entities that can carry notes / attachments → their permission module. */
-const PARENTS: Record<string, ModuleKey> = { Deal: "deals", Lead: "leads" };
+const PARENTS: Record<string, ModuleKey> = { Deal: "deals", Lead: "leads", Case: "cases" };
 
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_TYPES = new Set([

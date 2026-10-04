@@ -481,7 +481,45 @@ Module `src/server/modules/messaging` (`providers.ts`, `merge.ts`, `service.ts`,
   confirmation (send it from the record with a template); registering WhatsApp templates with Meta from inside
   the CRM (the approved name and status are recorded on the template); inbound email.
 
-## 18. Local development
+## 18. Cases: customer care & complaints (prompt 11)
+
+Module `src/server/modules/cases` (`schema`, `queries`, `service`, `admin`, `business-hours`), system helpers in
+`src/server/db/cases-system.ts`, UI under `src/app/(crm)/cases`.
+
+- **Brand-owned.** `Case` carries the brand-owned mixin: scopedDb + RLS isolate it like deals – an HMNL agent
+  cannot see, find, change or create SNMNL cases (404 / 403), and its notes, attachments, activities and
+  messages inherit the case's brand. A case on a deal takes brand, region, account and contact from the deal;
+  a DB trigger rejects a deal of another brand.
+- **Numbering.** `{docPrefix}-CS-{YYYY}-{00001}` per brand and year from the same gap-free `DocumentCounter` as
+  quotes (trigger `app_case_defaults`); numbers are immutable.
+- **Queues.** My Cases, Unassigned – My Brand, Breaching SLA, All Open, All. New cases created by an agent are
+  theirs; cases from the public form or an inbound message are assigned by the assignment engine of prompt 02
+  (`assignRecord(ctx, "cases", …)`: module rules, then round-robin in the brand-region territory). When only a
+  manager is available the case is parked with them and flagged **unassigned** until someone takes it.
+- **SLA.** `SlaPolicy` per brand and priority (first response / resolution hours, escalation role; defaults are
+  created for every brand by trigger, edited by the brand's manager). Due times are computed in **business
+  hours** (`business-hours.ts`: working days and hours in Africa/Lagos, public holidays; calendar edited by
+  administrators, fixed-date Nigerian holidays seeded, movable ones added by hand). Leaving "New" is the first
+  response; changing the priority recalculates from the creation time. There is no clock stop while "Waiting on
+  customer".
+- **Escalation through the workflow engine.** Cases are a workflow module; the seeded scheduled rule "Case
+  breaching its SLA" (`isOpen` and `slaBreached`) calls the function `escalateCase`, which runs with the
+  system context bound to the case's brand, marks the case Escalated and notifies the role of the SLA policy –
+  filtered to users who can see the case, so it is always the Brand Manager of the case's own brand. It fires
+  once per case.
+- **Intake.** `POST /api/public/cases/<BRAND>` (web form or email-to-case gateway, honeypot + rate limit; the
+  brand comes from the URL, a known customer is linked by phone / email), "Create case from this message / call"
+  on an inbound activity, and "+ New" on deal and account pages.
+- **Satisfaction survey.** Closing a case sends a survey link as the case's brand (email, else SMS; template
+  "Case satisfaction survey" when one exists). `/api/public/csat/<token>` shows a 1–5 form and stores the first
+  answer only.
+- **Solutions.** Knowledge articles: group articles (brand NULL) for everyone, brand articles only for that
+  brand's users (RLS); drafts are visible to those who may edit them (brand manager / management). Matching
+  articles are suggested on the case by type and subject.
+- **Reports.** The report builder has a Cases module; standard reports: cases by brand and type, SLA compliance,
+  customer satisfaction.
+
+## 19. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.

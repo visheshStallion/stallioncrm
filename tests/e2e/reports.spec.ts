@@ -6,7 +6,7 @@ const brandsInTable = async (page: Page) => [...new Set(await page.getByTestId("
 test("standard report: each viewer sees their own data; export only with the export permission", async ({ page }) => {
   await login(page, "hos");
   await page.goto("/reports");
-  await expect(page.getByTestId("folder-standard").getByRole("listitem")).toHaveCount(9);
+  await expect(page.getByTestId("folder-standard").getByRole("listitem")).toHaveCount(12);
   await page.getByRole("link", { name: "Pipeline by stage and brand" }).click();
   await expect(page.getByTestId("chart")).toBeVisible();
   expect(await brandsInTable(page)).toEqual(["HMNL", "SMGL", "SNMNL", "THPL", "ZANL"]);

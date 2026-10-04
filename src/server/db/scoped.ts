@@ -308,7 +308,7 @@ async function scopeBrandOwnedArgs(
 }
 
 /** Models with workflow rules (src/server/modules/workflow/modules.ts). */
-const WORKFLOW_MODELS = new Set(["Lead", "Deal", "Quote", "SalesOrder"]);
+const WORKFLOW_MODELS = new Set(["Lead", "Deal", "Quote", "SalesOrder", "Case"]);
 
 const AUDITED: Record<string, AuditAction> = {
   create: "CREATE",

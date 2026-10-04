@@ -47,7 +47,7 @@ export interface Recipient {
   leadId: string | null;
 }
 export interface MessageRecord {
-  parentType: "Lead" | "Deal";
+  parentType: "Lead" | "Deal" | "Case";
   parentId: string;
   brandId: string;
   regionId: string;
@@ -91,7 +91,22 @@ export async function loadMessageRecord(ctx: AccessContext, parentType: string, 
       merge: { contact: { firstName: c?.firstName ?? name, lastName: c?.lastName, name }, deal: { name: d.name, model: d.model?.name }, brand: d.brand, owner: d.owner },
     };
   }
-  throw new BadRequestError("Messages can be sent from a lead or a deal");
+  if (parentType === "Case") {
+    const c = await db.case.findUnique({ where: { id: parentId }, include: { contact: true, deal: { select: { name: true, model: { select: { name: true } } } }, owner: { select: { name: true } }, brand: { select: { name: true, code: true } } } });
+    if (!c) throw new NotFoundError();
+    const p = c.contact;
+    const name = p ? [p.firstName, p.lastName].filter(Boolean).join(" ") : (c.customerName ?? "");
+    return {
+      parentType: "Case",
+      parentId,
+      brandId: c.brandId,
+      regionId: c.regionId,
+      ownerId: c.ownerId,
+      recipient: { name, firstName: p?.firstName ?? name.split(" ")[0] ?? null, lastName: p?.lastName ?? null, mobile: p?.mobile ?? c.customerPhone, email: p?.email ?? c.customerEmail, contactId: p?.id ?? null, leadId: null },
+      merge: { contact: { firstName: p?.firstName ?? name.split(" ")[0], lastName: p?.lastName, name }, deal: { name: c.deal?.name, model: c.deal?.model?.name }, case: { number: c.number, subject: c.subject }, brand: c.brand, owner: c.owner },
+    };
+  }
+  throw new BadRequestError("Messages can be sent from a lead, a deal or a case");
 }
 
 function addressFor(channel: Channel, r: Recipient): string {
@@ -189,7 +204,7 @@ export async function deliver(ctx: AccessContext, input: DeliverInput) {
 
 const sendSchema = z.object({
   channel: z.enum(["EMAIL", "SMS", "WHATSAPP"]),
-  parentType: z.enum(["Lead", "Deal"]),
+  parentType: z.enum(["Lead", "Deal", "Case"]),
   parentId: z.string().min(1),
   templateId: z.string().nullish().transform((v) => v || null),
   subject: z.string().trim().max(200).nullish(),

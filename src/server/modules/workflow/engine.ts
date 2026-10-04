@@ -48,7 +48,7 @@ export function automationContext(brandId: string, scope: "TERRITORY" | "ALL" = 
 
 // ───────────────────────────── facts ─────────────────────────────
 
-const DELEGATE: Record<WfModule["model"], string> = { Lead: "lead", Deal: "deal", Quote: "quote", SalesOrder: "salesOrder" };
+const DELEGATE: Record<WfModule["model"], string> = { Lead: "lead", Deal: "deal", Quote: "quote", SalesOrder: "salesOrder", Case: "case" };
 
 function plain(v: unknown): unknown {
   if (v === null || v === undefined || v instanceof Date) return v;
@@ -71,6 +71,12 @@ export async function loadFacts(ctx: AccessContext, mod: WfModule, id: string): 
   }
   if (mod.model === "Lead") facts.name = [record.firstName, record.lastName].filter(Boolean).join(" ");
   if (mod.model === "Quote" || mod.model === "SalesOrder") facts.name = record.number;
+  if (mod.model === "Case") {
+    const now = Date.now();
+    facts.name = `${record.number} ${record.subject}`;
+    facts.isOpen = ["NEW", "IN_PROGRESS", "WAITING_ON_CUSTOMER", "ESCALATED"].includes(record.status);
+    facts.slaBreached = (!!record.slaDueAt && record.slaDueAt.getTime() < now) || (!record.firstRespondedAt && !!record.firstResponseDueAt && record.firstResponseDueAt.getTime() < now);
+  }
   return facts;
 }
 
@@ -168,7 +174,7 @@ async function runAction(ctx: AccessContext, rule: WorkflowRule, mod: WfModule, 
   const db = scopedDb(ctx) as any;
   const id = String(facts.id);
   const brandId = String(facts.brandId);
-  const parent = mod.model === "Lead" ? { parentType: "Lead", parentId: id } : mod.model === "Deal" ? { parentType: "Deal", parentId: id } : { parentType: "Deal", parentId: String(facts.dealId) };
+  const parent = mod.model === "Lead" ? { parentType: "Lead", parentId: id } : mod.model === "Case" ? { parentType: "Case", parentId: id } : mod.model === "Deal" ? { parentType: "Deal", parentId: id } : { parentType: "Deal", parentId: String(facts.dealId) };
   switch (action.type) {
     case "FIELD_UPDATE": {
       const def = fieldMap(mod)[action.field];
@@ -185,7 +191,7 @@ async function runAction(ctx: AccessContext, rule: WorkflowRule, mod: WfModule, 
     }
     case "SEND_NOTIFICATION": {
       const to = await recipients(ctx, facts, action.to, action.roleName);
-      const href = mod.model === "Lead" ? `/leads/${id}` : mod.model === "Deal" ? `/deals/${id}` : mod.model === "Quote" ? `/quotes/${id}` : `/salesOrders/${id}`;
+      const href = mod.model === "Lead" ? `/leads/${id}` : mod.model === "Case" ? `/cases/${id}` : mod.model === "Deal" ? `/deals/${id}` : mod.model === "Quote" ? `/quotes/${id}` : `/salesOrders/${id}`;
       await notify(ctx, to, { kind: "INFO", title: renderTemplate(action.title, facts), body: action.body ? renderTemplate(action.body, facts) : null, href });
       return `notified ${to.length}`;
     }
@@ -225,6 +231,7 @@ async function runAction(ctx: AccessContext, rule: WorkflowRule, mod: WfModule, 
         logger.warn({ model: mod.model, id }, "document brand/region diverged from its deal – repaired");
         return "repaired brand and region";
       }
+      if (action.name === "escalateCase" && mod.model === "Case") return (await import("@/server/modules/cases/service")).escalateCase(ctx, id);
       return "skipped: unknown function";
     }
   }

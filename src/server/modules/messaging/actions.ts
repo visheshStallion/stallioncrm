@@ -9,7 +9,7 @@ import { sendMessage } from "./service";
 
 type Outcome = { message?: string; redirect?: string };
 const str = (fd: FormData, k: string) => (fd.get(k) ?? "").toString().trim();
-const PATH: Record<string, string> = { Lead: "/leads", Deal: "/deals" };
+const PATH: Record<string, string> = { Lead: "/leads", Deal: "/deals", Case: "/cases" };
 
 export async function sendMessageAction(_prev: unknown, fd: FormData): Promise<ActionResult<Outcome>> {
   return safeAction(async () => {

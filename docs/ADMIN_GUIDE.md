@@ -254,3 +254,16 @@ standard stages and stages that contain deals cannot be removed).
    brand only.
 6. The scheduler tick (`/api/public/cron/tick`) sends queued campaign batches.
 
+## Cases
+
+- **SLA & calendar** (Cases → SLA & calendar): each brand's manager sets first-response and resolution hours per
+  priority and the role that is told when a case breaches. Administrators set the working days, opening hours
+  and public holidays (add movable holidays such as Eid and Easter every year).
+- **Escalation** needs the scheduler tick (`/api/public/cron/tick`) and the workflow rule "Case breaching its SLA"
+  (Setup → Workflow rules) to be active.
+- **Assignment** of cases from the web form uses assignment rules with module `cases`; without rules it is
+  round-robin among the members of the brand-region territory.
+- **Public form**: `POST /api/public/cases/<BRAND CODE>` with `name`, `subject`, `message` and optional `phone`,
+  `email`, `type`, `region`, `vin`.
+- **Solutions**: brand managers write articles for their brand; management and administrators write group articles.
+

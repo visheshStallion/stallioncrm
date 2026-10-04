@@ -85,6 +85,9 @@ model Brand {
   messages          Message[]
   templates         Template[]
   campaigns         Campaign[]
+  cases             Case[]
+  slaPolicies       SlaPolicy[]
+  solutions         Solution[]
 }
 
 /// Legacy company codes (e.g. from the HR rep file) mapped to a brand. Configurable, never hard-coded.
@@ -117,6 +120,7 @@ model Region {
   assignmentRules  AssignmentRule[]
   targets          Target[]
   messages         Message[]
+  cases            Case[]
 }
 
 /// Territory tree: level 0 = Group root, level 1 = Brand, level 2 = "BRAND – Region".
@@ -215,6 +219,7 @@ model User {
   targets            Target[]          @relation("TargetUser")
   forecastNotes      ForecastNote[]
   ownedMessages      Message[]         @relation("MessageOwner")
+  ownedCases         Case[]            @relation("CaseOwner")
 }
 
 model TerritoryMember {
@@ -368,6 +373,7 @@ model Deal {
   salesOrders  SalesOrder[]
   invoices     Invoice[]
   campaign     Campaign?          @relation(fields: [campaignId], references: [id])
+  cases        Case[]
 
   /// VIN / chassis number is unique per brand
   @@unique([brandId, vinChassisNo])
@@ -493,6 +499,7 @@ model Account {
   contacts   Contact[]
   deals      Deal[]
   brandLinks CustomerBrandLink[]
+  cases      Case[]
 
   @@index([phone])
   @@index([email])
@@ -528,6 +535,7 @@ model Contact {
   convertedLeads  Lead[]
   consents        ContactBrandConsent[]
   campaignMembers CampaignMember[]
+  cases           Case[]
 
   @@index([mobile])
   @@index([email])
@@ -1624,4 +1632,147 @@ model CampaignMember {
 
   @@unique([campaignId, address])
   @@index([campaignId, status])
+}
+
+// ───────────────────────── Cases: customer care & complaints (prompt 11) ─────────────────────────
+
+enum CaseType {
+  COMPLAINT
+  ENQUIRY
+  DELIVERY_ISSUE
+  WARRANTY
+  DOCUMENTATION
+  BILLING
+}
+
+enum CasePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum CaseChannel {
+  PHONE
+  EMAIL
+  WHATSAPP
+  WALK_IN
+  WEB
+}
+
+enum CaseStatus {
+  NEW
+  IN_PROGRESS
+  WAITING_ON_CUSTOMER
+  ESCALATED
+  RESOLVED
+  CLOSED
+}
+
+/// Customer-care case. Brand-owned; number {docPrefix}-CS-{YYYY}-{00001} assigned by DB trigger (per brand and year).
+model Case {
+  id                 String       @id @default(cuid())
+  number             String       @unique @default("")
+  accountId          String?
+  account            Account?     @relation(fields: [accountId], references: [id])
+  contactId          String?
+  contact            Contact?     @relation(fields: [contactId], references: [id])
+  dealId             String?
+  deal               Deal?        @relation(fields: [dealId], references: [id])
+  salesOrderId       String?
+  vin                String?
+  type               CaseType     @default(ENQUIRY)
+  priority           CasePriority @default(MEDIUM)
+  channel            CaseChannel  @default(PHONE)
+  subject            String
+  description        String?
+  status             CaseStatus   @default(NEW)
+  /// customer name / phone / email as given when no contact is linked (web form, inbound message)
+  customerName       String?
+  customerPhone      String?
+  customerEmail      String?
+  /// true while nobody has taken the case (it is parked with the brand's manager)
+  unassigned         Boolean      @default(false)
+  // ── SLA (business hours of the group calendar) ──
+  firstResponseDueAt DateTime?
+  firstRespondedAt   DateTime?
+  /// resolution due
+  slaDueAt           DateTime?
+  escalatedAt        DateTime?
+  resolvedAt         DateTime?
+  closedAt           DateTime?
+  resolution         String?
+  satisfactionScore  Int?
+  satisfactionNote   String?
+  /// token of the satisfaction survey link sent on close
+  surveyToken        String?      @unique
+  surveySentAt       DateTime?
+
+  // ── brand-owned base mixin ──
+  brandId     String
+  brand       Brand     @relation(fields: [brandId], references: [id])
+  regionId    String
+  region      Region    @relation(fields: [regionId], references: [id])
+  territoryId String?
+  ownerId     String
+  owner       User      @relation("CaseOwner", fields: [ownerId], references: [id])
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([brandId, regionId])
+  @@index([ownerId, status])
+  @@index([status, slaDueAt])
+  @@index([accountId])
+  @@index([dealId])
+}
+
+/// SLA per brand and priority (business hours).
+model SlaPolicy {
+  id                 String       @id @default(cuid())
+  brandId            String
+  brand              Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  priority           CasePriority
+  firstResponseHours Int
+  resolutionHours    Int
+  /// role notified when the SLA is breached (default: Brand Manager)
+  escalateToRole     String       @default("Brand Manager")
+  updatedAt          DateTime     @updatedAt
+
+  @@unique([brandId, priority])
+}
+
+/// Knowledge article. brandId NULL = group article (visible to everyone); brand articles only to that brand's users.
+model Solution {
+  id          String   @id @default(cuid())
+  brandId     String?
+  brand       Brand?   @relation(fields: [brandId], references: [id])
+  title       String
+  body        String
+  tags        String[] @default([])
+  published   Boolean  @default(false)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([brandId, published])
+}
+
+/// Business hours of the group (Africa/Lagos) – one row, id "default". SLA timers only run inside them.
+model BusinessHours {
+  id        String   @id @default("default")
+  /// ISO weekdays that are working days (1 = Monday … 7 = Sunday)
+  workDays  Int[]    @default([1, 2, 3, 4, 5, 6])
+  /// "08:00" / "17:00" Lagos time
+  opensAt   String   @default("08:00")
+  closesAt  String   @default("17:00")
+  updatedAt DateTime @updatedAt
+}
+
+/// Public holiday (no SLA time runs on it).
+model Holiday {
+  date DateTime @id @db.Date
+  name String
 }

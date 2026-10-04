@@ -11,6 +11,7 @@ import { formatDateTime, toLocalInput } from "@/lib/format";
 import { can, hasPermission } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
 import { completeActivityAction, rescheduleActivityAction } from "@/server/modules/activities/actions";
+import { createCaseFromActivityAction } from "@/server/modules/cases/actions";
 import { getActivity } from "@/server/modules/activities/queries";
 import { RECURRENCE_OPTIONS } from "@/server/modules/activities/recurrence";
 import { STATUS_LABELS, TYPE_LABELS, type ActivityTypeKey } from "@/server/modules/activities/schema";
@@ -105,6 +106,17 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
             <Field label="Feedback" value={td.feedbackRating ? `${td.feedbackRating} / 5` : null} />
             <Field label="Follow-up" value={td.followUpAt ? formatDateTime(td.followUpAt, df) : null} />
           </FieldSection>
+        ) : null}
+        {["WHATSAPP_LOG", "SMS_LOG", "EMAIL_LOG", "CALL"].includes(a.type) && (a.parentType === "Lead" || a.parentType === "Deal") && can(ctx, "cases", "create", a) ? (
+          <section className="rounded-lg border border-border bg-surface p-4" id="to-case">
+            <ActionForm action={createCaseFromActivityAction} className="flex flex-wrap items-center gap-3">
+              <input type="hidden" name="activityId" value={a.id} />
+              <span className="text-[13px]">Is this a complaint or a service request?</span>
+              <SubmitButton size="sm" variant="outline">
+                Create case from this {a.type === "CALL" ? "call" : "message"}
+              </SubmitButton>
+            </ActionForm>
+          </section>
         ) : null}
         {canEdit ? (
           <section className="rounded-lg border border-border bg-surface p-4" id="complete">
