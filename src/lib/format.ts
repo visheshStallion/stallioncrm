@@ -41,3 +41,29 @@ export function initials(name: string): string {
     .map((p) => p[0]!.toUpperCase())
     .join("");
 }
+
+/** Africa/Lagos is UTC+1 all year (no DST): wall-clock <-> instant conversions for datetime-local inputs. */
+const LAGOS_OFFSET = "+01:00";
+
+/** "2026-10-04T09:30" (Lagos wall clock, as posted by a datetime-local input) -> ISO instant; "" stays "". */
+export function fromLocalInput(v: string | null | undefined): string {
+  if (!v) return "";
+  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(v)) return v;
+  const d = new Date(`${v.length === 10 ? `${v}T00:00` : v}${v.length <= 16 ? ":00" : ""}${LAGOS_OFFSET}`);
+  return Number.isNaN(d.getTime()) ? v : d.toISOString();
+}
+
+/** Instant -> value of a datetime-local input in Lagos wall-clock time. */
+export function toLocalInput(v: string | Date | null | undefined): string {
+  if (!v) return "";
+  const d = new Date(new Date(v).getTime() + 3_600_000);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 16);
+}
+
+/** Lagos calendar day (YYYY-MM-DD) of an instant. */
+export const localDay = (v: string | Date) => toLocalInput(v).slice(0, 10);
+
+export function formatTime(v: string | Date | null | undefined, timeZone = DEFAULT_TIME_ZONE) {
+  if (!v) return "";
+  return new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit" }).format(new Date(v));
+}

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toastResult } from "@/components/Toaster";
 import { cn } from "@/lib/utils";
+import { markNotificationsReadAction } from "@/server/modules/notifications/actions";
 import { setPreferenceAction } from "@/server/modules/preferences/actions";
 import type { Preferences } from "@/server/modules/preferences/schema";
 import { DropdownMenu } from "./overlays";
@@ -13,8 +14,25 @@ import { Avatar } from "./primitives";
 
 const iconBtn = "flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-muted hover:text-text";
 
-/** Notifications bell with counter (the feed arrives with prompt 14). */
-export function NotificationsBell({ count }: { count: number }) {
+export interface NotificationItem {
+  id: string;
+  kind: string;
+  title: string;
+  body: string | null;
+  href: string | null;
+  read: boolean;
+  at: string;
+}
+
+/** Notifications bell: unread counter and the latest reminders, mentions and assignments. */
+export function NotificationsBell({ count, items = [] }: { count: number; items?: NotificationItem[] }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const markRead = () =>
+    start(async () => {
+      await markNotificationsReadAction();
+      router.refresh();
+    });
   return (
     <DropdownMenu
       label="Notifications"
@@ -27,7 +45,41 @@ export function NotificationsBell({ count }: { count: number }) {
         </button>
       )}
     >
-      <p className="px-3 py-4 text-center text-sm text-text-muted">You&apos;re all caught up.</p>
+      {items.length === 0 ? (
+        <p className="px-3 py-4 text-center text-sm text-text-muted">You&apos;re all caught up.</p>
+      ) : (
+        <div className="w-80" data-testid="notifications">
+          <div className="flex items-center border-b border-border px-3 py-2">
+            <span className="text-[13px] font-semibold">Notifications</span>
+            {count > 0 ? (
+              <button type="button" onClick={markRead} disabled={pending} className="ml-auto text-xs text-primary hover:underline">
+                Mark all read
+              </button>
+            ) : null}
+          </div>
+          <ul className="max-h-80 overflow-y-auto">
+            {items.map((n) => {
+              const content = (
+                <>
+                  <span className={cn("block text-[13px]", !n.read && "font-semibold")}>{n.title}</span>
+                  {n.body ? <span className="block truncate text-xs text-text-muted">{n.body}</span> : null}
+                </>
+              );
+              return (
+                <li key={n.id} className={cn("border-b border-border px-3 py-2 last:border-0", !n.read && "bg-primary/5")}>
+                  {n.href ? (
+                    <Link href={n.href} className="block hover:underline">
+                      {content}
+                    </Link>
+                  ) : (
+                    content
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </DropdownMenu>
   );
 }

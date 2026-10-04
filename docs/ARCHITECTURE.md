@@ -277,7 +277,43 @@ through RLS.
   `documentPdfModel` loads through the scoped client, so a hidden document is a 404 before anything is rendered.
   Email with the PDF attached arrives with prompt 10.
 
-## 14. Local development
+## 14. Activities, test drives & calendar (prompt 07)
+
+Module `src/server/modules/activities` (+ `notifications`), UI under `src/app/(crm)/activities` and
+`src/components/crm/ActivityPanel.tsx`.
+
+- **Brand inheritance.** `Activity` is brand-owned. `createActivity` loads the parent (Lead, Deal, later Case)
+  through `scopedDb` – a hidden parent is a 404 – and copies its brand and region. A shared **Account** has no
+  brand, so the caller must pass a brand + region they may write to. `TestDrive` (1:1 subtype) carries the
+  brand id and has its own RLS policy derived from the activity. The same visibility rule therefore covers the
+  list, calendar, record panel, global search, API and raw SQL.
+- **Participants and @mentions** are limited to users who can see the record (management, or a territory of the
+  brand that covers the region). Anyone else is rejected with 403 – the note / activity is not created.
+- **Test-drive booking.** The DB trigger `app_test_drive_no_overlap` is the authority: two non-cancelled test
+  drives of the same brand + VIN may not overlap (advisory lock per vehicle, so concurrent bookings cannot both
+  win). The service turns the error into a 400 and removes the half-created activity. Cancelled / no-show
+  bookings free the slot. The demo model must belong to the record's brand.
+- **Completing a test drive** on a deal calls `advanceDealToStage(…, "TEST_DRIVE", { testDriveDate, modelId })`:
+  the deal moves from Enquiry to Test Drive when the Blueprint requirements are met; stage history is written by
+  the existing trigger. No-show / cancelled never move the deal. A follow-up date creates a follow-up task.
+- **Sensitive field.** The driving licence number is returned in full only to the owner, a manager of the
+  brand-region and management; everyone else gets `****NN`.
+- **Recurrence.** `FREQ=DAILY|WEEKLY|MONTHLY` (+ `INTERVAL`, `UNTIL`); the next occurrence is created when the
+  current one is completed (`recurrence.ts`, pure and unit-tested).
+- **Calendar.** Server-rendered month / week / day views in Africa/Lagos time (`Calendar.tsx`, no client JS).
+  Managers overlay only users in territories they manage (`teamMembers`); ids outside that set are dropped, and
+  the events still pass through `scopedDb`.
+- **Notifications.** `Notification` rows are readable by the recipient only (RLS). They are created for
+  assignments, mentions and reminders and shown in the bell of the top bar. Reminders are produced by
+  `POST /api/public/cron/reminders` (`Authorization: Bearer $CRON_SECRET`, 404 when the secret is unset,
+  idempotent through `reminderSentAt`). The rail shows the user's overdue count on Activities.
+- **Lead conversion** moves the lead's activities to the new deal.
+- **API.** `GET/POST /api/v1/activities`, `GET/PATCH /api/v1/activities/:id`, `POST /api/v1/activities/:id/complete`.
+- **Not in this prompt.** Confirmation SMS / WhatsApp / email for bookings and reminder emails are sent by the
+  messaging service of prompt 10; the indemnity file upload uses the generic attachments of the parent record;
+  drag-and-drop rescheduling in the calendar is not implemented (reschedule on the activity page).
+
+## 15. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.

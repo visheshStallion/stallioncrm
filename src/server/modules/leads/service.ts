@@ -7,6 +7,7 @@ import { ForbiddenError, NotFoundError } from "@/server/access/errors";
 import type { AccessContext } from "@/server/access/types";
 import { audit, scopedDb } from "@/server/db";
 import { BadRequestError } from "@/server/errors";
+import { moveLeadActivitiesToDeal } from "@/server/modules/activities/service";
 import { assignLead } from "./assignment";
 import { leadName, leadWhere, listLeads } from "./queries";
 import {
@@ -250,8 +251,10 @@ export async function convertLead(ctx: AccessContext, id: string, input: Convert
   return { dealId: deal.id, accountId, contactId };
 }
 
-/** Extension point: prompt 07 moves the lead's activities to the deal here. */
-async function onLeadConverted(_ctx: AccessContext, _leadId: string, _dealId: string): Promise<void> {}
+/** The lead's activities (tasks, calls, test drives) move to the new deal. */
+async function onLeadConverted(ctx: AccessContext, leadId: string, dealId: string): Promise<void> {
+  await moveLeadActivitiesToDeal(ctx, leadId, dealId);
+}
 
 export function canExportLeads(ctx: AccessContext) {
   return can(ctx, "leads", "export");

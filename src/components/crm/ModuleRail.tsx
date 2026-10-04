@@ -68,6 +68,11 @@ export function ModuleRail({
     >
       <Icon name={i.icon} className="h-[18px] w-[18px] shrink-0" />
       {collapsed ? <span className="sr-only">{i.label}</span> : <span className="truncate">{i.label}</span>}
+      {i.badge && !collapsed ? (
+        <span className="ml-auto rounded-full bg-danger px-1.5 text-[10px] font-semibold text-white" data-testid={`rail-badge-${i.key}`} title={`${i.badge} overdue`}>
+          {i.badge > 99 ? "99+" : i.badge}
+        </span>
+      ) : null}
     </Link>
   );
 

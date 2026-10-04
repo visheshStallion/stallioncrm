@@ -62,6 +62,7 @@ model Brand {
   salesOrders      SalesOrder[]
   invoices         Invoice[]
   approvalRequests ApprovalRequest[]
+  activities       Activity[]
   stockRefs        VehicleStockRef[]
   notes            Note[]
   attachments      Attachment[]
@@ -93,6 +94,7 @@ model Region {
   salesOrders      SalesOrder[]
   invoices         Invoice[]
   approvalRequests ApprovalRequest[]
+  activities       Activity[]
   attachments      Attachment[]
   assignmentRules  AssignmentRule[]
 }
@@ -183,6 +185,8 @@ model User {
   ownedInvoices      Invoice[]         @relation("InvoiceOwner")
   requestedApprovals ApprovalRequest[] @relation("ApprovalOwner")
   approvalsToDecide  ApprovalRequest[] @relation("ApprovalApprover")
+  ownedActivities    Activity[]        @relation("ActivityOwner")
+  notifications      Notification[]
   ownedAttachments   Attachment[]      @relation("AttachmentOwner")
   assignmentRules    AssignmentRule[]
   userPreferences    UserPreference[]
@@ -363,10 +367,12 @@ model DealStageHistory {
 
 /// Note on any brand-owned record (entity + entityId). Brand-owned: inherits the parent's brand and region.
 model Note {
-  id       String @id @default(cuid())
+  id       String   @id @default(cuid())
   entity   String
   entityId String
   body     String
+  /// user ids mentioned in the note (only users who can see the parent record)
+  mentions String[] @default([])
 
   brandId     String
   brand       Brand     @relation(fields: [brandId], references: [id])
@@ -572,6 +578,7 @@ model Product {
   priceEntries    PriceBookEntry[]
   stock           VehicleStockRef[]
   documentLines   DocumentLine[]
+  testDrives      TestDrive[]
 
   @@unique([brandId, code])
   @@index([brandId, active])
@@ -1064,4 +1071,122 @@ model DomainEvent {
   processedAt DateTime?
 
   @@index([processedAt, createdAt])
+}
+
+// ───────────────────────── Activities, test drives, notifications (prompt 07) ─────────────────────────
+
+enum ActivityType {
+  TASK
+  CALL
+  MEETING
+  TEST_DRIVE
+  EMAIL_LOG
+  WHATSAPP_LOG
+}
+
+enum ActivityStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+/// Brand-owned: brand and region are copied from the parent record (lead, deal, case; an account needs a brand context).
+model Activity {
+  id             String         @id @default(cuid())
+  type           ActivityType
+  /// Lead | Deal | Account | Case
+  parentType     String
+  parentId       String
+  subject        String
+  description    String?
+  /// tasks: due date; calls: time of the call
+  dueAt          DateTime?
+  /// meetings / test drives
+  startAt        DateTime?
+  endAt          DateTime?
+  status         ActivityStatus @default(OPEN)
+  /// LOW | NORMAL | HIGH
+  priority       String         @default("NORMAL")
+  /// { users: string[], contacts: string[] }
+  participants   Json           @default("{}")
+  outcome        String?
+  reminderAt     DateTime?
+  reminderSentAt DateTime?
+  /// RRULE (tasks / meetings); the next occurrence is created when one is completed
+  recurrence     String?
+  completedAt    DateTime?
+  // call
+  direction      String?
+  durationSec    Int?
+  phone          String?
+  recordingUrl   String?
+  disposition    String?
+
+  // ── brand-owned base mixin ──
+  brandId     String
+  brand       Brand     @relation(fields: [brandId], references: [id])
+  regionId    String
+  region      Region    @relation(fields: [regionId], references: [id])
+  territoryId String?
+  ownerId     String
+  owner       User      @relation("ActivityOwner", fields: [ownerId], references: [id])
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  testDrive TestDrive?
+
+  @@index([parentType, parentId])
+  @@index([ownerId, status])
+  @@index([brandId, regionId])
+  @@index([startAt])
+  @@index([dueAt])
+}
+
+/// Test-drive details (1:1 with an Activity of type TEST_DRIVE). RLS: visible when the activity is.
+/// brandId / startAt / endAt / cancelled are copies used by the double-booking trigger app_test_drive_no_overlap().
+model TestDrive {
+  activityId            String    @id
+  activity              Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  brandId               String
+  /// demo model – must be a product of the activity's brand
+  productId             String?
+  product               Product?  @relation(fields: [productId], references: [id])
+  vehicleVin            String?
+  vehiclePlate          String?
+  /// SHOWROOM | HOME | OTHER
+  location              String    @default("SHOWROOM")
+  licenceChecked        Boolean   @default(false)
+  /// sensitive: shown to the owner, managers and management only
+  licenceNumber         String?
+  indemnitySigned       Boolean   @default(false)
+  indemnityAttachmentId String?
+  odometerStart         Int?
+  odometerEnd           Int?
+  feedbackRating        Int?
+  followUpAt            DateTime?
+  startAt               DateTime
+  endAt                 DateTime
+  cancelled             Boolean   @default(false)
+
+  @@index([brandId, vehicleVin])
+}
+
+/// In-app notification for one user (reminders, mentions, approvals …). RLS: only the recipient.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// REMINDER | MENTION | ASSIGNED | APPROVAL | INFO
+  kind      String
+  title     String
+  body      String?
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
 }

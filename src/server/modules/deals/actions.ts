@@ -57,7 +57,7 @@ export async function changeDealOwnerAction(_prev: unknown, fd: FormData): Promi
 export async function addNoteAction(_prev: unknown, fd: FormData): Promise<ActionResult<Outcome>> {
   return safeAction(async () => {
     const ctx = await requireContext();
-    await notes.addNote(ctx, str(fd, "entity"), str(fd, "entityId"), str(fd, "body"));
+    await notes.addNote(ctx, str(fd, "entity"), str(fd, "entityId"), str(fd, "body"), fd.getAll("mentions").map(String));
     revalidatePath(str(fd, "path") || "/deals");
     return { message: "Note added" };
   });

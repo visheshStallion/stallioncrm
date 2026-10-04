@@ -7,6 +7,8 @@ export interface RailItem {
   label: string;
   href: string;
   icon: string;
+  /** Counter shown on the item (e.g. overdue activities). */
+  badge?: number;
 }
 
 export const RAIL_ORDER: RailItem[] = [

@@ -3,7 +3,9 @@ import { logoutAction } from "@/app/(crm)/actions";
 import { hasPermission } from "@/server/access/can";
 import { isModuleKey } from "@/server/access/modules";
 import type { AccessContext } from "@/server/access/types";
+import { overdueCount } from "@/server/modules/activities/queries";
 import { leadFormLookups } from "@/server/modules/leads/queries";
+import { myNotifications } from "@/server/modules/notifications/service";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
 import { getUiFilters } from "@/server/request";
@@ -21,9 +23,16 @@ import { AvatarMenu, CalendarShortcut, NotificationsBell, SetupGear } from "./Us
  * derived from the access context – modules the profile cannot read never appear.
  */
 export async function AppShell({ ctx, children }: { ctx: AccessContext; children: ReactNode }) {
-  const [dir, filters, prefs] = await Promise.all([getDirectory(ctx), getUiFilters(ctx), getPreferences(ctx)]);
   const canRead = (key: string) => key === "home" || (isModuleKey(key) && hasPermission(ctx, key, "read"));
-  const railItems = RAIL_ORDER.filter((i) => canRead(i.key));
+  const [dir, filters, prefs, notifications, overdue] = await Promise.all([
+    getDirectory(ctx),
+    getUiFilters(ctx),
+    getPreferences(ctx),
+    myNotifications(ctx),
+    canRead("activities") ? overdueCount(ctx) : 0,
+  ]);
+  // Overdue badge on the Activities rail item.
+  const railItems = RAIL_ORDER.filter((i) => canRead(i.key)).map((i) => (i.key === "activities" && overdue > 0 ? { ...i, badge: overdue } : i));
   const quickCreate = QUICK_CREATE.filter((q) => isModuleKey(q.module) && hasPermission(ctx, q.module, "create"));
   const lookups = quickCreate.length ? await leadFormLookups(ctx) : null;
 
@@ -57,7 +66,7 @@ export async function AppShell({ ctx, children }: { ctx: AccessContext; children
                 lookups={{ brands: lookups.brands, regions: lookups.regions, defaultBrandId: lookups.defaultBrandId, defaultRegionId: lookups.defaultRegionId }}
               />
             ) : null}
-            <NotificationsBell count={0} />
+            <NotificationsBell count={notifications.unread} items={notifications.rows} />
             <CalendarShortcut />
             {ctx.isAdmin ? <SetupGear /> : null}
             <AvatarMenu

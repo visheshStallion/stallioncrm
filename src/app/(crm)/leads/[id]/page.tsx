@@ -2,7 +2,9 @@ import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { OwnerPicker } from "@/components/crm/fields";
+import { ActivityPanel } from "@/components/crm/ActivityPanel";
 import { RecordNav } from "@/components/crm/KeyboardShortcuts";
+import { AttachmentsCard, NotesCard } from "@/components/crm/NotesAttachments";
 import { StatusPill } from "@/components/crm/primitives";
 import { DetailTabs, Field, FieldSection, RecordHeader, RelatedListCard, RelatedNav, Timeline } from "@/components/crm/record";
 import { RegionBadge } from "@/components/RegionBadge";
@@ -11,9 +13,11 @@ import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { can, hasPermission } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
 import { fieldAccess } from "@/server/access/field-mask";
+import { recordActivities } from "@/server/modules/activities/queries";
 import { changeOwnerAction } from "@/server/modules/leads/actions";
 import { getLead, leadFormLookups, leadTimeline } from "@/server/modules/leads/queries";
 import { PAYMENT_LABELS, SOURCE_LABELS, STATUS_LABELS, WINDOW_LABELS } from "@/server/modules/leads/schema";
+import { listAttachments, listNotes, mentionableUsers } from "@/server/modules/notes/service";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
 import { requireContext } from "@/server/request";
@@ -28,7 +32,15 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
     if (isAccessError(e)) notFound();
     throw e;
   });
-  const [dir, prefs, lookups] = await Promise.all([getDirectory(ctx), getPreferences(ctx), leadFormLookups(ctx)]);
+  const [dir, prefs, lookups, notes, attachments, activities, mentionable] = await Promise.all([
+    getDirectory(ctx),
+    getPreferences(ctx),
+    leadFormLookups(ctx),
+    listNotes(ctx, "Lead", id),
+    listAttachments(ctx, "Lead", id),
+    hasPermission(ctx, "activities", "read") ? recordActivities(ctx, "Lead", id) : { overdue: [], upcoming: [], history: [] },
+    mentionableUsers(ctx, lead.brandId, lead.regionId),
+  ]);
   const current = tab === "timeline" ? "timeline" : "overview";
   const timeline = current === "timeline" ? await leadTimeline(ctx, id) : [];
   const brand = dir.brands.find((b) => b.id === lead.brandId);
@@ -107,9 +119,9 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
             items={[
               { id: "info", label: "Lead Information" },
               { id: "vehicle", label: "Vehicle & Payment" },
-              { id: "notes", label: "Notes" },
-              { id: "attachments", label: "Attachments" },
-              { id: "open-activities", label: "Open Activities" },
+              { id: "notes", label: "Notes", count: notes.length },
+              { id: "attachments", label: "Attachments", count: attachments.length },
+              { id: "open-activities", label: "Activities" },
               { id: "emails", label: "Emails" },
             ]}
           />
@@ -149,9 +161,18 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
                 </ActionForm>
               </section>
             ) : null}
-            <RelatedListCard id="notes" title="Notes" empty="Notes arrive with the Activities module." />
-            <RelatedListCard id="attachments" title="Attachments" />
-            <RelatedListCard id="open-activities" title="Open Activities" empty="No open activities." />
+            <NotesCard entity="Lead" entityId={lead.id} path={`/leads/${lead.id}`} notes={notes} canEdit={canEdit} dateFormat={df} mentionable={mentionable.filter((u) => u.id !== ctx.userId)} />
+            <AttachmentsCard entity="Lead" entityId={lead.id} path={`/leads/${lead.id}`} attachments={attachments} canEdit={canEdit} dateFormat={df} />
+            <ActivityPanel
+              parentType="Lead"
+              parentId={lead.id}
+              groups={activities}
+              canCreate={!converted && can(ctx, "activities", "create", lead)}
+              canEdit={can(ctx, "activities", "edit", lead)}
+              dateFormat={df}
+              phone={level("mobile") === "read" || level("mobile") === "edit" ? lead.mobile : null}
+              testDrive
+            />
             <RelatedListCard id="emails" title="Emails" empty="Emails arrive with prompt 10." />
           </div>
         </div>

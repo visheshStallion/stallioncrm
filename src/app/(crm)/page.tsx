@@ -3,9 +3,11 @@ import type { ReactNode } from "react";
 import { BrandBadge } from "@/components/BrandBadge";
 import { EmptyState, PageTitleRow, StatusPill } from "@/components/crm/primitives";
 import { RegionBadge } from "@/components/RegionBadge";
-import { formatDate, formatMoney, formatMoneyCompact } from "@/lib/format";
+import { formatDate, formatDateTime, formatMoney, formatMoneyCompact, formatTime } from "@/lib/format";
 import { hasPermission } from "@/server/access/can";
 import { scopedDb } from "@/server/db";
+import { listActivities } from "@/server/modules/activities/queries";
+import { TYPE_LABELS, type ActivityTypeKey } from "@/server/modules/activities/schema";
 import { OPEN_DEALS } from "@/server/modules/deals/queries";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
@@ -81,6 +83,11 @@ export default async function HomePage() {
         })
       : [],
   ]);
+  const canActivities = hasPermission(ctx, "activities", "read");
+  const [myTasks, todays] = canActivities
+    ? await Promise.all([listActivities(ctx, { view: "my", type: "TASK" }, {}, { take: 8 }), listActivities(ctx, { view: "today" }, {}, { take: 8 })])
+    : [{ rows: [] }, { rows: [] }];
+  const meetings = todays.rows.filter((a) => a.type !== "TASK");
   const brand = (id: string) => dir.brands.find((b) => b.id === id);
   // Pipelines are per brand: group the stage totals by stage key so brands line up.
   const stageInfo = byStage.length
@@ -103,12 +110,46 @@ export default async function HomePage() {
         left={<span className="text-[13px] text-text-muted">{ctx.user.roleName} · {ctx.scope === "ALL" ? "all brands & regions" : `${ctx.memberships.length} territor${ctx.memberships.length === 1 ? "y" : "ies"}`}</span>}
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="home-widgets">
-        <Widget title="My open tasks" href="/activities">
-          <EmptyState title="No open tasks" text="Tasks, calls and meetings arrive with the Activities module." />
-        </Widget>
-        <Widget title="Today's meetings" href="/activities?view=calendar">
-          <EmptyState title="Nothing scheduled today" />
-        </Widget>
+        {canActivities ? (
+          <Widget title="My open tasks" href="/activities" testId="widget-tasks">
+            {myTasks.rows.length ? (
+              <ul className="divide-y divide-border">
+                {myTasks.rows.map((a) => (
+                  <li key={a.id} className="flex items-center gap-2 py-1.5">
+                    <BrandBadge brand={brand(a.brandId)} />
+                    <Link href={`/activities/${a.id}`} className="flex-1 truncate text-primary hover:underline">
+                      {a.subject}
+                    </Link>
+                    {a.overdue ? <StatusPill tone="danger">Overdue</StatusPill> : null}
+                    <span className="text-xs text-text-muted">{a.at ? formatDateTime(a.at, prefs.dateFormat) : "—"}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState title="No open tasks" />
+            )}
+          </Widget>
+        ) : null}
+        {canActivities ? (
+          <Widget title="Today's meetings, calls & test drives" href="/activities?view=calendar&mode=day" testId="widget-today">
+            {meetings.length ? (
+              <ul className="divide-y divide-border">
+                {meetings.map((a) => (
+                  <li key={a.id} className="flex items-center gap-2 py-1.5">
+                    <span className="w-12 text-xs font-semibold">{formatTime(a.at)}</span>
+                    <BrandBadge brand={brand(a.brandId)} />
+                    <Link href={`/activities/${a.id}`} className="flex-1 truncate text-primary hover:underline">
+                      {a.subject}
+                    </Link>
+                    <span className="text-xs text-text-muted">{TYPE_LABELS[a.type as ActivityTypeKey]}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState title="Nothing scheduled today" />
+            )}
+          </Widget>
+        ) : null}
         {canDeals ? (
           <Widget title={manager ? "Pipeline by stage" : "My pipeline by stage"} href="/deals?layout=kanban">
             <Bars

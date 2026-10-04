@@ -6,11 +6,12 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { delegateName, isBrandOwnedModel } from "@/server/access/brand-owned";
 import { assertCan } from "@/server/access/can";
-import { NotFoundError } from "@/server/access/errors";
+import { ForbiddenError, NotFoundError } from "@/server/access/errors";
 import type { ModuleKey } from "@/server/access/modules";
 import type { AccessContext } from "@/server/access/types";
 import { scopedDb } from "@/server/db";
 import { BadRequestError } from "@/server/errors";
+import { notify } from "@/server/modules/notifications/service";
 import { storage } from "@/server/storage";
 
 /** Parent entities that can carry notes / attachments → their permission module. */
@@ -47,22 +48,46 @@ export async function listNotes(ctx: AccessContext, entity: string, entityId: st
   await loadParent(ctx, entity, entityId);
   const rows = await scopedDb(ctx).note.findMany({
     where: { entity, entityId },
-    select: { id: true, body: true, createdAt: true, ownerId: true, owner: { select: { name: true } } },
+    select: { id: true, body: true, mentions: true, createdAt: true, ownerId: true, owner: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 100,
   });
-  return rows.map((n) => ({ id: n.id, body: n.body, at: n.createdAt.toISOString(), author: n.owner.name, mine: n.ownerId === ctx.userId }));
+  return rows.map((n) => ({ id: n.id, body: n.body, mentions: n.mentions, at: n.createdAt.toISOString(), author: n.owner.name, mine: n.ownerId === ctx.userId }));
 }
 
-export async function addNote(ctx: AccessContext, entity: string, entityId: string, body: string) {
+/**
+ * Users that may be @mentioned on a record of this brand / region: only those who can see it (management or a
+ * territory of the brand covering the region).
+ */
+export async function mentionableUsers(ctx: AccessContext, brandId: string, regionId: string) {
+  return scopedDb(ctx).user.findMany({
+    where: { active: true, OR: [{ profile: { scope: "ALL" } }, { memberships: { some: { territory: { brandId, OR: [{ regionId: null }, { regionId }] } } } }] },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+/** Mentions notify only users who can access the parent record; anyone else blocks the note. */
+export async function addNote(ctx: AccessContext, entity: string, entityId: string, body: string, mentions: string[] = []) {
   const text = body.trim();
   if (!text || text.length > 5000) throw new BadRequestError("A note must be 1–5000 characters");
   const { moduleKey, parent } = await loadParent(ctx, entity, entityId);
   assertCan(ctx, moduleKey, "edit", parent);
-  return scopedDb(ctx).note.create({
-    data: { entity, entityId, body: text, brandId: parent.brandId, regionId: parent.regionId, ownerId: ctx.userId },
+  const mentioned = [...new Set(mentions.filter(Boolean))];
+  if (mentioned.length) {
+    const allowed = new Set((await mentionableUsers(ctx, parent.brandId, parent.regionId)).map((u) => u.id));
+    if (mentioned.some((m) => !allowed.has(m))) throw new ForbiddenError("You can only mention users who have access to this record");
+  }
+  const note = await scopedDb(ctx).note.create({
+    data: { entity, entityId, body: text, mentions: mentioned, brandId: parent.brandId, regionId: parent.regionId, ownerId: ctx.userId },
     select: { id: true },
   });
+  await notify(
+    ctx,
+    mentioned.filter((m) => m !== ctx.userId),
+    { kind: "MENTION", title: `${ctx.user.name} mentioned you in a note`, body: text.slice(0, 200), href: `/${moduleKey}/${entityId}#notes` },
+  );
+  return note;
 }
 
 /** Authors delete their own notes (soft delete); nobody else's. */

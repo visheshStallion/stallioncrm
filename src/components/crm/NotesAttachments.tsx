@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDateTime, type DateFormat } from "@/lib/format";
 import { addNoteAction, deleteAttachmentAction, deleteNoteAction, uploadAttachmentAction } from "@/server/modules/deals/actions";
+import { MultiPicklist } from "./fields";
 import { RelatedListCard } from "./record";
 
 interface NoteLine {
@@ -12,6 +13,7 @@ interface NoteLine {
   at: string;
   author: string;
   mine: boolean;
+  mentions?: string[];
 }
 interface AttachmentLine {
   id: string;
@@ -24,23 +26,50 @@ interface AttachmentLine {
 const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 /** Notes related list. Notes inherit the parent record's brand and region. */
-export function NotesCard({ entity, entityId, path, notes, canEdit, dateFormat }: { entity: string; entityId: string; path: string; notes: NoteLine[]; canEdit: boolean; dateFormat: DateFormat }) {
+export function NotesCard({
+  entity,
+  entityId,
+  path,
+  notes,
+  canEdit,
+  dateFormat,
+  mentionable = [],
+}: {
+  entity: string;
+  entityId: string;
+  path: string;
+  notes: NoteLine[];
+  canEdit: boolean;
+  dateFormat: DateFormat;
+  /** Users who can see this record – the only ones that can be @mentioned. */
+  mentionable?: Array<{ id: string; name: string }>;
+}) {
+  const names = new Map(mentionable.map((u) => [u.id, u.name]));
   return (
     <RelatedListCard id="notes" title="Notes" count={notes.length}>
       <div className="space-y-3">
         {canEdit ? (
-          <ActionForm action={addNoteAction} className="flex gap-2">
+          <ActionForm action={addNoteAction} className="space-y-2">
             <input type="hidden" name="entity" value={entity} />
             <input type="hidden" name="entityId" value={entityId} />
             <input type="hidden" name="path" value={path} />
-            <Input name="body" placeholder="Add a note…" required maxLength={5000} aria-label="New note" />
-            <SubmitButton size="sm">Add</SubmitButton>
+            <div className="flex gap-2">
+              <Input name="body" placeholder="Add a note…" required maxLength={5000} aria-label="New note" />
+              <SubmitButton size="sm">Add</SubmitButton>
+            </div>
+            {mentionable.length ? (
+              <div className="flex flex-wrap items-center gap-1 text-xs" data-testid="note-mentions">
+                <span className="text-text-muted">Mention:</span>
+                <MultiPicklist name="mentions" options={mentionable.map((u) => ({ value: u.id, label: `@${u.name}` }))} />
+              </div>
+            ) : null}
           </ActionForm>
         ) : null}
         <ul className="space-y-2" data-testid="notes-list">
           {notes.map((n) => (
             <li key={n.id} className="rounded-md border border-border p-2">
               <p className="whitespace-pre-wrap">{n.body}</p>
+              {n.mentions?.length ? <p className="text-xs text-primary">{n.mentions.map((m) => `@${names.get(m) ?? "user"}`).join(" ")}</p> : null}
               <div className="mt-1 flex items-center gap-2 text-xs text-text-muted">
                 {n.author} · {formatDateTime(n.at, dateFormat)}
                 {n.mine ? (

@@ -3,6 +3,7 @@ import { forbidden, notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { OwnerPicker } from "@/components/crm/fields";
 import { RecordNav } from "@/components/crm/KeyboardShortcuts";
+import { ActivityPanel } from "@/components/crm/ActivityPanel";
 import { AttachmentsCard, NotesCard } from "@/components/crm/NotesAttachments";
 import { StatusPill } from "@/components/crm/primitives";
 import { DetailTabs, Field, FieldSection, RecordHeader, RelatedListCard, RelatedNav, StageProgressBar, Timeline } from "@/components/crm/record";
@@ -20,7 +21,8 @@ import { listStock } from "@/server/modules/catalogue/queries";
 import { changeDealOwnerAction } from "@/server/modules/deals/actions";
 import { allowedTargets } from "@/server/modules/deals/blueprint";
 import { dealFormLookups, dealStageHistory, dealTimeline, getDeal, getPipeline } from "@/server/modules/deals/queries";
-import { listAttachments, listNotes } from "@/server/modules/notes/service";
+import { recordActivities } from "@/server/modules/activities/queries";
+import { listAttachments, listNotes, mentionableUsers } from "@/server/modules/notes/service";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
 import { requireContext } from "@/server/request";
@@ -41,7 +43,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
     throw e;
   });
   const current = tab === "timeline" ? "timeline" : "overview";
-  const [dir, prefs, pipeline, lookups, notes, attachments, users, stock, documents] = await Promise.all([
+  const [dir, prefs, pipeline, lookups, notes, attachments, users, stock, documents, activities, mentionable] = await Promise.all([
     getDirectory(ctx),
     getPreferences(ctx),
     getPipeline(ctx, deal.pipelineId),
@@ -54,6 +56,8 @@ export default async function DealPage({ params, searchParams }: { params: Promi
       ? listStock(ctx, { OR: [{ dealId: id }, { brandId: deal.brandId, status: { in: ["IN_STOCK", "IN_TRANSIT"] }, ...(deal.modelId ? { productId: deal.modelId } : {}) }] })
       : Promise.resolve([]),
     dealDocuments(ctx, id),
+    hasPermission(ctx, "activities", "read") ? recordActivities(ctx, "Deal", id) : { overdue: [], upcoming: [], history: [] },
+    mentionableUsers(ctx, deal.brandId, deal.regionId),
   ]);
   const reserved = stock.filter((s) => s.dealId === id);
   const available = stock.filter((s) => s.dealId !== id);
@@ -243,9 +247,17 @@ export default async function DealPage({ params, searchParams }: { params: Promi
                 </div>
               ) : null}
             </RelatedListCard>
-            <NotesCard entity="Deal" entityId={deal.id} path={`/deals/${deal.id}`} notes={notes} canEdit={canEdit} dateFormat={df} />
+            <NotesCard entity="Deal" entityId={deal.id} path={`/deals/${deal.id}`} notes={notes} canEdit={canEdit} dateFormat={df} mentionable={mentionable.filter((u) => u.id !== ctx.userId)} />
             <AttachmentsCard entity="Deal" entityId={deal.id} path={`/deals/${deal.id}`} attachments={attachments} canEdit={canEdit} dateFormat={df} />
-            <RelatedListCard id="open-activities" title="Activities" empty="Activities arrive with prompt 07." />
+            <ActivityPanel
+              parentType="Deal"
+              parentId={deal.id}
+              groups={activities}
+              canCreate={brand?.status !== "INACTIVE" && can(ctx, "activities", "create", deal)}
+              canEdit={can(ctx, "activities", "edit", deal)}
+              dateFormat={df}
+              testDrive={deal.stageType === "OPEN"}
+            />
             <RelatedListCard id="quotes" title="Quotes / Sales Orders / Invoices" count={documents.length} empty="No documents yet – use Create Quote. A sales order is created from an accepted quote, an invoice from a confirmed order.">
               {documents.length ? (
                 <ul className="divide-y divide-border" data-testid="deal-documents">
