@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Toaster } from "@/components/Toaster";
+import { getPreferences } from "@/server/modules/preferences/queries";
+import { getRequestContext } from "@/server/request";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,9 +9,18 @@ export const metadata: Metadata = {
   description: "Multi-brand automotive sales CRM",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+/** Resolves the "system" theme before first paint (no flash). */
+const SYSTEM_THEME_SCRIPT = `(function(){try{var d=document.documentElement;if(d.dataset.themePref==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches){d.classList.add("dark")}}catch(e){}})();`;
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const ctx = await getRequestContext();
+  const prefs = ctx ? await getPreferences(ctx) : null;
+  const theme = prefs?.theme ?? "light";
   return (
-    <html lang="en">
+    <html lang="en" className={theme === "dark" ? "dark" : undefined} data-theme-pref={theme} data-density={prefs?.density ?? "comfortable"} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: SYSTEM_THEME_SCRIPT }} />
+      </head>
       <body className="min-h-screen antialiased">
         {children}
         <Toaster />

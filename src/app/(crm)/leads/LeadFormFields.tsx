@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { FormSection, Required } from "@/components/crm/record";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -51,10 +52,13 @@ export interface LeadFormValues {
   unqualifiedReason?: string | null;
 }
 
-function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
+function Field({ label, htmlFor, children, required }: { label: string; htmlFor: string; children: React.ReactNode; required?: boolean }) {
   return (
     <div className="space-y-1">
-      <Label htmlFor={htmlFor}>{label}</Label>
+      <Label htmlFor={htmlFor}>
+        {label}
+        {required ? <Required /> : null}
+      </Label>
       {children}
     </div>
   );
@@ -95,8 +99,8 @@ export function LeadFormFields({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Brand" htmlFor="brandId">
+      <FormSection title="Lead Information">
+        <Field label="Brand" htmlFor="brandId" required>
           {mode === "edit" ? (
             <>
               <Input id="brandId" value={brand ? `${brand.code} – ${brand.name}` : ""} readOnly disabled />
@@ -113,7 +117,7 @@ export function LeadFormFields({
             </Select>
           )}
         </Field>
-        <Field label="Region" htmlFor="regionId">
+        <Field label="Region" htmlFor="regionId" required>
           <Select id="regionId" name="regionId" required defaultValue={values.regionId ?? lookups.defaultRegionId ?? ""} className="w-full">
             <option value="">Choose region…</option>
             {lookups.regions.map((r) => (
@@ -137,13 +141,13 @@ export function LeadFormFields({
         <Field label="First name" htmlFor="firstName">
           <Input id="firstName" name="firstName" defaultValue={values.firstName ?? ""} />
         </Field>
-        <Field label="Last name" htmlFor="lastName">
+        <Field label="Last name" htmlFor="lastName" required>
           <Input id="lastName" name="lastName" defaultValue={values.lastName ?? ""} required />
         </Field>
         <Field label="City" htmlFor="city">
           <Input id="city" name="city" defaultValue={values.city ?? ""} />
         </Field>
-        <Field label="Mobile" htmlFor="mobile">
+        <Field label="Mobile (or email)" htmlFor="mobile" required>
           <Input id="mobile" name="mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="0803 123 4521" />
         </Field>
         <Field label="Email" htmlFor="email">
@@ -159,7 +163,7 @@ export function LeadFormFields({
             ))}
           </Select>
         </Field>
-      </div>
+      </FormSection>
 
       {dupes && (dupes.sameBrand.length || dupes.existsElsewhere || dupes.contacts.length) ? (
         <div className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" data-testid="duplicate-warning" role="status">
@@ -183,7 +187,7 @@ export function LeadFormFields({
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <FormSection title="Source, Vehicle & Payment">
         <Field label="Source" htmlFor="source">
           <Select id="source" name="source" defaultValue={values.source ?? "WALK_IN"} className="w-full">
             {LEAD_SOURCES.map((s) => (
@@ -233,7 +237,7 @@ export function LeadFormFields({
             <Input id="unqualifiedReason" name="unqualifiedReason" defaultValue={values.unqualifiedReason ?? ""} required />
           </Field>
         ) : null}
-        <div className="flex items-center gap-4 pt-6 text-sm sm:col-span-2">
+        <div className="flex flex-wrap items-center gap-4 pt-6 text-sm sm:col-span-2">
           <label className="flex items-center gap-2">
             <input type="checkbox" name="tradeIn" defaultChecked={values.tradeIn} /> Trade-in
           </label>
@@ -242,7 +246,7 @@ export function LeadFormFields({
             <input type="checkbox" name="consentMarketing" defaultChecked={values.consentMarketing} /> Marketing consent
           </label>
         </div>
-      </div>
+      </FormSection>
 
       {mode === "create" ? (
         <div className="flex flex-wrap items-center gap-4 rounded-md bg-muted/60 p-3 text-sm">
