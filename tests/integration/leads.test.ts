@@ -141,7 +141,7 @@ describe("create, duplicates, conversion", () => {
     const snmnlModel = await unsafeDb.product.findFirstOrThrow({ where: { brandId: I.brand("SNMNL") } });
     await expect(
       svc.createLead(lagosHmnl, { lastName: "X", mobile: "08099990021", brandId: I.brand("HMNL"), regionId: lagosRegion(), modelOfInterestId: snmnlModel.id }),
-    ).rejects.toThrow(/same brand|lead's brand/);
+    ).rejects.toThrow(/record's brand/);
     await expect(svc.createLead(lagosHmnl, { lastName: "X", mobile: "08099990022", brandId: I.brand("SNMNL"), regionId: lagosRegion() })).rejects.toBeInstanceOf(ForbiddenError);
   });
 

@@ -131,7 +131,7 @@ describe("Blueprint enforcement", () => {
     await expect(svc.moveDealStage(exec, id, stageIds.get("TEST_DRIVE")!)).rejects.toThrow(/Test drive date, Model/);
     const model = await unsafeDb.product.findFirstOrThrow({ where: { brandId: I.brand("HMNL") } });
     const foreign = await unsafeDb.product.findFirstOrThrow({ where: { brandId: I.brand("SNMNL") } });
-    await expect(svc.moveDealStage(exec, id, stageIds.get("TEST_DRIVE")!, { testDriveDate: "2026-10-06", modelId: foreign.id } as never)).rejects.toThrow(/deal's brand/);
+    await expect(svc.moveDealStage(exec, id, stageIds.get("TEST_DRIVE")!, { testDriveDate: "2026-10-06", modelId: foreign.id } as never)).rejects.toThrow(/record's brand/);
     await svc.moveDealStage(exec, id, stageIds.get("TEST_DRIVE")!, { testDriveDate: "2026-10-06", modelId: model.id } as never);
     await svc.moveDealStage(exec, id, stageIds.get("QUOTATION")!); // "quote" check is not enforced until quotes exist
     await expect(svc.moveDealStage(exec, id, stageIds.get("BOOKING")!, { depositAmount: 1_000_000 } as never)).rejects.toThrow(/Deposit receipt no\./);
@@ -167,7 +167,7 @@ describe("field rules", () => {
 
   it("model must belong to the deal's brand; stale flag follows the stage limit", async () => {
     const foreign = await unsafeDb.product.findFirstOrThrow({ where: { brandId: I.brand("ZANL") } });
-    await expect(newDeal(exec, { modelId: foreign.id })).rejects.toThrow(/deal's brand/);
+    await expect(newDeal(exec, { modelId: foreign.id })).rejects.toThrow(/record's brand/);
     const { id } = await newDeal(exec);
     await unsafeDb.deal.update({ where: { id }, data: { stageEnteredAt: new Date(Date.now() - 30 * 86_400_000) } });
     const deal = await getDeal(exec, id);
