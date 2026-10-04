@@ -45,6 +45,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm build-storybook
       - name: E2E
         run: |
           pnpm exec playwright install --with-deps chromium

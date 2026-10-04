@@ -148,7 +148,7 @@ and anything security-relevant. Secrets (`passwordHash`, `password`, `token`, `s
    Use `src/server/modules/deals/*` as the reference.
 5. **Child records inherit brand/region** from the parent (Lead → Deal → Quote → SO → Invoice; Activities from parent).
    Set `brandId/regionId` from the parent in the service; never from user input for Sales Execs.
-6. **UI**: list page with `DataTable` + `BrandBadge` on every row; record header with `BrandBadge`; forms with
+6. **UI**: use the page templates in [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) (`ModuleListFrame`, `Kanban`, `RecordHeader`, `FormSection`); `BrandBadge` on every row and record header; forms with
    `RecordForm` honoring `fieldAccess`. Wire the module into `src/app/(crm)/[module]/` or a dedicated route.
 7. **API**: `src/app/api/v1/<module>/route.ts` with `apiHandler` + `requireApiContext`.
 8. **Search**: add a searcher to `src/server/modules/search/queries.ts` (through scopedDb).

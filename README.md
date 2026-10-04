@@ -6,6 +6,7 @@ entitled to – via UI, search, reports, exports, related lists or the API.
 
 - Business rules: [`docs/BUSINESS_CONTEXT.md`](docs/BUSINESS_CONTEXT.md)
 - How it is enforced and how to add a module: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- UI design system and page templates: [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md)
 - Administering brands, territories, profiles and users: [`docs/ADMIN_GUIDE.md`](docs/ADMIN_GUIDE.md)
 - Decision record: [`docs/adr/0001-brand-isolation.md`](docs/adr/0001-brand-isolation.md)
 
