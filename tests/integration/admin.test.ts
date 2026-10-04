@@ -135,6 +135,8 @@ describe("roles & profiles", () => {
 
   it("the last Administrator cannot be deactivated or demoted", async () => {
     const adminId = admin.userId;
+    // the seed has a second Administrator (superadmin): without it, `admin` is the last one
+    await unsafeDb.user.updateMany({ where: { email: "superadmin@stallioncrm.test" }, data: { active: false } });
     const mgmt = await unsafeDb.profile.findUniqueOrThrow({ where: { name: "Management" } });
     const user = await unsafeDb.user.findUniqueOrThrow({ where: { id: adminId } });
     await expect(

@@ -50,7 +50,7 @@ role `stallion_rls` used for Row-Level Security). The default `postgres` user is
 | `exec.abuja@stallioncrm.test` | Regional Sales Exec | all brands, Abuja |
 
 Inventory staff: `stock.hmnl@…` (Stock Controller), `logistics.hmnl@…` (Logistics), `acct.hmnl@…` (Brand Accountant).
-See `prisma/seed-data.ts` for all 30 users. **The seed is for development and demos only** – it must never be
+See `prisma/seed-data.ts` for all 31 users. **The seed is for development and demos only** – it must never be
 run in production (public password).
 
 ### First administrator (production)

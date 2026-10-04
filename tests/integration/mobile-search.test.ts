@@ -187,8 +187,10 @@ describe("notifications", () => {
 
     // digest: only for users who asked, once per day, after 07:00 Lagos
     await notifications.saveNotificationPrefs(exec2, { kinds: {}, quietFrom: null, quietTo: null, digest: true });
-    const morning = new Date(`${new Date().toISOString().slice(0, 10)}T08:00:00+01:00`);
-    expect(await notifications.sendDigests(new Date(`${new Date().toISOString().slice(0, 10)}T05:00:00+01:00`))).toBe(0);
+    // the Lagos calendar day (UTC+1), not the UTC one: between 23:00 and 24:00 UTC they differ
+    const lagosDay = new Date(Date.now() + 3_600_000).toISOString().slice(0, 10);
+    const morning = new Date(`${lagosDay}T08:00:00+01:00`);
+    expect(await notifications.sendDigests(new Date(`${lagosDay}T05:00:00+01:00`))).toBe(0);
     const at = new Date(Math.max(morning.getTime(), Date.now()));
     const since = new Date();
     expect(await notifications.sendDigests(at)).toBe(1);

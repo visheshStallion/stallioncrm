@@ -232,6 +232,8 @@ export const USERS: SeedUser[] = [
   { key: "md", name: "Kemi Adebayo", role: ROLES.MD, profile: PROFILES.MANAGEMENT, territories: ["ROOT"] },
   { key: "hos", name: "Chidi Okonkwo", role: ROLES.HOS, profile: PROFILES.MANAGEMENT, territories: ["ROOT"], manager: "md" },
   { key: "admin", name: "Ifeoma Nwosu", role: ROLES.ADMIN, profile: PROFILES.ADMIN, territories: ["ROOT"] },
+  // super administrator: full Administrator profile on the root territory = every brand, every setup screen
+  { key: "superadmin", name: "Super Admin", role: ROLES.ADMIN, profile: PROFILES.ADMIN, territories: ["ROOT"] },
 
   { key: "bm.hmnl", name: "Bola Hassan", role: ROLES.BM, profile: PROFILES.BM, territories: ["HMNL"], manager: "hos" },
   { key: "bm.snmnl", name: "Emeka Obi", role: ROLES.BM, profile: PROFILES.BM, territories: ["SNMNL"], manager: "hos" },
