@@ -9,11 +9,14 @@ import { DetailTabs, Field, FieldSection, RecordHeader, RelatedListCard, Related
 import { stageTone } from "@/components/crm/tones";
 import { RegionBadge } from "@/components/RegionBadge";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { can, hasPermission } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
 import { isManagerOf } from "@/server/access/visibility";
 import { scopedDb } from "@/server/db";
+import { releaseVinAction, reserveVinAction } from "@/server/modules/catalogue/actions";
+import { listStock } from "@/server/modules/catalogue/queries";
 import { changeDealOwnerAction } from "@/server/modules/deals/actions";
 import { allowedTargets } from "@/server/modules/deals/blueprint";
 import { dealFormLookups, dealStageHistory, dealTimeline, getDeal, getPipeline } from "@/server/modules/deals/queries";
@@ -35,7 +38,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
     throw e;
   });
   const current = tab === "timeline" ? "timeline" : "overview";
-  const [dir, prefs, pipeline, lookups, notes, attachments, users] = await Promise.all([
+  const [dir, prefs, pipeline, lookups, notes, attachments, users, stock] = await Promise.all([
     getDirectory(ctx),
     getPreferences(ctx),
     getPipeline(ctx, deal.pipelineId),
@@ -43,7 +46,13 @@ export default async function DealPage({ params, searchParams }: { params: Promi
     listNotes(ctx, "Deal", id),
     listAttachments(ctx, "Deal", id),
     scopedDb(ctx).user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    // Vehicles reserved for this deal + available vehicles of the deal's brand (and model, when chosen).
+    hasPermission(ctx, "products", "read")
+      ? listStock(ctx, { OR: [{ dealId: id }, { brandId: deal.brandId, status: { in: ["IN_STOCK", "IN_TRANSIT"] }, ...(deal.modelId ? { productId: deal.modelId } : {}) }] })
+      : Promise.resolve([]),
   ]);
+  const reserved = stock.filter((s) => s.dealId === id);
+  const available = stock.filter((s) => s.dealId !== id);
   const [history, fieldHistory] = current === "timeline" ? await Promise.all([dealStageHistory(ctx, id), dealTimeline(ctx, id)]) : [[], []];
   const brand = dir.brands.find((b) => b.id === deal.brandId);
   const region = dir.regions.find((r) => r.id === deal.regionId);
@@ -189,6 +198,52 @@ export default async function DealPage({ params, searchParams }: { params: Promi
                 </ActionForm>
               </section>
             ) : null}
+            <RelatedListCard id="vehicle-reservation" title="Vehicle reservation">
+              {reserved.length ? (
+                <ul className="mb-2 space-y-1" data-testid="reserved-vehicles">
+                  {reserved.map((s) => (
+                    <li key={s.id} className="flex items-center gap-2">
+                      <span className="font-mono">{s.vin}</span>
+                      <span className="text-text-muted">
+                        {s.productName} · {s.colour ?? "—"} · {s.status === "SOLD" ? "Sold" : "Reserved"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mb-2 text-text-muted">No vehicle reserved. A reservation is released automatically when the deal is Closed Lost.</p>
+              )}
+              {canEdit && deal.stageType === "OPEN" ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {available.length ? (
+                    <ActionForm action={reserveVinAction} className="flex items-center gap-2">
+                      <input type="hidden" name="dealId" value={deal.id} />
+                      <Select name="stockId" required aria-label="Vehicle to reserve" className="w-80">
+                        <option value="">Reserve a vehicle…</option>
+                        {available.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.vin} – {s.productName} {s.colour ? `(${s.colour})` : ""}
+                          </option>
+                        ))}
+                      </Select>
+                      <SubmitButton size="sm" variant="outline">
+                        Reserve
+                      </SubmitButton>
+                    </ActionForm>
+                  ) : (
+                    <span className="text-text-muted">No vehicle available{deal.modelId ? " for this model" : ""}.</span>
+                  )}
+                  {reserved.some((s) => s.status === "RESERVED") ? (
+                    <ActionForm action={releaseVinAction} confirm="Release the reserved vehicle?">
+                      <input type="hidden" name="dealId" value={deal.id} />
+                      <Button size="sm" variant="ghost" type="submit">
+                        Release
+                      </Button>
+                    </ActionForm>
+                  ) : null}
+                </div>
+              ) : null}
+            </RelatedListCard>
             <NotesCard entity="Deal" entityId={deal.id} path={`/deals/${deal.id}`} notes={notes} canEdit={canEdit} dateFormat={df} />
             <AttachmentsCard entity="Deal" entityId={deal.id} path={`/deals/${deal.id}`} attachments={attachments} canEdit={canEdit} dateFormat={df} />
             <RelatedListCard id="open-activities" title="Activities" empty="Activities arrive with prompt 07." />
