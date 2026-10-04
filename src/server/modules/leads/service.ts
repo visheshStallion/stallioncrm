@@ -239,6 +239,8 @@ export async function convertLead(ctx: AccessContext, id: string, input: Convert
       modelId: lead.modelOfInterestId,
       accountId,
       contactId,
+      // campaign attribution (ROI) follows the lead
+      campaignId: lead.campaignId,
     } satisfies Prisma.DealUncheckedCreateInput,
     select: { id: true },
   });

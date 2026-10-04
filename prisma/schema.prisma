@@ -46,6 +46,16 @@ model Brand {
   discountEscalationPct Decimal     @default(7) @db.Decimal(5, 2)
   brandManagerId        String?
   brandManager          User?       @relation("BrandManager", fields: [brandManagerId], references: [id])
+  // ── sender identity (prompt 10): a message about this brand's record is always sent as this brand ──
+  fromName              String?
+  fromEmail             String?
+  /// alphanumeric SMS sender ID (max 11 characters)
+  smsSenderId           String?
+  /// number that receives inbound SMS for this brand (E.164 or short code)
+  smsInboundNumber      String?     @unique
+  /// WhatsApp Business number (E.164) and its Cloud API phone-number id
+  whatsappNumber        String?     @unique
+  whatsappPhoneId       String?     @unique
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
 
@@ -72,6 +82,9 @@ model Brand {
   reports           Report[]
   targets           Target[]
   forecastNotes     ForecastNote[]
+  messages          Message[]
+  templates         Template[]
+  campaigns         Campaign[]
 }
 
 /// Legacy company codes (e.g. from the HR rep file) mapped to a brand. Configurable, never hard-coded.
@@ -103,6 +116,7 @@ model Region {
   attachments      Attachment[]
   assignmentRules  AssignmentRule[]
   targets          Target[]
+  messages         Message[]
 }
 
 /// Territory tree: level 0 = Group root, level 1 = Brand, level 2 = "BRAND – Region".
@@ -200,6 +214,7 @@ model User {
   savedReports       Report[]
   targets            Target[]          @relation("TargetUser")
   forecastNotes      ForecastNote[]
+  ownedMessages      Message[]         @relation("MessageOwner")
 }
 
 model TerritoryMember {
@@ -352,6 +367,7 @@ model Deal {
   quotes       Quote[]
   salesOrders  SalesOrder[]
   invoices     Invoice[]
+  campaign     Campaign?          @relation(fields: [campaignId], references: [id])
 
   /// VIN / chassis number is unique per brand
   @@unique([brandId, vinChassisNo])
@@ -508,9 +524,10 @@ model Contact {
   deletedAt        DateTime?
   mergedIntoId     String?
 
-  deals          Deal[]
-  convertedLeads Lead[]
-  consents       ContactBrandConsent[]
+  deals           Deal[]
+  convertedLeads  Lead[]
+  consents        ContactBrandConsent[]
+  campaignMembers CampaignMember[]
 
   @@index([mobile])
   @@index([email])
@@ -728,21 +745,25 @@ model Lead {
   convertedAt            DateTime?
 
   // ── brand-owned base mixin ──
-  brandId     String
-  brand       Brand      @relation(fields: [brandId], references: [id])
-  regionId    String
-  region      Region     @relation(fields: [regionId], references: [id])
-  territoryId String?
-  territory   Territory? @relation(fields: [territoryId], references: [id])
-  ownerId     String
-  owner       User       @relation("LeadOwner", fields: [ownerId], references: [id])
-  createdById String?
-  createdBy   User?      @relation("LeadCreatedBy", fields: [createdById], references: [id])
-  updatedById String?
-  updatedBy   User?      @relation("LeadUpdatedBy", fields: [updatedById], references: [id])
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  deletedAt   DateTime?
+  brandId         String
+  brand           Brand            @relation(fields: [brandId], references: [id])
+  regionId        String
+  region          Region           @relation(fields: [regionId], references: [id])
+  territoryId     String?
+  territory       Territory?       @relation(fields: [territoryId], references: [id])
+  ownerId         String
+  owner           User             @relation("LeadOwner", fields: [ownerId], references: [id])
+  createdById     String?
+  createdBy       User?            @relation("LeadCreatedBy", fields: [createdById], references: [id])
+  updatedById     String?
+  updatedBy       User?            @relation("LeadUpdatedBy", fields: [updatedById], references: [id])
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+  /// campaign that produced this lead (ROI)
+  campaignId      String?
+  campaign        Campaign?        @relation(fields: [campaignId], references: [id])
+  campaignMembers CampaignMember[]
 
   @@index([brandId, regionId])
   @@index([ownerId])
@@ -1102,6 +1123,7 @@ enum ActivityType {
   TEST_DRIVE
   EMAIL_LOG
   WHATSAPP_LOG
+  SMS_LOG
 }
 
 enum ActivityStatus {
@@ -1432,4 +1454,174 @@ model ForecastNote {
   createdAt   DateTime   @default(now())
 
   @@index([periodType, periodStart, brandId])
+}
+
+// ───────────────────────── Communications: messages, templates, campaigns (prompt 10) ─────────────────────────
+
+enum Channel {
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  FAILED
+  /// not sent: the recipient has no marketing consent for the brand (or opted out)
+  SUPPRESSED
+  RECEIVED
+}
+
+/// One outbound or inbound message. Brand-owned: brand and region of the record it belongs to.
+model Message {
+  id                String        @id @default(cuid())
+  channel           Channel
+  /// OUT | IN
+  direction         String
+  status            MessageStatus @default(QUEUED)
+  /// Lead | Deal
+  parentType        String
+  parentId          String
+  activityId        String?
+  contactId         String?
+  campaignId        String?
+  campaignMemberId  String?
+  templateId        String?
+  /// sender identity actually used (brand from-address, sender ID or WhatsApp number)
+  fromAddress       String
+  toAddress         String
+  subject           String?
+  body              String
+  providerMessageId String?
+  error             String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+
+  // ── brand-owned base mixin ──
+  brandId     String
+  brand       Brand     @relation(fields: [brandId], references: [id])
+  regionId    String
+  region      Region    @relation(fields: [regionId], references: [id])
+  territoryId String?
+  ownerId     String
+  owner       User      @relation("MessageOwner", fields: [ownerId], references: [id])
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([parentType, parentId])
+  @@index([providerMessageId])
+  @@index([brandId, regionId])
+  @@index([campaignId])
+}
+
+/// Message template. brandId NULL = group template (managed by management / administrators).
+model Template {
+  id             String   @id @default(cuid())
+  brandId        String?
+  brand          Brand?   @relation(fields: [brandId], references: [id])
+  channel        Channel
+  name           String
+  subject        String?
+  /// merge fields: {{contact.firstName}}, {{deal.model}}, {{brand.name}}, {{owner.name}}, {{unsubscribeUrl}} …
+  body           String
+  /// WhatsApp: NOT_SUBMITTED | PENDING | APPROVED | REJECTED (business-initiated messages need an approved template)
+  whatsappStatus String   @default("NOT_SUBMITTED")
+  /// name of the template registered with WhatsApp
+  whatsappName   String?
+  active         Boolean  @default(true)
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  campaigns Campaign[]
+
+  @@index([brandId, channel])
+}
+
+enum CampaignType {
+  LAUNCH
+  PROMO
+  SERVICE_REMINDER
+  EVENT
+}
+
+enum CampaignStatus {
+  DRAFT
+  SENDING
+  SENT
+  CANCELLED
+}
+
+/// Marketing campaign of ONE brand (brand-tagged).
+model Campaign {
+  id          String         @id @default(cuid())
+  /// short code for attribution (web-to-lead "campaign" field / utm_campaign)
+  code        String         @unique
+  brandId     String
+  brand       Brand          @relation(fields: [brandId], references: [id])
+  name        String
+  type        CampaignType   @default(PROMO)
+  channel     Channel
+  budget      Decimal?       @db.Decimal(14, 2)
+  startDate   DateTime?      @db.Date
+  endDate     DateTime?      @db.Date
+  status      CampaignStatus @default(DRAFT)
+  templateId  String?
+  template    Template?      @relation(fields: [templateId], references: [id])
+  /// { kind: ALL_LEADS | ALL_CUSTOMERS | REPORT, reportId? }
+  audience    Json           @default("{}")
+  ownerId     String
+  createdById String?
+  launchedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  members CampaignMember[]
+  leads   Lead[]
+  deals   Deal[]
+
+  @@index([brandId, status])
+}
+
+enum MemberStatus {
+  PENDING
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  RESPONDED
+  UNSUBSCRIBED
+  FAILED
+  SUPPRESSED
+}
+
+model CampaignMember {
+  id               String       @id @default(cuid())
+  campaignId       String
+  campaign         Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contactId        String?
+  contact          Contact?     @relation(fields: [contactId], references: [id])
+  leadId           String?
+  lead             Lead?        @relation(fields: [leadId], references: [id])
+  /// the deal that links a contact to the brand (messages to contacts are logged on it)
+  dealId           String?
+  name             String
+  address          String
+  status           MemberStatus @default(PENDING)
+  /// why the member was suppressed / failed
+  reason           String?
+  messageId        String?
+  unsubscribeToken String       @unique
+  sentAt           DateTime?
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([campaignId, address])
+  @@index([campaignId, status])
 }

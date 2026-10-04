@@ -51,6 +51,13 @@ export const brandSchema = z.object({
   documentTerms: optionalText(4000),
   discountApprovalPct: z.preprocess((v) => (v === "" || v === null || v === undefined ? 3 : v), z.coerce.number().min(0).max(100)),
   discountEscalationPct: z.preprocess((v) => (v === "" || v === null || v === undefined ? 7 : v), z.coerce.number().min(0).max(100)),
+  // Sender identity (prompt 10): messages about this brand's records are always sent as this brand
+  fromName: optionalText(80),
+  fromEmail: z.string().trim().toLowerCase().email("a valid email address").max(254).optional().nullable().or(z.literal("").transform(() => null)),
+  smsSenderId: z.string().trim().regex(/^[A-Za-z0-9 ]{3,11}$/, "3–11 letters, digits or spaces").optional().nullable().or(z.literal("").transform(() => null)),
+  smsInboundNumber: z.string().trim().regex(/^\+?\d{3,15}$/, "a phone number or short code").optional().nullable().or(z.literal("").transform(() => null)),
+  whatsappNumber: z.string().trim().regex(/^\+[1-9]\d{7,14}$/, "E.164, e.g. +2348012345678").optional().nullable().or(z.literal("").transform(() => null)),
+  whatsappPhoneId: z.string().trim().max(60).optional().nullable().or(z.literal("").transform(() => null)),
 });
 export type BrandInput = z.input<typeof brandSchema>;
 

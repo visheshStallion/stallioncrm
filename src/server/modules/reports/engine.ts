@@ -205,6 +205,17 @@ export async function runReport(ctx: AccessContext, def: ReportDefinition, opts:
   };
 }
 
+/**
+ * Ids of the records a report's filters select for the viewer (campaign audiences use a saved report as their
+ * filter). Grouping / columns are ignored; specials have no record list.
+ */
+export async function reportRecordIds(ctx: AccessContext, def: ReportDefinition, opts: RunOptions = {}, limit = 20_000): Promise<string[]> {
+  if (def.special) throw new Error("This report has no record list");
+  const { from, where } = build(def, opts, []);
+  const rows = await scopedDb(ctx).$queryRaw<Array<{ id: string }>>(sql`SELECT t.id FROM ${from} WHERE ${where} ORDER BY t.id LIMIT ${limit}`);
+  return rows.map((r) => r.id);
+}
+
 // ───────────────────────────── fixed multi-source reports ─────────────────────────────
 
 async function runSpecial(ctx: AccessContext, def: ReportDefinition, opts: RunOptions): Promise<ReportResult> {

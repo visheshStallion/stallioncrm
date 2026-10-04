@@ -67,7 +67,7 @@ export async function createActivity(ctx: AccessContext, input: ActivityInput) {
     const product = await db.product.findUnique({ where: { id: data.productId }, select: { brandId: true } });
     assertSameBrand(scope.brandId, product?.brandId, "The demo model");
   }
-  const completed = data.completed || data.type === "EMAIL_LOG" || data.type === "WHATSAPP_LOG";
+  const completed = data.completed || data.type === "EMAIL_LOG" || data.type === "WHATSAPP_LOG" || data.type === "SMS_LOG";
   const ownerId = data.ownerId ?? ctx.userId;
   const activity = await db.activity.create({
     data: {

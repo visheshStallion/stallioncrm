@@ -47,6 +47,12 @@ const brandInput = (fd: FormData) => ({
   documentTerms: opt(fd, "documentTerms"),
   discountApprovalPct: str(fd, "discountApprovalPct"),
   discountEscalationPct: str(fd, "discountEscalationPct"),
+  fromName: opt(fd, "fromName"),
+  fromEmail: opt(fd, "fromEmail"),
+  smsSenderId: opt(fd, "smsSenderId"),
+  smsInboundNumber: opt(fd, "smsInboundNumber"),
+  whatsappNumber: opt(fd, "whatsappNumber"),
+  whatsappPhoneId: opt(fd, "whatsappPhoneId"),
 });
 
 // ── Brands ──

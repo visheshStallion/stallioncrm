@@ -79,7 +79,7 @@ const ANALYTICS_MODULES = ["reports", "dashboards", "forecasts"];
 // Capability modules: "export" = may export data (matrix row "Export data"), "import" = data import, "admin" = setup.
 const EXPORT_ACCESS = { export: { read: true, export: true } };
 
-type Perm = Partial<Record<"read" | "create" | "edit" | "delete" | "export" | "massUpdate" | "approve", boolean>>;
+type Perm = Partial<Record<"read" | "create" | "edit" | "delete" | "export" | "massUpdate" | "approve" | "massEmail", boolean>>;
 const grant = (modules: string[], perm: Perm) =>
   Object.fromEntries(modules.map((m) => [m, perm]));
 
@@ -118,7 +118,7 @@ export const PROFILE_DEFS: Array<{
         ...grant(CATALOGUE_MODULES, { read: true, create: true, edit: true, export: true }),
         ...grant(ANALYTICS_MODULES, { read: true, export: true }),
         reports: { read: true, create: true, edit: true, export: true },
-        campaigns: { read: true, create: true, edit: true },
+        campaigns: { read: true, create: true, edit: true, massEmail: true },
         ...EXPORT_ACCESS,
         // sets targets for the own brand (enforced per brand in the forecasts service)
         forecasts: { read: true, export: true, edit: true },
@@ -148,7 +148,7 @@ export const PROFILE_DEFS: Array<{
         ...grant(CATALOGUE_MODULES, { read: true }),
         ...grant(ANALYTICS_MODULES, { read: true, export: true }),
         reports: { read: true, create: true, edit: true, export: true },
-        campaigns: { read: true },
+        campaigns: { read: true, create: true, edit: true, massEmail: true },
         ...EXPORT_ACCESS,
         forecasts: { read: true, export: true, edit: true },
       },
@@ -160,7 +160,7 @@ export const PROFILE_DEFS: Array<{
       permissions: {
         ...grant(
           [...TX_MODULES, ...CUSTOMER_MODULES, ...CATALOGUE_MODULES, ...ANALYTICS_MODULES, "campaigns", "import", "export", "admin"],
-          { read: true, create: true, edit: true, delete: true, export: true, massUpdate: true },
+          { read: true, create: true, edit: true, delete: true, export: true, massUpdate: true, massEmail: true },
         ),
       },
       fieldPermissions: {},

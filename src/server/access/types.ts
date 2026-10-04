@@ -10,6 +10,8 @@ export const ACTIONS = [
   "export",
   "massUpdate",
   "approve",
+  /** mass email / SMS / WhatsApp (campaigns) – Brand Manager and above */
+  "massEmail",
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 

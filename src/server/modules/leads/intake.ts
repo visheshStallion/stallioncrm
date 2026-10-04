@@ -138,5 +138,10 @@ export async function intakeLead(
     { autoAssign: true },
   );
   if (Object.keys(utm).length) await db.lead.update({ where: { id: lead.id }, data: { utm }, select: { id: true } });
+  // Campaign attribution: utm_campaign carries the campaign code (campaigns of this brand only).
+  if (payload.utm_campaign) {
+    const campaign = await db.campaign.findFirst({ where: { code: payload.utm_campaign.toUpperCase(), brandId: brand.id }, select: { id: true } });
+    if (campaign) await db.lead.update({ where: { id: lead.id }, data: { campaignId: campaign.id }, select: { id: true } });
+  }
   return { status: "created", leadId: lead.id };
 }

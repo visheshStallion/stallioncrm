@@ -156,7 +156,7 @@ export const REPORT_MODULES: RModule[] = [
     fields: [
       { key: "subject", label: "Subject", type: "text", sql: `t.subject` },
       ...common,
-      { key: "type", label: "Type", type: "enum", sql: `t.type`, options: ["TASK", "CALL", "MEETING", "TEST_DRIVE", "EMAIL_LOG", "WHATSAPP_LOG"] },
+      { key: "type", label: "Type", type: "enum", sql: `t.type`, options: ["TASK", "CALL", "MEETING", "TEST_DRIVE", "EMAIL_LOG", "WHATSAPP_LOG", "SMS_LOG"] },
       { key: "status", label: "Status", type: "enum", sql: `t.status`, options: ["OPEN", "COMPLETED", "CANCELLED", "NO_SHOW"] },
       { key: "priority", label: "Priority", type: "enum", sql: `t.priority`, options: ["LOW", "NORMAL", "HIGH"] },
       { key: "parentType", label: "Related to", type: "text", sql: `t."parentType"` },

@@ -15,7 +15,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   timeout: 60_000,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
-  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.02, animations: "disabled", caret: "hide" } },
+  // 15 s: the suite runs against `next dev`, where the first hit of a route compiles it.
+  expect: { timeout: 15_000, toHaveScreenshot: { maxDiffPixelRatio: 0.02, animations: "disabled", caret: "hide" } },
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "retain-on-failure",

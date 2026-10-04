@@ -430,7 +430,58 @@ deals (`tests/integration/analytics-performance.test.ts`) dashboards load in wel
 would need a per-viewer filter layer on top. If volumes grow, add them behind security-invoker views and
 refresh them from the job queue of prompt 08.
 
-## 17. Local development
+## 17. Communications: email, SMS, WhatsApp & campaigns (prompt 10)
+
+Module `src/server/modules/messaging` (`providers.ts`, `merge.ts`, `service.ts`, `campaigns.ts`), system helpers in
+`src/server/db/messaging-system.ts`, webhooks under `src/app/api/public/webhooks`.
+
+- **Adapters behind one interface** (`providers.ts`): email via SMTP or Microsoft 365 Graph, SMS via Termii or
+  Africa's Talking, WhatsApp via the Business Cloud API. The adapter is chosen per channel by environment
+  variables; credentials live in the environment / secret store only. Without configuration every channel uses
+  the **sandbox** adapter (keeps messages in memory – development, tests, demos).
+- **Sender identity per brand** (Setup → Brands): from-name / from-address, SMS sender ID, the number that
+  receives SMS replies, the WhatsApp number and its phone-number id. `senderIdentity()` derives the sender from
+  the record's brand – callers cannot pass one – and refuses to send when the brand has none configured. A
+  message about an HMNL record is always sent as HMNL.
+- **Logging.** `deliver()` writes an Activity (`EMAIL_LOG` / `SMS_LOG` / `WHATSAPP_LOG`) and a `Message` row
+  BEFORE calling the provider (a failure stays on the record as FAILED). Both are brand-owned with the brand
+  and region of the record, so message content on an SNMNL record is invisible to HMNL users (scopedDb + RLS).
+- **Inbound** (`receiveInbound`): the brand is the owner of the number that RECEIVED the message. The sender's
+  phone is matched to that brand's open lead, else to an open deal of a contact with that phone; unknown
+  senders become a lead of that brand (assigned by its assignment rules, default region Lagos). The same
+  customer writing to two brands' numbers ends up in two separate, mutually invisible conversations.
+  "STOP" opts the sender out of that brand's marketing. Provider retries are de-duplicated by message id.
+- **WhatsApp rules.** Free text only within 24 hours of the customer's last message; otherwise a template whose
+  registration status is APPROVED (kept on the template).
+- **Templates.** Group templates (brand NULL – management / administrators) and brand templates (the brand's
+  manager). Merge fields are plain-text substitutions of own properties (`{{contact.firstName}}`,
+  `{{deal.model}}`, `{{brand.name}}`, `{{owner.name}}`, `{{unsubscribeUrl}}`); email HTML is produced by escaping
+  the final text. A campaign can only use a template of its brand or a group template (service + DB trigger).
+- **Campaigns** belong to one brand (brand-tagged + RLS). The audience is built with the creator's access context
+  from that brand's leads or customers (contacts on the brand's deals), optionally narrowed by a saved report,
+  and split by consent **for that brand** (`ContactBrandConsent` / the lead's own consent): PENDING, or
+  SUPPRESSED with the reason. An HMNL manager therefore cannot target SNMNL-only customers, and an opt-out of
+  one brand never affects another.
+- **Sending** needs the `massEmail` permission (Brand Manager, Management, Administrator). `launchCampaign`
+  queues batches of 25 on the job queue, spread at `MESSAGING_RATE_PER_MINUTE`; the worker re-checks consent
+  right before each message, adds the brand's opt-out (unsubscribe link / "Reply STOP") and logs the message on
+  the lead / deal. Delivery webhooks move message and member status forward only (sent → delivered → opened →
+  clicked); replies mark the member Responded.
+- **Unsubscribe** (`/api/public/unsubscribe/<token>`): GET shows a confirmation page, POST opts out of the
+  campaign's brand only. Unknown tokens get a neutral page.
+- **Webhooks** are disabled (404) until their secret is configured: `MESSAGING_WEBHOOK_SECRET` (token in the
+  query or Authorization header) for SMS / email / generic gateways, and Meta's body signature
+  (`WHATSAPP_APP_SECRET`) for WhatsApp.
+- **ROI.** Leads carry `campaignId` (web-to-lead `utm_campaign=<campaign code>`, replies of campaign members);
+  conversion copies it to the deal; a DB trigger keeps attribution inside the brand. ROI = (won revenue − budget)
+  ÷ budget.
+- **Internal email.** Workflow "send email" actions and – with `NOTIFICATION_EMAILS=1` – reminders, mentions,
+  assignments and approvals are emailed to CRM users through the job queue (`email.users`).
+- **Not included.** Open / click tracking pixels (statuses come from provider webhooks); automatic test-drive
+  confirmation (send it from the record with a template); registering WhatsApp templates with Meta from inside
+  the CRM (the approved name and status are recorded on the template); inbound email.
+
+## 18. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.

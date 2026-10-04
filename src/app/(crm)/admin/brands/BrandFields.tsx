@@ -17,6 +17,12 @@ export interface BrandFormValues {
   documentTerms?: string | null;
   discountApprovalPct?: unknown;
   discountEscalationPct?: unknown;
+  fromName?: string | null;
+  fromEmail?: string | null;
+  smsSenderId?: string | null;
+  smsInboundNumber?: string | null;
+  whatsappNumber?: string | null;
+  whatsappPhoneId?: string | null;
 }
 
 /** Shared brand form fields (create + edit). */
@@ -95,6 +101,34 @@ export function BrandFields({
         <Label htmlFor="bankDetails">Bank details (printed on documents)</Label>
         <Input id="bankDetails" name="bankDetails" defaultValue={values.bankDetails ?? ""} />
       </div>
+      <fieldset className="grid gap-3 rounded-md border border-border p-3 sm:col-span-3 sm:grid-cols-3" data-testid="sender-identity">
+        <legend className="px-1 text-xs font-semibold">Sender identity – messages about this brand&apos;s records are always sent as this brand</legend>
+        <div className="space-y-1">
+          <Label htmlFor="fromName">Email from-name</Label>
+          <Input id="fromName" name="fromName" maxLength={80} defaultValue={values.fromName ?? ""} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="fromEmail">Email from-address</Label>
+          <Input id="fromEmail" name="fromEmail" type="email" defaultValue={values.fromEmail ?? ""} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="smsSenderId">SMS sender ID (3–11 characters)</Label>
+          <Input id="smsSenderId" name="smsSenderId" maxLength={11} defaultValue={values.smsSenderId ?? ""} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="smsInboundNumber">Number that receives SMS replies</Label>
+          <Input id="smsInboundNumber" name="smsInboundNumber" defaultValue={values.smsInboundNumber ?? ""} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="whatsappNumber">WhatsApp Business number</Label>
+          <Input id="whatsappNumber" name="whatsappNumber" placeholder="+234…" defaultValue={values.whatsappNumber ?? ""} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="whatsappPhoneId">WhatsApp phone-number ID (Cloud API)</Label>
+          <Input id="whatsappPhoneId" name="whatsappPhoneId" defaultValue={values.whatsappPhoneId ?? ""} />
+        </div>
+        <p className="text-xs text-text-muted sm:col-span-3">Inbound messages are routed by the number that received them. Provider credentials are configured in the server environment, never here.</p>
+      </fieldset>
       <div className="space-y-1 sm:col-span-3">
         <Label htmlFor="documentTerms">Default terms &amp; conditions</Label>
         <textarea id="documentTerms" name="documentTerms" defaultValue={values.documentTerms ?? ""} className="h-20 w-full rounded-md border border-border bg-background p-2 text-sm" />

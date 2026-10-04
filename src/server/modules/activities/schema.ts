@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { parseRule } from "./recurrence";
 
-export const ACTIVITY_TYPES = ["TASK", "CALL", "MEETING", "TEST_DRIVE", "EMAIL_LOG", "WHATSAPP_LOG"] as const;
+export const ACTIVITY_TYPES = ["TASK", "CALL", "MEETING", "TEST_DRIVE", "EMAIL_LOG", "WHATSAPP_LOG", "SMS_LOG"] as const;
 export type ActivityTypeKey = (typeof ACTIVITY_TYPES)[number];
 export const TYPE_LABELS: Record<ActivityTypeKey, string> = {
   TASK: "Task",
@@ -10,6 +10,7 @@ export const TYPE_LABELS: Record<ActivityTypeKey, string> = {
   TEST_DRIVE: "Test Drive",
   EMAIL_LOG: "Email",
   WHATSAPP_LOG: "WhatsApp",
+  SMS_LOG: "SMS",
 };
 export const ACTIVITY_STATUSES = ["OPEN", "COMPLETED", "CANCELLED", "NO_SHOW"] as const;
 export const STATUS_LABELS: Record<(typeof ACTIVITY_STATUSES)[number], string> = { OPEN: "Open", COMPLETED: "Completed", CANCELLED: "Cancelled", NO_SHOW: "No-show" };

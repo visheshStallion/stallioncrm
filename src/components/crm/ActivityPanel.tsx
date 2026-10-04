@@ -50,6 +50,7 @@ export function ActivityPanel({
   dateFormat,
   phone,
   testDrive = false,
+  messaging = true,
 }: {
   parentType: string;
   parentId: string;
@@ -60,6 +61,8 @@ export function ActivityPanel({
   /** Customer phone for the click-to-call link. */
   phone?: string | null;
   testDrive?: boolean;
+  /** show the Email / SMS / WhatsApp composer links (leads and deals) */
+  messaging?: boolean;
 }) {
   const base = `/activities/new?parentType=${parentType}&parentId=${parentId}`;
   const total = groups.overdue.length + groups.upcoming.length + groups.history.length;
@@ -94,6 +97,13 @@ export function ActivityPanel({
             <Link href={`${base}&type=call&log=1${phone ? `&phone=${encodeURIComponent(phone)}` : ""}`} className={quick}>
               Log Call
             </Link>
+            {messaging
+              ? (["EMAIL", "SMS", "WHATSAPP"] as const).map((c) => (
+                  <Link key={c} href={`/messages/new?channel=${c}&parentType=${parentType}&parentId=${parentId}`} className={quick}>
+                    {c === "EMAIL" ? "Email" : c === "SMS" ? "SMS" : "WhatsApp"}
+                  </Link>
+                ))
+              : null}
             {phone && !phone.includes("*") ? (
               <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className={quick} data-testid="click-to-call">
                 Call {phone}

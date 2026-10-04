@@ -237,3 +237,20 @@ standard stages and stages that contain deals cannot be removed).
 - Existing installations: review the Reports / Forecasts rows of your profiles after this update (the seeded
   defaults only apply to a fresh database).
 
+## Messaging and campaigns
+
+1. **Provider credentials** go into the server environment (see `.env.example`): choose the email, SMS and
+   WhatsApp provider and set their keys. Nothing is delivered until a provider is configured (sandbox).
+2. **Sender identity** – Setup → Brands → each brand: from-name and from-address, SMS sender ID, the number that
+   receives SMS replies, the WhatsApp Business number and its phone-number ID. A brand without a sender cannot
+   send on that channel.
+3. **Webhooks** – point the providers at `/api/public/webhooks/whatsapp`, `/api/public/webhooks/sms?token=…` and
+   `/api/public/webhooks/email?token=…` and set `MESSAGING_WEBHOOK_SECRET` / `WHATSAPP_APP_SECRET` /
+   `WHATSAPP_VERIFY_TOKEN`. Inbound messages are routed by the number that received them.
+4. **Permissions** – the Campaigns row of a profile: `read`, `create`, `edit`, and **mass email** (required to
+   launch; Brand Manager and above by default).
+5. **Consent** is per brand. Campaigns only reach people with marketing consent for the campaign's brand;
+   everyone else is listed as suppressed with the reason. Unsubscribe links and "STOP" replies opt out of that
+   brand only.
+6. The scheduler tick (`/api/public/cron/tick`) sends queued campaign batches.
+

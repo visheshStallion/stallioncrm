@@ -20,7 +20,6 @@ import { scopedDb } from "@/server/db";
 import { autoApproveDue } from "@/server/db/approval-engine";
 import { claimJobs, completeJob, enqueueJob, failJob, saveJobProgress } from "@/server/db/jobs";
 import { activeRules, alignDocumentWithDeal, documentMatchesDeal, getRule, recordBrand, scanRecords } from "@/server/db/workflow-store";
-import { storeDomainEvent } from "@/server/db/system";
 import { logger } from "@/server/log";
 import { usersWhoCanSee } from "@/server/modules/activities/queries";
 import { createActivity, processReminders } from "@/server/modules/activities/service";
@@ -192,8 +191,8 @@ async function runAction(ctx: AccessContext, rule: WorkflowRule, mod: WfModule, 
     }
     case "SEND_EMAIL": {
       const to = await recipients(ctx, facts, action.to, action.roleName);
-      // Delivered by the messaging service (prompt 10) from the outbox.
-      await storeDomainEvent("email.requested", brandId, { ruleId: rule.id, module: mod.key, recordId: id, to, subject: renderTemplate(action.subject, facts), body: renderTemplate(action.body, facts) });
+      // Sent by the messaging service with the brand's sender identity (recipients are CRM users who can see the record).
+      if (to.length) await enqueueJob({ type: "email.users", payload: { userIds: to, subject: renderTemplate(action.subject, facts), text: renderTemplate(action.body, facts), brandId }, brandId, ruleId: rule.id });
       return `email queued for ${to.length}`;
     }
     case "WEBHOOK": {
@@ -265,6 +264,12 @@ export async function executeRule(job: Pick<Job, "id" | "payload" | "result">): 
 
 const HANDLERS: Record<string, (job: Job) => Promise<unknown>> = {
   "workflow.rule": executeRule,
+  // lazy imports: the messaging module itself uses the automation context of this file
+  "campaign.batch": async (job) => (await import("@/server/modules/messaging/campaigns")).processCampaignBatch(job),
+  "email.users": async (job) => {
+    const p = job.payload as { userIds: string[]; subject: string; text: string; brandId?: string | null };
+    return { sent: await (await import("@/server/modules/messaging/service")).emailUsers(p.userIds, p.subject, p.text, p.brandId) };
+  },
 };
 
 /** Claims and runs due jobs. Safe to call concurrently (SKIP LOCKED) and repeatedly. */
