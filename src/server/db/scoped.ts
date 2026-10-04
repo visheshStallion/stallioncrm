@@ -9,6 +9,7 @@
  *   • updates that move a record re-validate and re-resolve the territory; brand changes need scope ALL
  *     (everyone else goes through the brand-change approval, prompt 08);
  *   • INACTIVE brands: creates rejected, existing records read-only (bulk writes skip them);
+ *   • brand-TAGGED master data (Product, PriceBook, VehicleStockRef) is filtered to the user's brands;
  *   • nested writes INTO brand-owned models are rejected (they would skip validation);
  *   • create / update / delete on brand-owned models are audited.
  * Layer 2 (Postgres RLS): every operation – including $queryRaw – runs in a transaction as role
@@ -24,6 +25,7 @@ import {
   isBrandOwnedModel,
   relationsOf,
 } from "@/server/access/brand-owned";
+import { brandTagWhere, isBrandTaggedModel } from "@/server/access/brand-tag";
 import { ForbiddenError } from "@/server/access/errors";
 import { resolveTerritory } from "@/server/access/territory";
 import type { AccessContext } from "@/server/access/types";
@@ -366,6 +368,10 @@ function buildScopedDb(ctx: AccessContext) {
 
           if (isBrandOwnedModel(model)) {
             ({ args: finalArgs, before } = await scopeBrandOwnedArgs(model, operation, finalArgs, ctx, filter));
+          } else if (isBrandTaggedModel(model) && ctx.scope !== "ALL") {
+            // Brand-tagged master data (products, price books, stock): only the user's brands.
+            if (READ_OR_BULK.has(operation)) finalArgs = { ...finalArgs, where: andWhere(finalArgs.where, brandTagWhere(ctx)) };
+            else if (UNIQUE.has(operation)) finalArgs = { ...finalArgs, where: andWhereUnique(finalArgs.where ?? {}, brandTagWhere(ctx)) };
           }
           if (finalArgs.include) finalArgs = { ...finalArgs, include: scopeSelection(model, finalArgs.include, filter) };
           if (finalArgs.select) finalArgs = { ...finalArgs, select: scopeSelection(model, finalArgs.select, filter) };

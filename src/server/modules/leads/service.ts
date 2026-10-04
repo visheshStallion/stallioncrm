@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { toCsv } from "@/lib/csv";
 import { assertCan, can } from "@/server/access/can";
+import { assertSameBrand } from "@/server/access/brand-tag";
 import { ForbiddenError, NotFoundError } from "@/server/access/errors";
 import type { AccessContext } from "@/server/access/types";
 import { audit, scopedDb } from "@/server/db";
@@ -21,7 +22,7 @@ import {
 async function assertProductOfBrand(ctx: AccessContext, productId: string | null | undefined, brandId: string) {
   if (!productId) return;
   const p = await scopedDb(ctx).product.findUnique({ where: { id: productId }, select: { brandId: true } });
-  if (!p || p.brandId !== brandId) throw new BadRequestError("The model must belong to the lead's brand");
+  assertSameBrand(brandId, p?.brandId, "The model");
 }
 
 /**

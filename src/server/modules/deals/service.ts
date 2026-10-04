@@ -1,12 +1,14 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { assertCan } from "@/server/access/can";
+import { assertSameBrand } from "@/server/access/brand-tag";
 import { ForbiddenError, NotFoundError } from "@/server/access/errors";
 import type { AccessContext } from "@/server/access/types";
 import { isManagerOf } from "@/server/access/visibility";
 import { audit, scopedDb } from "@/server/db";
 import { BadRequestError } from "@/server/errors";
 import { assertAdmin } from "@/server/modules/admin/guard";
+import { onDealStageChanged } from "@/server/modules/catalogue/service";
 import {
   ALL_REQUIREMENT_KEYS,
   allowedTargets,
@@ -40,7 +42,7 @@ async function assertRefs(ctx: AccessContext, brandId: string, data: { modelId?:
   const db = scopedDb(ctx);
   if (data.modelId) {
     const p = await db.product.findUnique({ where: { id: data.modelId }, select: { brandId: true } });
-    if (!p || p.brandId !== brandId) throw new BadRequestError("The model must belong to the deal's brand");
+    assertSameBrand(brandId, p?.brandId, "The model");
   }
   if (data.accountId && !(await db.account.findFirst({ where: { id: data.accountId, deletedAt: null }, select: { id: true } }))) {
     throw new BadRequestError("Unknown account");
@@ -128,6 +130,8 @@ export async function moveDealStage(ctx: AccessContext, id: string, toStageId: s
   if (missing.length) throw new BadRequestError(`Blueprint: to enter ${to.name} you need: ${missing.map(requirementLabel).join(", ")}`);
 
   await guarded(() => scopedDb(ctx).deal.update({ where: { id }, data: { ...parsed, stageId: to.id }, select: { id: true } }));
+  // Closed Lost releases a reserved vehicle; Closed Won marks it sold.
+  await onDealStageChanged(ctx, id, to.type);
   return { id, stage: to.key };
 }
 
