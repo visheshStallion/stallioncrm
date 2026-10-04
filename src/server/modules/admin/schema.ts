@@ -45,6 +45,12 @@ export const brandSchema = z.object({
   logoUrl: z.string().trim().url().optional().nullable().or(z.literal("").transform(() => null)),
   status: z.enum(["ACTIVE", "FUTURE", "INACTIVE"]).default("ACTIVE"),
   brandManagerId: optionalId,
+  // Document template (quotes / orders / invoices) and discount approval thresholds
+  address: optionalText(500),
+  bankDetails: optionalText(1000),
+  documentTerms: optionalText(4000),
+  discountApprovalPct: z.preprocess((v) => (v === "" || v === null || v === undefined ? 3 : v), z.coerce.number().min(0).max(100)),
+  discountEscalationPct: z.preprocess((v) => (v === "" || v === null || v === undefined ? 7 : v), z.coerce.number().min(0).max(100)),
 });
 export type BrandInput = z.input<typeof brandSchema>;
 

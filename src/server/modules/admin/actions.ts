@@ -42,6 +42,11 @@ const brandInput = (fd: FormData) => ({
   logoUrl: opt(fd, "logoUrl"),
   status: (str(fd, "status") || "ACTIVE") as "ACTIVE" | "FUTURE" | "INACTIVE",
   brandManagerId: opt(fd, "brandManagerId"),
+  address: opt(fd, "address"),
+  bankDetails: opt(fd, "bankDetails"),
+  documentTerms: opt(fd, "documentTerms"),
+  discountApprovalPct: str(fd, "discountApprovalPct"),
+  discountEscalationPct: str(fd, "discountEscalationPct"),
 });
 
 // ── Brands ──

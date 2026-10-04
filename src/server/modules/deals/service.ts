@@ -204,3 +204,24 @@ export async function deletePipelineStage(ctx: AccessContext, stageId: string) {
   await db.pipelineStage.delete({ where: { id: stageId } });
   await audit({ ctx, action: "DELETE", entity: "PipelineStage", entityId: stageId, brandId: stage.pipeline.brandId, before: stage });
 }
+
+/**
+ * System-driven stage advance (e.g. a delivered Sales Order moves its deal to Delivery). Unlike moveDealStage it
+ * is not limited to the next stage, but it only moves an OPEN deal FORWARD and still enforces the target stage's
+ * requirements. Returns false when there is nothing to do.
+ */
+export async function advanceDealToStage(ctx: AccessContext, id: string, stageKey: string, values: UpdateDealInput = {}): Promise<boolean> {
+  const current = await getDeal(ctx, id);
+  const pipeline = await getPipeline(ctx, current.pipelineId);
+  const from = pipeline?.stages.find((s) => s.id === current.stageId);
+  const to = pipeline?.stages.find((s) => s.key === stageKey);
+  if (!pipeline || !from || !to || from.type !== "OPEN" || to.order <= from.order) return false;
+  const sent = Object.fromEntries(Object.entries(values).filter(([k]) => isRequirementField(k)));
+  const parsed: Record<string, unknown> = dealFieldsSchema.partial().parse(sent);
+  for (const k of Object.keys(parsed)) if (!(k in sent)) delete parsed[k];
+  const missing = missingRequirements(to, { ...current, ...parsed }, await runChecks(ctx, id, to.requiredFields));
+  if (missing.length) throw new BadRequestError(`Blueprint: to enter ${to.name} the deal needs: ${missing.map(requirementLabel).join(", ")}`);
+  await guarded(() => scopedDb(ctx).deal.update({ where: { id }, data: { ...parsed, stageId: to.id }, select: { id: true } }));
+  await onDealStageChanged(ctx, id, to.type);
+  return true;
+}

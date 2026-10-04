@@ -206,3 +206,8 @@ export async function repointCustomerChildren(kind: "account" | "contact", fromI
   });
   return moved;
 }
+
+/** Domain event outbox (user sessions have no access to it). Use emitEvent() from "@/server/events". */
+export async function storeDomainEvent(name: string, brandId: string | null, payload: object): Promise<void> {
+  await unsafeDb.domainEvent.create({ data: { name, brandId, payload: JSON.parse(JSON.stringify(payload)) } });
+}
