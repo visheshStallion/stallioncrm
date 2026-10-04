@@ -249,7 +249,35 @@ Products, price books and stock references are **brand-tagged**: they carry a `b
   releases it (and clears the VIN from the deal), Closed Won marks it sold. This table is a lightweight reference and is
   replaced by the inventory module (prompt 16).
 
-## 13. Local development
+## 13. Quotes, Sales Orders & Invoices (prompt 06)
+One implementation serves the three documents (`src/server/modules/documents`, config in `config.ts`; UI in
+`src/app/(crm)/_documents`). All three are brand-owned; lines (`DocumentLine`) and `Payment` follow their document
+through RLS.
+- **Inherited brand and region**: a document copies them from its deal; the trigger `app_document_defaults()` rejects
+  any difference, so they cannot be changed on the document.
+- **Numbering** `{docPrefix}-{QT|SO|INV}-{YYYY}-{00001}`: assigned by the same trigger from `DocumentCounter`
+  (row-locked upsert) inside the INSERT's transaction – unique, sequential and gap-free per brand / type / year, also
+  under concurrency. Numbers never change. User sessions cannot touch the counter.
+- **Totals** are computed only on the server (`totals.ts`, pure): line discount → header discount → VAT per line from
+  the product's tax rate. The client preview uses the same function but nothing it sends is trusted.
+- **Products on lines** must belong to the document's brand: `assertSameBrand` in `saveDocument` plus the trigger
+  `app_line_same_brand()`.
+- **Discount approval**: `discountApproval()` – a line above the price book's `maxDiscountPct`, or any discount above
+  the brand's `discountApprovalPct` (default 3 %), needs approval by the Brand Manager; above `discountEscalationPct`
+  (default 7 %) by the Head of Sales. `submitQuote` creates an `ApprovalRequest` (brand-owned; owner = requester) and
+  sets Pending Approval; sending / accepting is blocked until `decideApproval`. Prompt 08 generalises this model.
+- **Lifecycle**: Quote Draft → (Pending Approval) → Approved → Sent → Accepted / Rejected / Expired (one accepted quote
+  per deal, partial unique index). Accepted quote → Sales Order (Draft → Confirmed → Allocated → Delivered / Cancelled)
+  → Invoice (Draft → Issued → Part-paid → Paid / Void). *Allocated* needs a vehicle reserved for the deal; *Delivered*
+  writes VIN and delivery date to the deal and advances its Blueprint stage (`advanceDealToStage`). The Blueprint
+  check `quote` (a quote exists) is now enforced when a deal enters Quotation.
+- **ERP hand-off**: Sales Order *Confirmed* and Invoice *Issued* store a `document.confirmed` event with the brand's
+  `erpCompanyCode` in the `DomainEvent` outbox (`src/server/events.ts`); prompt 13 delivers it.
+- **PDF** (`pdf.ts`, pdf-lib): one template filled per brand – logo, legal entity, address, bank details, terms.
+  `documentPdfModel` loads through the scoped client, so a hidden document is a 404 before anything is rendered.
+  Email with the PDF attached arrives with prompt 10.
+
+## 14. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.

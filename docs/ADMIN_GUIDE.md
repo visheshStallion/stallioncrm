@@ -193,3 +193,22 @@ standard stages and stages that contain deals cannot be removed).
 - **Vehicle stock** (on the product page): add VINs with colour, location and status. On a deal, *Reserve a vehicle*
   attaches an available vehicle of the deal's brand (and model); the reservation is released automatically when the deal
   is Closed Lost and the vehicle is marked sold on Closed Won.
+
+## Quotes, sales orders & invoices
+
+- **Create a quote** from a deal (*Create Quote*). It takes the deal's brand, region, customer, model, quantity and the
+  current price book price; brand and region cannot be changed on the document. Numbers are issued automatically per
+  brand: `HMNL-QT-2026-00001`, `HMNL-SO-…`, `HMNL-INV-…`.
+- **Edit** lines while the document is a draft: product (only the brand's products), quantity, price, discount % and
+  VAT. Totals are calculated by the system.
+- **Discounts and approval**: a line discount above the price book's maximum, or any discount above the brand's
+  threshold (3 % by default), sends the quote to the **Brand Manager** for approval when you submit it; above the
+  escalation threshold (7 % by default) to the **Head of Sales**. The quote cannot be sent or accepted until it is
+  approved; a rejected request returns it to draft. Thresholds are set per brand in *Setup → Brands*.
+- **From quote to cash**: Submit → Mark as Sent → Accepted by customer → *Create Sales Order* → Confirm → *Allocate VIN*
+  (needs a vehicle reserved on the deal) → Mark Delivered (updates the deal and moves it to Delivery) → *Create Invoice*
+  → Issue → record payments (deposit / balance) until the invoice is Paid. A deal can have several quotes, but only one
+  accepted.
+- **PDF**: every document prints on the brand's template – logo, legal entity, address, bank details and terms from
+  *Setup → Brands*.
+- Users of other brands cannot open, print or list these documents.
