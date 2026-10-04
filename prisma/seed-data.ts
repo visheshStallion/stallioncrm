@@ -93,10 +93,8 @@ export const PROFILE_DEFS: Array<{
   permissions: Record<string, Perm>;
   fieldPermissions: Record<string, Record<string, string>>;
 }> = (() => {
-  const basicCustomerFields = {
-    accounts: { phone: "masked", email: "hidden", address: "hidden", kycNumber: "hidden", creditLimit: "hidden" },
-    contacts: { phone: "masked", mobile: "masked", email: "hidden", address: "hidden" },
-  };
+  // Customer masking follows the field tiers (src/server/access/customer-tier.ts), not profile field permissions.
+  const basicCustomerFields = {};
   return [
     {
       name: PROFILES.EXEC,

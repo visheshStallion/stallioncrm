@@ -146,6 +146,37 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     });
   }
 
+  // Shared customers: one corporate account + contact per fictitious customer (shared across brands).
+  const customerIds = new Map<string, { accountId: string; contactId: string }>();
+  for (const [i, name] of CUSTOMERS.entries()) {
+    const account = await prisma.account.create({
+      data: {
+        name,
+        type: "CORPORATE",
+        industry: "General",
+        city: REGIONS[i % REGIONS.length],
+        phone: `+234700000${String(2000 + i)}`,
+        email: `accounts${i}@example.test`,
+        address: `${i + 1} Example Road`,
+        rcNumber: `RC${100000 + i}`,
+        creditLimit: 50_000_000 + i * 5_000_000,
+        kycStatus: i % 3 === 0 ? "VERIFIED" : "PENDING",
+      },
+    });
+    const contact = await prisma.contact.create({
+      data: {
+        accountId: account.id,
+        firstName: "Buyer",
+        lastName: name.split(" ")[0]!,
+        mobile: `+234700000${String(3000 + i)}`,
+        email: `buyer${i}@example.test`,
+        city: REGIONS[i % REGIONS.length],
+      },
+    });
+    await prisma.account.update({ where: { id: account.id }, data: { primaryContactId: contact.id } });
+    customerIds.set(name, { accountId: account.id, contactId: contact.id });
+  }
+
   // Demo deals: 5 per active brand × region, owned by a member of that territory.
   let n = 0;
   const baseDate = Date.UTC(2026, 9, 1);
@@ -162,6 +193,8 @@ export async function seed(prisma: PrismaClient): Promise<void> {
           data: {
             name: `${code} ${vehicle} – ${customer}`,
             customerName: customer,
+            accountId: customerIds.get(customer)!.accountId,
+            contactId: customerIds.get(customer)!.contactId,
             amount: 18_000_000 + ((n * 7_350_000) % 60_000_000),
             stage: DEAL_STAGES[(n + i) % DEAL_STAGES.length] as DealStage,
             closeDate: new Date(baseDate + ((n * 3) % 90) * 86_400_000),

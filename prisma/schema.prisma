@@ -48,6 +48,8 @@ model Brand {
   leads           Lead[]
   products        Product[]
   assignmentRules AssignmentRule[]
+  customerLinks   CustomerBrandLink[]
+  contactConsents ContactBrandConsent[]
 }
 
 /// Legacy company codes (e.g. from the HR rep file) mapped to a brand. Configurable, never hard-coded.
@@ -151,6 +153,8 @@ model User {
   createdLeads       Lead[]            @relation("LeadCreatedBy")
   updatedLeads       Lead[]            @relation("LeadUpdatedBy")
   savedViews         SavedView[]
+  ownedAccounts      Account[]         @relation("AccountOwner")
+  ownedContacts      Contact[]         @relation("ContactOwner")
   assignmentRules    AssignmentRule[]
   userPreferences    UserPreference[]
 }
@@ -252,45 +256,112 @@ model Deal {
 
 enum AccountType {
   INDIVIDUAL
-  COMPANY
+  CORPORATE
+  GOVERNMENT
+  FLEET
 }
 
-model Account {
-  id          String      @id @default(cuid())
-  name        String
-  type        AccountType @default(INDIVIDUAL)
-  city        String?
-  phone       String?
-  email       String?
-  createdById String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+enum KycStatus {
+  NOT_STARTED
+  PENDING
+  VERIFIED
+  REJECTED
+}
 
-  contacts Contact[]
-  deals    Deal[]
+/// Shared customer (individual or organisation). NOT brand-owned – see docs/ARCHITECTURE.md "Customers".
+model Account {
+  id               String      @id @default(cuid())
+  name             String
+  type             AccountType @default(INDIVIDUAL)
+  /// CAC registration number (corporate) – sensitive tier
+  rcNumber         String?
+  industry         String?
+  city             String?
+  state            String?
+  address          String?
+  phone            String?
+  email            String?
+  website          String?
+  /// sensitive tier
+  creditLimit      Decimal?    @db.Decimal(14, 2)
+  kycStatus        KycStatus   @default(NOT_STARTED)
+  notes            String?
+  primaryContactId String?
+  ownerId          String?
+  owner            User?       @relation("AccountOwner", fields: [ownerId], references: [id])
+  createdById      String?
+  updatedById      String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  deletedAt        DateTime?
+  /// set when this record was merged into another (soft-deleted)
+  mergedIntoId     String?
+
+  contacts   Contact[]
+  deals      Deal[]
+  brandLinks CustomerBrandLink[]
 
   @@index([phone])
   @@index([email])
+  @@index([rcNumber])
+  @@index([name])
 }
 
 model Contact {
-  id          String   @id @default(cuid())
-  accountId   String?
-  account     Account? @relation(fields: [accountId], references: [id])
-  firstName   String?
-  lastName    String
-  mobile      String?
-  email       String?
-  city        String?
-  createdById String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String    @id @default(cuid())
+  accountId        String?
+  account          Account?  @relation(fields: [accountId], references: [id])
+  firstName        String?
+  lastName         String
+  mobile           String?
+  altPhone         String?
+  email            String?
+  dateOfBirth      DateTime? @db.Date
+  gender           String?
+  city             String?
+  address          String?
+  /// PHONE | WHATSAPP | EMAIL | SMS
+  preferredChannel String?
+  ownerId          String?
+  owner            User?     @relation("ContactOwner", fields: [ownerId], references: [id])
+  createdById      String?
+  updatedById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+  mergedIntoId     String?
 
   deals          Deal[]
   convertedLeads Lead[]
+  consents       ContactBrandConsent[]
 
   @@index([mobile])
   @@index([email])
+  @@index([accountId])
+}
+
+/// Marketing consent is per brand: opting out of one brand does not opt out of another.
+model ContactBrandConsent {
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  brandId   String
+  brand     Brand    @relation(fields: [brandId], references: [id])
+  consent   Boolean
+  at        DateTime @default(now())
+
+  @@id([contactId, brandId])
+}
+
+/// Brands a customer has brand-owned records with. Maintained by the DB trigger app_link_customer().
+model CustomerBrandLink {
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  brandId     String
+  brand       Brand    @relation(fields: [brandId], references: [id])
+  firstSeenAt DateTime @default(now())
+
+  @@id([accountId, brandId])
+  @@index([brandId])
 }
 
 // ─────────────────────────── Catalogue (minimal) ───────────────────────────

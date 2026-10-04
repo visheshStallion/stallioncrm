@@ -52,6 +52,8 @@ export async function startEmbeddedPostgres(opts: {
     password,
     port,
     persistent,
+    // UTF-8 regardless of the OS locale (Windows defaults to WIN1252, which cannot store e.g. the Naira sign).
+    initdbFlags: ["--encoding=UTF8", "--locale=C"],
     onLog: () => {},
     onError: (e) => {
       if (process.env.DEBUG_PG) console.error(e);
