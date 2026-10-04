@@ -80,3 +80,12 @@ export function canWriteTo(ctx: AccessContext, brandId: string, regionId: string
 export function rlsMemberships(ctx: AccessContext): Array<{ brandId: string; regionId: string | null }> {
   return ctx.memberships.map((m) => ({ brandId: m.brandId, regionId: m.regionId }));
 }
+
+/**
+ * "Brand Manager+" for a record: scope ALL (Management / Administrator), or a MANAGER membership that covers
+ * the record's brand and region (Brand Manager: whole brand; RSM: their regions).
+ */
+export function isManagerOf(ctx: AccessContext, brandId: string, regionId: string): boolean {
+  if (ctx.scope === "ALL") return true;
+  return ctx.memberships.some((m) => m.isManager && m.brandId === brandId && (m.regionId === null || m.regionId === regionId));
+}

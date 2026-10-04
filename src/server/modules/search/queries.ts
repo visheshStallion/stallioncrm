@@ -42,7 +42,7 @@ export async function globalSearch(ctx: AccessContext, rawQuery: string): Promis
         module: "deals",
         id: d.id,
         title: d.name,
-        subtitle: d.customerName,
+        subtitle: [d.customerName, d.stageName].filter(Boolean).join(" · "),
         brandId: d.brandId,
         regionId: d.regionId,
         href: `/deals/${d.id}`,

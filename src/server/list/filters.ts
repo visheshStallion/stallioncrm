@@ -16,6 +16,9 @@ export interface FieldDef {
   options?: Array<{ value: string; label: string }>;
   /** Non-nullable columns cannot use isEmpty. */
   nullable?: boolean;
+  /** Filter on a to-one relation's column: { relation: "stage", column: "key" } → where: { stage: { key: … } }. */
+  relation?: string;
+  column?: string;
 }
 
 export interface Condition {
@@ -89,7 +92,12 @@ function isValid(def: FieldDef, c: Condition): boolean {
 type Where = Record<string, unknown>;
 
 function one(def: FieldDef, c: Condition, now: Date): Where {
-  const f = def.key;
+  const where = leaf(def, c, now);
+  return def.relation ? { [def.relation]: where } : where;
+}
+
+function leaf(def: FieldDef, c: Condition, now: Date): Where {
+  const f = def.column ?? def.key;
   const v = c.value;
   switch (c.op) {
     case "isEmpty":

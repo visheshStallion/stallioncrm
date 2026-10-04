@@ -2,7 +2,7 @@
 export * from "./types";
 export * from "./modules";
 export * from "./errors";
-export { brandScopeWhere, isVisible, canWriteTo, hasTerritoryAccess } from "./visibility";
+export { brandScopeWhere, isVisible, canWriteTo, hasTerritoryAccess, isManagerOf } from "./visibility";
 export { can, assertCan, hasPermission } from "./can";
 export { fieldMask, fieldMaskMany, fieldAccess, maskPhone, maskEmail } from "./field-mask";
 export { sanitizeFilters, filterWhere, visibleRegionIds, type UiFilters } from "./filters";

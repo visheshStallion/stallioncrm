@@ -252,31 +252,6 @@ export async function convertLead(ctx: AccessContext, id: string, input: Convert
 /** Extension point: prompt 07 moves the lead's activities to the deal here. */
 async function onLeadConverted(_ctx: AccessContext, _leadId: string, _dealId: string): Promise<void> {}
 
-// ── Saved views ──
-export async function saveView(
-  ctx: AccessContext,
-  input: { name: string; filters: LeadFilters & { f?: string[]; sys?: string }; columns?: string[] | null },
-) {
-  const name = input.name.trim();
-  if (!name || name.length > 60) throw new BadRequestError("View name must be 1–60 characters");
-  return scopedDb(ctx).savedView.upsert({
-    where: { userId_module_name: { userId: ctx.userId, module: "leads", name } },
-    update: { filters: input.filters as Prisma.InputJsonValue, columns: input.columns ?? undefined },
-    create: {
-      userId: ctx.userId,
-      module: "leads",
-      name,
-      filters: input.filters as Prisma.InputJsonValue,
-      columns: input.columns ?? undefined,
-    },
-  });
-}
-
-export async function deleteView(ctx: AccessContext, id: string) {
-  const res = await scopedDb(ctx).savedView.deleteMany({ where: { id, userId: ctx.userId } });
-  if (res.count === 0) throw new NotFoundError();
-}
-
 export function canExportLeads(ctx: AccessContext) {
   return can(ctx, "leads", "export");
 }

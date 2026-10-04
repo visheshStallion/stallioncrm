@@ -453,7 +453,7 @@ export async function setUserPassword(ctx: AccessContext, id: string, password: 
 
 /** Open = not soft-deleted, plus per-model rules (e.g. deals not closed). Later modules add theirs. */
 const OPEN_RECORD_FILTERS: Record<string, object> = {
-  Deal: { stage: { notIn: ["CLOSED_WON", "CLOSED_LOST"] } },
+  Deal: { stage: { type: "OPEN" } },
   Lead: { status: { in: ["NEW", "CONTACTED", "QUALIFIED"] } },
 };
 

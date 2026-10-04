@@ -203,11 +203,21 @@ export async function accountBrands(ctx: AccessContext, accountId: string): Prom
 export async function accountDeals(ctx: AccessContext, where: { accountId: string } | { contactId: string }) {
   const rows = await scopedDb(ctx).deal.findMany({
     where,
-    select: { id: true, name: true, stage: true, amount: true, closeDate: true, brandId: true, regionId: true, owner: { select: { name: true } } },
+    select: { id: true, name: true, stage: { select: { name: true, type: true } }, amount: true, closeDate: true, brandId: true, regionId: true, owner: { select: { name: true } } },
     orderBy: { updatedAt: "desc" },
     take: 50,
   });
-  return rows.map((d) => ({ ...d, amount: d.amount === null ? null : Number(d.amount.toString()), closeDate: d.closeDate?.toISOString() ?? null, ownerName: d.owner.name }));
+  return rows.map((d) => ({
+    id: d.id,
+    name: d.name,
+    stageName: d.stage?.name ?? "",
+    stageType: d.stage?.type ?? "OPEN",
+    amount: d.amount === null ? null : Number(d.amount.toString()),
+    closeDate: d.closeDate?.toISOString() ?? null,
+    brandId: d.brandId,
+    regionId: d.regionId,
+    ownerName: d.owner.name,
+  }));
 }
 
 // ───────────────────────────── contacts ─────────────────────────────

@@ -6,7 +6,7 @@ import { BadRequestError } from "@/server/errors";
 import { requireContext } from "@/server/request";
 import * as rules from "./assignment-admin";
 import { findDuplicates } from "./queries";
-import type { CreateLeadInput, LeadFilters, UpdateLeadInput } from "./schema";
+import type { CreateLeadInput, UpdateLeadInput } from "./schema";
 import { normalizePhone } from "@/lib/phone";
 import * as svc from "./service";
 
@@ -116,22 +116,6 @@ export async function convertLeadAction(_p: unknown, fd: FormData): Promise<Acti
     });
     revalidatePath("/leads");
     return { message: "Lead converted", redirect: `/deals/${res.dealId}` };
-  });
-}
-
-export async function saveViewAction(input: { name: string; filters: LeadFilters & { f?: string[]; sys?: string }; columns?: string[] | null }) {
-  return safeAction(async () => {
-    const view = await svc.saveView(await requireContext(), input);
-    revalidatePath("/leads");
-    return { id: view.id };
-  });
-}
-
-export async function deleteViewAction(id: string) {
-  return safeAction(async () => {
-    await svc.deleteView(await requireContext(), id);
-    revalidatePath("/leads");
-    return { message: "View deleted" };
   });
 }
 
