@@ -3,30 +3,26 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Pencil } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { BrandBadge } from "@/components/BrandBadge";
 import { RememberListIds } from "@/components/crm/KeyboardShortcuts";
 import { Avatar, EmptyState, StatusPill } from "@/components/crm/primitives";
 import { stageTone } from "@/components/crm/tones";
 import { DataTable } from "@/components/DataTable";
-import { Kanban, rejectMove } from "@/components/Kanban";
+import { Kanban } from "@/components/Kanban";
 import { RegionBadge } from "@/components/RegionBadge";
-import { toast } from "@/components/Toaster";
 import { formatDate, formatMoney, type DateFormat } from "@/lib/format";
-import { updateDealAction } from "@/server/modules/deals/actions";
-import type { DealRow } from "@/server/modules/deals/queries";
-import { DEAL_STAGES, STAGE_LABELS } from "@/server/modules/deals/schema";
+import type { DealRow, PipelineInfo } from "@/server/modules/deals/queries";
 import type { BrandInfo, RegionInfo } from "@/server/modules/org/queries";
 import type { ColumnLayout } from "@/server/modules/preferences/schema";
-
-
-const STALE_MS = 7 * 86_400_000;
+import { useBlueprint } from "./Blueprint";
 
 export function DealsView({
   layout,
   rows,
   brands,
   regions,
+  pipelines,
+  products,
   canEdit,
   dateFormat,
   columnLayout,
@@ -35,47 +31,67 @@ export function DealsView({
   rows: DealRow[];
   brands: BrandInfo[];
   regions: RegionInfo[];
+  /** Pipelines to render as boards (one selected pipeline, or one per brand for "All my brands"). */
+  pipelines: PipelineInfo[];
+  products: Array<{ id: string; name: string; brandId: string }>;
   canEdit: boolean;
   dateFormat: DateFormat;
   columnLayout: ColumnLayout | null;
 }) {
-  const router = useRouter();
   const brand = (id: string) => brands.find((b) => b.id === id);
   const region = (id: string) => regions.find((r) => r.id === id);
+  const { move, dialog } = useBlueprint(products);
 
   if (layout === "kanban") {
     return (
-      <Kanban
-        columns={DEAL_STAGES.map((s) => ({
-          key: s,
-          label: STAGE_LABELS[s],
-          cards: rows
-            .filter((r) => r.stage === s)
-            .map((r) => ({
-              id: r.id,
-              title: r.name,
-              subtitle: r.customerName,
-              href: `/deals/${r.id}`,
-              amount: r.amount,
-              date: formatDate(r.closeDate, dateFormat),
-              ownerName: r.ownerName,
-              brand: brand(r.brandId),
-              stale: !["CLOSED_WON", "CLOSED_LOST"].includes(r.stage) && Date.now() - Date.parse(r.updatedAt) > STALE_MS,
-              badges: <BrandBadge brand={brand(r.brandId)} />,
-            })),
-        }))}
-        onMove={
-          canEdit
-            ? async (id, stage) => {
-                // The Blueprint (prompt 04) will validate transitions and mandatory fields here.
-                const res = await updateDealAction(id, { stage: stage as (typeof DEAL_STAGES)[number] });
-                if (!res.ok) return rejectMove(res.error.message);
-                toast(`Moved to ${STAGE_LABELS[stage as keyof typeof STAGE_LABELS]}`, "success");
-                return true;
-              }
-            : undefined
-        }
-      />
+      <div className="space-y-5">
+        {pipelines.map((p) => {
+          const deals = rows.filter((r) => r.pipelineId === p.id);
+          return (
+            <section key={p.id} data-testid="pipeline-board" data-brand={brand(p.brandId)?.code}>
+              {pipelines.length > 1 ? (
+                <h2 className="mb-2 flex items-center gap-2 text-[13px] font-semibold">
+                  <BrandBadge brand={brand(p.brandId)} /> {p.name}
+                  <span className="font-normal text-text-muted">· {deals.length} deal(s)</span>
+                </h2>
+              ) : null}
+              <Kanban
+                columns={p.stages.map((s) => ({
+                  key: s.id,
+                  label: s.name,
+                  cards: deals
+                    .filter((r) => r.stageId === s.id)
+                    .map((r) => ({
+                      id: r.id,
+                      title: r.name,
+                      subtitle: r.customerName,
+                      href: `/deals/${r.id}`,
+                      amount: r.amount,
+                      date: formatDate(r.closeDate, dateFormat),
+                      ownerName: r.ownerName,
+                      brand: brand(r.brandId),
+                      stale: r.stale,
+                      badges: <BrandBadge brand={brand(r.brandId)} />,
+                    })),
+                }))}
+                onMove={
+                  canEdit
+                    ? (id, stageId) => {
+                        const deal = rows.find((r) => r.id === id);
+                        const stage = p.stages.find((s) => s.id === stageId);
+                        // A card can only be dropped on a stage of its own pipeline.
+                        if (!deal || !stage || deal.pipelineId !== p.id) return Promise.resolve(false);
+                        return move(deal, stage);
+                      }
+                    : undefined
+                }
+              />
+            </section>
+          );
+        })}
+        {pipelines.length === 0 ? <EmptyState title="No pipeline available" /> : null}
+        {dialog}
+      </div>
     );
   }
 
@@ -93,12 +109,24 @@ export function DealsView({
     { accessorKey: "customerName", header: "Customer" },
     { accessorKey: "amount", header: "Amount", cell: ({ row }) => <span className="tabular-nums">{formatMoney(row.original.amount)}</span> },
     {
-      accessorKey: "stage",
+      id: "stage",
       header: "Stage",
-      cell: ({ row }) => <StatusPill tone={stageTone(row.original.stage)}>{STAGE_LABELS[row.original.stage as keyof typeof STAGE_LABELS]}</StatusPill>,
+      accessorFn: (r) => r.stageName,
+      cell: ({ row }) => (
+        <span className="flex items-center gap-1">
+          <StatusPill tone={stageTone(row.original.stageType)}>{row.original.stageName}</StatusPill>
+          {row.original.stale ? (
+            <StatusPill tone="warning">
+              <span title={`${row.original.daysInStage} days in this stage`}>Stale</span>
+            </StatusPill>
+          ) : null}
+        </span>
+      ),
     },
     { accessorKey: "closeDate", header: "Closing Date", cell: ({ row }) => formatDate(row.original.closeDate, dateFormat) },
     { id: "region", header: "Region", accessorFn: (r) => region(r.regionId)?.name ?? "", cell: ({ row }) => <RegionBadge region={region(row.original.regionId)} /> },
+    { accessorKey: "modelName", header: "Model" },
+    { accessorKey: "vinChassisNo", header: "VIN" },
     {
       accessorKey: "ownerName",
       header: "Owner",
@@ -116,15 +144,19 @@ export function DealsView({
       <RememberListIds module="deals" ids={rows.map((r) => r.id)} />
       <DataTable
         module="deals"
-        layout={columnLayout}
+        layout={columnLayout ?? { order: [], hidden: ["modelName", "vinChassisNo"], freezeFirst: true }}
         columns={columns}
         data={rows}
         emptyState={<EmptyState title="No deals in this view" text="Try another view or clear the filters." />}
-        rowActions={(r) => (
-          <Link href={`/deals/${r.id}`} className="rounded p-1 hover:bg-surface" aria-label={`Open ${r.name}`} onClick={() => router.prefetch(`/deals/${r.id}`)}>
-            <Pencil className="h-3.5 w-3.5" />
-          </Link>
-        )}
+        rowActions={
+          canEdit
+            ? (r) => (
+                <Link href={`/deals/${r.id}/edit`} className="rounded p-1 hover:bg-surface" aria-label={`Edit ${r.name}`}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Link>
+              )
+            : undefined
+        }
       />
     </>
   );

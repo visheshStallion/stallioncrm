@@ -30,7 +30,7 @@ export function BrandBadge({
         size === "lg" ? "px-2.5 py-1 text-sm" : "px-1.5 py-0.5 text-[11px]",
         className,
       )}
-      style={{ color, borderColor: `${color}55`, backgroundColor: `${color}12` }}
+      style={{ color, borderColor: `${color}55`, backgroundColor: `color-mix(in srgb, ${color} 7%, var(--surface))` }}
     >
       <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
       {brand.code}

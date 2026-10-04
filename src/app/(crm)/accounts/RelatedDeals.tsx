@@ -4,12 +4,12 @@ import { StatusPill } from "@/components/crm/primitives";
 import { RelatedListCard } from "@/components/crm/record";
 import { stageTone } from "@/components/crm/tones";
 import { formatDate, formatMoney, type DateFormat } from "@/lib/format";
-import { STAGE_LABELS } from "@/server/modules/deals/schema";
 
 interface DealLine {
   id: string;
   name: string;
-  stage: string;
+  stageName: string;
+  stageType: string;
   amount: number | null;
   closeDate: string | null;
   brandId: string;
@@ -31,7 +31,7 @@ export function RelatedDeals({ deals, brands, dateFormat }: { deals: DealLine[];
               <Link href={`/deals/${d.id}`} className="flex-1 truncate font-medium text-primary hover:underline">
                 {d.name}
               </Link>
-              <StatusPill tone={stageTone(d.stage)}>{STAGE_LABELS[d.stage as keyof typeof STAGE_LABELS]}</StatusPill>
+              <StatusPill tone={stageTone(d.stageType)}>{d.stageName}</StatusPill>
               <span className="w-32 text-right tabular-nums">{formatMoney(d.amount)}</span>
               <span className="w-24 text-right text-xs text-text-muted">{formatDate(d.closeDate, dateFormat)}</span>
               <span className="w-32 truncate text-xs text-text-muted">{d.ownerName}</span>

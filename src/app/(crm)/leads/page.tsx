@@ -1,6 +1,7 @@
 import { forbidden } from "next/navigation";
 import { ActionsMenu, CreateSplitButton, FilterPanel, LayoutToggle, ModuleListFrame, Pagination, ViewSelector } from "@/components/crm/ListPage";
 import { MenuItem } from "@/components/crm/overlays";
+import { ViewActions } from "@/components/crm/ViewActions";
 import { can, hasPermission } from "@/server/access/can";
 import { scopedDb } from "@/server/db";
 import { conditionsToWhere, parseConditions, parsePaging, SYSTEM_FILTERS, systemFilterWhere } from "@/server/list/filters";
@@ -10,7 +11,6 @@ import { getDirectory } from "@/server/modules/org/queries";
 import { getColumnLayout, getPreferences } from "@/server/modules/preferences/queries";
 import { getUiFilters, requireContext } from "@/server/request";
 import { LeadsView, type KanbanBy } from "./LeadsView";
-import { ViewActions } from "./SaveViewItems";
 
 export const metadata = { title: "Leads" };
 
@@ -87,7 +87,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         <>
           {can(ctx, "leads", "create") ? <CreateSplitButton label="Create Lead" href="/leads/new" /> : null}
           <ActionsMenu>
-            <ViewActions filters={{ ...base, ...(q ? { q } : {}), f: conditions.map((c) => [c.field, c.op, c.value ?? "", c.value2 ?? ""].join("~")), ...(sys ? { sys } : {}) }} savedViewId={saved?.id ?? null} />
+            <ViewActions module="leads" filters={{ ...base, ...(q ? { q } : {}), f: conditions.map((c) => [c.field, c.op, c.value ?? "", c.value2 ?? ""].join("~")), ...(sys ? { sys } : {}) }} savedViewId={saved?.id ?? null} />
             {exportHref ? <MenuItem href={exportHref}>Export view (CSV)</MenuItem> : null}
           </ActionsMenu>
           <LayoutToggle layout={layout} />

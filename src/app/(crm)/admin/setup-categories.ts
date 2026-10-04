@@ -42,7 +42,10 @@ export const SETUP_CATEGORIES: SetupCategory[] = [
     key: "customization",
     title: "Customization",
     description: "Modules, fields, layouts and pipelines",
-    items: [{ href: "/admin/customization", label: "Fields & layouts", available: false }],
+    items: [
+      { href: "/admin/pipelines", label: "Pipelines & Blueprint", available: true },
+      { href: "/admin/customization", label: "Fields & layouts", available: false },
+    ],
   },
   {
     key: "automation",

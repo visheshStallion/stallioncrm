@@ -1,19 +1,29 @@
 import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
+import { ActionForm, SubmitButton } from "@/components/ActionForm";
+import { OwnerPicker } from "@/components/crm/fields";
 import { RecordNav } from "@/components/crm/KeyboardShortcuts";
+import { AttachmentsCard, NotesCard } from "@/components/crm/NotesAttachments";
 import { StatusPill } from "@/components/crm/primitives";
 import { DetailTabs, Field, FieldSection, RecordHeader, RelatedListCard, RelatedNav, StageProgressBar, Timeline } from "@/components/crm/record";
+import { stageTone } from "@/components/crm/tones";
 import { RegionBadge } from "@/components/RegionBadge";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { can, hasPermission } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
-import { dealTimeline, getDeal } from "@/server/modules/deals/queries";
-import { DEAL_STAGES, STAGE_LABELS } from "@/server/modules/deals/schema";
+import { isManagerOf } from "@/server/access/visibility";
+import { scopedDb } from "@/server/db";
+import { changeDealOwnerAction } from "@/server/modules/deals/actions";
+import { allowedTargets } from "@/server/modules/deals/blueprint";
+import { dealFormLookups, dealStageHistory, dealTimeline, getDeal, getPipeline } from "@/server/modules/deals/queries";
+import { listAttachments, listNotes } from "@/server/modules/notes/service";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
 import { requireContext } from "@/server/request";
-import { stageTone } from "@/components/crm/tones";
+import { BlueprintButtons } from "../Blueprint";
+
+const PAYMENT: Record<string, string> = { CASH: "Cash", BANK_FINANCE: "Bank finance", LEASE: "Lease", FLEET: "Fleet" };
 
 export default async function DealPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const [{ id }, { tab }] = await Promise.all([params, searchParams]);
@@ -24,12 +34,41 @@ export default async function DealPage({ params, searchParams }: { params: Promi
     if (isAccessError(e)) notFound();
     throw e;
   });
-  const [dir, prefs] = await Promise.all([getDirectory(ctx), getPreferences(ctx)]);
+  const current = tab === "timeline" ? "timeline" : "overview";
+  const [dir, prefs, pipeline, lookups, notes, attachments, users] = await Promise.all([
+    getDirectory(ctx),
+    getPreferences(ctx),
+    getPipeline(ctx, deal.pipelineId),
+    dealFormLookups(ctx),
+    listNotes(ctx, "Deal", id),
+    listAttachments(ctx, "Deal", id),
+    scopedDb(ctx).user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
+  const [history, fieldHistory] = current === "timeline" ? await Promise.all([dealStageHistory(ctx, id), dealTimeline(ctx, id)]) : [[], []];
   const brand = dir.brands.find((b) => b.id === deal.brandId);
   const region = dir.regions.find((r) => r.id === deal.regionId);
-  const current = tab === "timeline" ? "timeline" : "overview";
-  const timeline = current === "timeline" ? await dealTimeline(ctx, id) : [];
-  const lost = deal.stage === "CLOSED_LOST";
+  const df = prefs.dateFormat;
+  const canEdit = can(ctx, "deals", "edit", deal) && brand?.status !== "INACTIVE";
+  const manager = isManagerOf(ctx, deal.brandId, deal.regionId);
+  const stages = pipeline?.stages ?? [];
+  const from = stages.find((s) => s.id === deal.stageId);
+  const lost = deal.stageType === "LOST";
+  // Managers may jump to any stage; everyone else to previous / next / lost (or the stage's configured transitions).
+  const targets = !from || !canEdit ? [] : manager ? stages.filter((s) => s.id !== from.id).map((s) => s.key) : allowedTargets(stages, from);
+
+  const timeline = [
+    ...history.map((h) => ({
+      id: h.id,
+      at: h.at,
+      who: h.user,
+      kind: "system" as const,
+      title: h.from ? `Stage: ${h.from} → ${h.to}${h.durationHours !== null ? ` (after ${h.durationHours >= 48 ? `${Math.round(h.durationHours / 24)} days` : `${Math.round(h.durationHours)} h`})` : ""}` : `Entered ${h.to}`,
+      details: undefined as Array<{ field: string; from: unknown; to: unknown }> | undefined,
+    })),
+    ...fieldHistory
+      .filter((t) => t.action === "UPDATE" && t.details.some((d) => d.field !== "stageId"))
+      .map((t) => ({ id: t.id, at: t.at, who: t.user, kind: "field" as const, title: "Fields updated", details: t.details.filter((d) => d.field !== "stageId") })),
+  ].sort((a, b) => b.at.localeCompare(a.at));
 
   return (
     <div>
@@ -39,26 +78,37 @@ export default async function DealPage({ params, searchParams }: { params: Promi
         moduleLabel="Deal"
         title={deal.name}
         owner={deal.ownerName}
-        meta={<StatusPill tone={stageTone(deal.stage)}>{STAGE_LABELS[deal.stage as keyof typeof STAGE_LABELS]}</StatusPill>}
+        meta={
+          <>
+            <StatusPill tone={stageTone(deal.stageType)}>{deal.stageName}</StatusPill>
+            {deal.stale ? (
+              <StatusPill tone="warning">
+                <span data-testid="stale-badge">Stale – {deal.daysInStage} days in stage</span>
+              </StatusPill>
+            ) : null}
+          </>
+        }
         nav={<RecordNav module="deals" id={deal.id} basePath="/deals" />}
         actions={
           <>
-            <Button variant="outline" disabled title="Email arrives with prompt 10">
-              Send Email
+            <Button variant="outline" disabled title="Quotes arrive with prompt 06">
+              Create Quote
             </Button>
-            {can(ctx, "deals", "edit", deal) ? (
-              <Button disabled title="Full deal editing arrives with the Blueprint (prompt 04)" data-shortcut="edit">
-                Edit
+            <Button variant="outline" disabled title="Sales orders arrive with prompt 06">
+              Create Sales Order
+            </Button>
+            {canEdit ? (
+              <Button asChild>
+                <Link href={`/deals/${deal.id}/edit`} data-shortcut="edit">
+                  Edit
+                </Link>
               </Button>
             ) : null}
           </>
         }
       />
-      <StageProgressBar
-        stages={DEAL_STAGES.filter((s) => s !== (lost ? "CLOSED_WON" : "CLOSED_LOST")).map((s) => ({ key: s, label: STAGE_LABELS[s] }))}
-        current={deal.stage}
-        lost={lost}
-      />
+      {pipeline && targets.length ? <BlueprintButtons deal={deal} pipeline={pipeline} targets={targets} products={lookups.products} /> : null}
+      <StageProgressBar stages={stages.filter((s) => (lost ? s.type !== "WON" : s.type !== "LOST")).map((s) => ({ key: s.id, label: s.name }))} current={deal.stageId} lost={lost} />
       <DetailTabs
         current={current}
         tabs={[
@@ -68,56 +118,81 @@ export default async function DealPage({ params, searchParams }: { params: Promi
       />
       {current === "timeline" ? (
         <div className="rounded-lg border border-border bg-surface p-4">
-          <Timeline
-            entries={timeline.map((t) => ({
-              id: t.id,
-              at: formatDateTime(t.at, prefs.dateFormat),
-              who: t.user,
-              kind: "field",
-              title: t.action === "CREATE" ? "Deal created" : t.action === "UPDATE" ? "Deal updated" : t.action,
-              details: t.details,
-            }))}
-          />
+          <Timeline entries={timeline.map((t) => ({ ...t, at: formatDateTime(t.at, df) }))} />
         </div>
       ) : (
         <div className="flex items-start gap-4">
           <RelatedNav
             items={[
               { id: "info", label: "Deal Information" },
-              { id: "notes", label: "Notes" },
-              { id: "attachments", label: "Attachments" },
-              { id: "open-activities", label: "Open Activities" },
-              { id: "closed-activities", label: "Closed Activities" },
+              { id: "vehicle", label: "Vehicle & Payment" },
+              { id: "delivery", label: "Booking & Delivery" },
+              { id: "notes", label: "Notes", count: notes.length },
+              { id: "attachments", label: "Attachments", count: attachments.length },
+              { id: "open-activities", label: "Activities" },
               { id: "quotes", label: "Quotes / Sales Orders" },
-              { id: "emails", label: "Emails" },
             ]}
           />
           <div className="min-w-0 flex-1 space-y-3">
             <FieldSection title="Deal Information" id="info">
               <Field label="Deal name" value={deal.name} />
-              <Field label="Customer" value={deal.customerName} />
-              <Field label="Amount" value={formatMoney(deal.amount)} />
-              <Field label="Closing date" value={formatDate(deal.closeDate, prefs.dateFormat)} />
-              <Field label="Stage" value={STAGE_LABELS[deal.stage as keyof typeof STAGE_LABELS]} />
-              <Field label="Owner" value={deal.ownerName} />
-            </FieldSection>
-            <FieldSection title="Brand & Territory">
+              <Field
+                label="Account"
+                value={
+                  deal.accountId ? (
+                    <Link href={`/accounts/${deal.accountId}`} className="text-primary hover:underline">
+                      {deal.accountName}
+                    </Link>
+                  ) : (
+                    deal.customerName
+                  )
+                }
+              />
+              <Field label="Amount" value={deal.currency === "NGN" ? formatMoney(deal.amount) : deal.amount === null ? null : `${deal.currency} ${deal.amount.toLocaleString("en-NG", { minimumFractionDigits: 2 })}`} />
+              <Field label="Expected close" value={formatDate(deal.closeDate, df)} />
+              <Field label="Stage" value={`${deal.stageName} (${deal.probability}%)`} />
               <Field label="Brand" value={brand ? `${brand.code} – ${brand.name}` : null} />
               <Field label="Region" value={<RegionBadge region={region} />} />
               <Field label="Territory" value={deal.territoryName} />
-              <Field label="Modified" value={formatDateTime(deal.updatedAt, prefs.dateFormat)} />
             </FieldSection>
-            <RelatedListCard id="notes" title="Notes" empty="Notes arrive with the Activities module." />
-            <RelatedListCard id="attachments" title="Attachments" />
-            <RelatedListCard id="open-activities" title="Open Activities" empty="No open activities." />
-            <RelatedListCard id="closed-activities" title="Closed Activities" empty="No closed activities." />
-            <RelatedListCard id="quotes" title="Quotes / Sales Orders" empty="Quotes arrive with prompt 06." />
-            <RelatedListCard id="emails" title="Emails" empty="Emails arrive with prompt 10." />
-            <p className="text-xs text-text-muted">
-              <Link href="/deals" className="underline">
-                Back to deals
-              </Link>
-            </p>
+            <FieldSection title="Vehicle & Payment" id="vehicle">
+              <Field label="Model" value={deal.modelName} />
+              <Field label="Quantity" value={deal.quantity} />
+              <Field label="Colour" value={deal.colour} />
+              <Field label="Payment type" value={deal.paymentType ? PAYMENT[deal.paymentType] : null} />
+              <Field label="Finance bank" value={deal.financeBank} />
+              <Field label="Discount" value={deal.discountPct === null ? null : `${deal.discountPct}%`} />
+              <Field label="Trade-in" value={deal.tradeInDetails} />
+            </FieldSection>
+            <FieldSection title="Booking & Delivery" id="delivery">
+              <Field label="Test drive date" value={formatDate(deal.testDriveDate, df)} />
+              <Field label="Deposit" value={formatMoney(deal.depositAmount)} />
+              <Field label="Deposit receipt no." value={deal.depositReceiptNo} />
+              <Field label="VIN / chassis no." value={deal.vinChassisNo} />
+              <Field label="Engine no." value={deal.engineNo} />
+              <Field label="Delivery date" value={formatDate(deal.deliveryDate, df)} />
+              {lost ? <Field label="Loss reason" value={deal.lossReason} /> : null}
+              {lost ? <Field label="Lost to" value={deal.lossCompetitorBrand} /> : null}
+            </FieldSection>
+            {canEdit ? (
+              <section className="rounded-lg border border-border bg-surface p-4">
+                <h2 className="mb-1 text-[13px] font-semibold">Change owner</h2>
+                <p className="mb-2 text-xs text-text-muted">The new owner must work in this deal&apos;s brand and region.</p>
+                <ActionForm action={changeDealOwnerAction} className="flex flex-wrap items-center gap-2">
+                  <input type="hidden" name="id" value={deal.id} />
+                  <div className="w-72">
+                    <OwnerPicker name="ownerId" users={users} defaultValue={deal.ownerId} />
+                  </div>
+                  <SubmitButton size="sm" variant="outline">
+                    Change owner
+                  </SubmitButton>
+                </ActionForm>
+              </section>
+            ) : null}
+            <NotesCard entity="Deal" entityId={deal.id} path={`/deals/${deal.id}`} notes={notes} canEdit={canEdit} dateFormat={df} />
+            <AttachmentsCard entity="Deal" entityId={deal.id} path={`/deals/${deal.id}`} attachments={attachments} canEdit={canEdit} dateFormat={df} />
+            <RelatedListCard id="open-activities" title="Activities" empty="Activities arrive with prompt 07." />
+            <RelatedListCard id="quotes" title="Quotes / Sales Orders" empty="Quotes and sales orders arrive with prompt 06." />
           </div>
         </div>
       )}

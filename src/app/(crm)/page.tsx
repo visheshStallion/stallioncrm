@@ -6,7 +6,7 @@ import { RegionBadge } from "@/components/RegionBadge";
 import { formatDate, formatMoney, formatMoneyCompact } from "@/lib/format";
 import { hasPermission } from "@/server/access/can";
 import { scopedDb } from "@/server/db";
-import { STAGE_LABELS } from "@/server/modules/deals/schema";
+import { OPEN_DEALS } from "@/server/modules/deals/queries";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
 import { requireContext } from "@/server/request";
@@ -58,11 +58,11 @@ export default async function HomePage() {
   const now = new Date();
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-  const open = { stage: { notIn: ["CLOSED_WON", "CLOSED_LOST"] as ("CLOSED_WON" | "CLOSED_LOST")[] } };
+  const open = OPEN_DEALS;
   const mine = manager ? {} : { ownerId: ctx.userId };
 
   const [byStage, byBrand, closing, myLeads] = await Promise.all([
-    canDeals ? db.deal.groupBy({ by: ["stage"], where: { ...open, ...mine }, _count: { _all: true }, _sum: { amount: true } }) : [],
+    canDeals ? db.deal.groupBy({ by: ["stageId"], where: { ...open, ...mine }, _count: { _all: true }, _sum: { amount: true } }) : [],
     canDeals && manager ? db.deal.groupBy({ by: ["brandId"], where: open, _count: { _all: true }, _sum: { amount: true } }) : [],
     canDeals
       ? db.deal.findMany({
@@ -82,6 +82,19 @@ export default async function HomePage() {
       : [],
   ]);
   const brand = (id: string) => dir.brands.find((b) => b.id === id);
+  // Pipelines are per brand: group the stage totals by stage key so brands line up.
+  const stageInfo = byStage.length
+    ? await db.pipelineStage.findMany({ where: { id: { in: byStage.map((s) => s.stageId!).filter(Boolean) } }, select: { id: true, key: true, name: true, order: true } })
+    : [];
+  const stageTotals = new Map<string, { name: string; order: number; count: number; amount: number }>();
+  for (const s of byStage) {
+    const info = stageInfo.find((x) => x.id === s.stageId);
+    if (!info) continue;
+    const cur = stageTotals.get(info.key) ?? { name: info.name, order: info.order, count: 0, amount: 0 };
+    cur.count += s._count._all;
+    cur.amount += Number(s._sum.amount ?? 0);
+    stageTotals.set(info.key, cur);
+  }
 
   return (
     <div>
@@ -99,13 +112,9 @@ export default async function HomePage() {
         {canDeals ? (
           <Widget title={manager ? "Pipeline by stage" : "My pipeline by stage"} href="/deals?layout=kanban">
             <Bars
-              rows={byStage
-                .sort((a, b) => Object.keys(STAGE_LABELS).indexOf(a.stage) - Object.keys(STAGE_LABELS).indexOf(b.stage))
-                .map((s) => ({
-                  label: STAGE_LABELS[s.stage],
-                  value: Number(s._sum.amount ?? 0),
-                  display: `${s._count._all} · ${formatMoneyCompact(Number(s._sum.amount ?? 0))}`,
-                }))}
+              rows={[...stageTotals.values()]
+                .sort((a, b) => a.order - b.order)
+                .map((s) => ({ label: s.name, value: s.amount, display: `${s.count} · ${formatMoneyCompact(s.amount)}` }))}
             />
           </Widget>
         ) : null}
