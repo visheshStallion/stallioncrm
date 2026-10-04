@@ -10,7 +10,7 @@ import { unsafeDb } from "./unsafe";
 export function findUserForLogin(email: string) {
   return unsafeDb.user.findUnique({
     where: { email: email.trim().toLowerCase() },
-    select: { id: true, email: true, name: true, active: true, passwordHash: true },
+    select: { id: true, email: true, name: true, active: true, passwordHash: true, isIntegration: true, failedLogins: true, lockedUntil: true, totpSecret: true, totpEnabledAt: true },
   });
 }
 
@@ -214,4 +214,49 @@ export async function repointCustomerChildren(kind: "account" | "contact", fromI
 /** Domain event outbox (user sessions have no access to it). Use emitEvent() from "@/server/events". */
 export async function storeDomainEvent(name: string, brandId: string | null, payload: object): Promise<void> {
   await unsafeDb.domainEvent.create({ data: { name, brandId, payload: JSON.parse(JSON.stringify(payload)) } });
+}
+
+// ───────────────────────────── sign-in protection (prompt 15) ─────────────────────────────
+
+/** A failed password / code attempt: counts up and locks the account after `max` consecutive failures. */
+export async function recordLoginFailure(userId: string, max: number, lockMinutes: number): Promise<{ locked: boolean }> {
+  const user = await unsafeDb.user.update({ where: { id: userId }, data: { failedLogins: { increment: 1 } }, select: { failedLogins: true } });
+  if (user.failedLogins < max) return { locked: false };
+  await unsafeDb.user.update({ where: { id: userId }, data: { lockedUntil: new Date(Date.now() + lockMinutes * 60_000), failedLogins: 0 } });
+  return { locked: true };
+}
+
+export async function recordLoginSuccess(userId: string): Promise<void> {
+  await unsafeDb.user.update({ where: { id: userId }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
+}
+
+export function totpState(userId: string) {
+  return unsafeDb.user.findUnique({ where: { id: userId }, select: { email: true, totpSecret: true, totpEnabledAt: true } });
+}
+
+export async function storeTotp(userId: string, sealedSecret: string | null, enabled: boolean): Promise<void> {
+  await unsafeDb.user.update({ where: { id: userId }, data: { totpSecret: sealedSecret, totpEnabledAt: enabled ? new Date() : null } });
+}
+
+/** Administrator: clears a lockout. */
+export async function unlockUser(userId: string): Promise<void> {
+  await unsafeDb.user.update({ where: { id: userId }, data: { failedLogins: 0, lockedUntil: null } });
+}
+
+/** Access review: every user with profile, role, territories and sign-in facts. */
+export function accessReviewRows() {
+  return unsafeDb.user.findMany({
+    select: { id: true, name: true, email: true, active: true, isIntegration: true, lastLoginAt: true, lockedUntil: true, totpEnabledAt: true, createdAt: true, role: { select: { name: true } }, profile: { select: { name: true, scope: true } }, memberships: { select: { isManager: true, territory: { select: { name: true, brand: { select: { code: true } }, region: { select: { name: true } } } } } } },
+    orderBy: [{ active: "desc" }, { name: "asc" }],
+  });
+}
+
+/** Liveness of the database for the health endpoint. */
+export async function pingDatabase(): Promise<boolean> {
+  try {
+    await unsafeDb.$queryRaw`SELECT 1`;
+    return true;
+  } catch {
+    return false;
+  }
 }

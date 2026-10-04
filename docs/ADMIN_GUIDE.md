@@ -317,3 +317,20 @@ See [INVENTORY_GUIDE.md](INVENTORY_GUIDE.md). For administrators:
 - **Scheduler**: reservation expiry runs on the tick (`/api/public/cron/tick`).
 - **Existing data**: the stock references of earlier versions became vehicle units without cost or warehouse;
   receive real stock through goods receipts.
+
+## Security administration
+
+- **Access review** (Setup → Data Administration → Access review): every user with profile, brands, regions,
+  last sign-in and flags (no sign-in for 90 days, several brands, sees all brands, no territory, inactive but
+  still in territories). Run it every quarter with each Brand Manager; export the CSV as evidence. Opening it is
+  recorded in the audit log.
+- **Locked accounts and lost phones**: *Reset sign-in* in the access review clears a lockout and switches a user's
+  two-step sign-in off. Accounts lock for 15 minutes after five wrong passwords or codes.
+- **Two-step sign-in** is set up by each user (avatar → Sign-in security). Ask every administrator and Brand
+  Manager to switch it on.
+- **SSO only**: with Microsoft Entra ID configured, set `AUTH_SSO_ONLY=1` and list one or two break-glass
+  administrator addresses in `AUTH_PASSWORD_LOGIN_ALLOW`.
+- **Field permissions** (Setup → Profiles → Field permissions) hide, mask or lock fields per profile – on
+  screens, in the API, exports and webhooks, and for updates. Report and dashboard totals still include hidden
+  fields (see SECURITY.md).
+- **Backups**: `scripts/backup.sh` daily; restore drill quarterly (SECURITY.md §4).

@@ -4,6 +4,7 @@ import { toCsv } from "@/lib/csv";
 import { assertCan, can } from "@/server/access/can";
 import { assertSameBrand } from "@/server/access/brand-tag";
 import { ForbiddenError, NotFoundError } from "@/server/access/errors";
+import { stripUneditable } from "@/server/access/field-mask";
 import type { AccessContext } from "@/server/access/types";
 import { audit, scopedDb } from "@/server/db";
 import { BadRequestError } from "@/server/errors";
@@ -71,6 +72,7 @@ async function loadVisible(ctx: AccessContext, id: string) {
 }
 
 export async function updateLead(ctx: AccessContext, id: string, input: UpdateLeadInput) {
+  input = stripUneditable(ctx, "leads", input); // field-level security: read-only / hidden fields cannot be changed
   const data = updateLeadSchema.parse(input);
   const current = await loadVisible(ctx, id);
   assertCan(ctx, "leads", "edit", current);

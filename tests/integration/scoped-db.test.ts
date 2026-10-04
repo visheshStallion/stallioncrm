@@ -24,7 +24,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await unsafeDb.auditLog.deleteMany({ where: { entityId: { in: createdDealIds } } });
+  // the audit log is append-only (prompt 15): its rows stay
   await unsafeDb.deal.deleteMany({ where: { id: { in: createdDealIds } } });
 });
 

@@ -16,6 +16,7 @@ import { Select } from "@/components/ui/select";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { can, hasPermission } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
+import { fieldMaskView } from "@/server/access/field-mask";
 import { isManagerOf } from "@/server/access/visibility";
 import { scopedDb } from "@/server/db";
 import { releaseVinAction, reserveVinAction } from "@/server/modules/catalogue/actions";
@@ -43,10 +44,14 @@ export default async function DealPage({ params, searchParams }: { params: Promi
   const ctx = await requireContext();
   if (!hasPermission(ctx, "deals", "read")) forbidden();
   // Missing and out-of-scope deals are both 404 – existence is never revealed.
-  const deal = await getDeal(ctx, id).catch((e) => {
-    if (isAccessError(e)) notFound();
-    throw e;
-  });
+  const deal = fieldMaskView(
+    ctx,
+    "deals",
+    await getDeal(ctx, id).catch((e) => {
+      if (isAccessError(e)) notFound();
+      throw e;
+    }),
+  );
   const current = tab === "timeline" ? "timeline" : "overview";
   const [dir, prefs, pipeline, lookups, notes, attachments, users, stock, documents, activities, mentionable, approvals, cases] = await Promise.all([
     getDirectory(ctx),

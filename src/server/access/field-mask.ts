@@ -55,3 +55,31 @@ export function fieldMaskMany<T extends object>(
 ): Partial<T>[] {
   return records.map((r) => fieldMask(ctx, module, r));
 }
+
+/**
+ * The same masking for screens: the record keeps its shape (hidden fields become null, so pages render "—")
+ * instead of losing keys. Use `fieldMask` for API and export payloads, this for server-rendered pages.
+ */
+export function fieldMaskView<T extends object>(ctx: AccessContext, module: ModuleKey, record: T): T {
+  const rules = ctx.profile.fieldPermissions[module];
+  if (!rules) return record;
+  const out: Record<string, unknown> = { ...(record as Record<string, unknown>) };
+  for (const [field, level] of Object.entries(rules)) {
+    if (!(field in out)) continue;
+    if (level === "hidden") out[field] = null;
+    else if (level === "masked") out[field] = maskValue(field, out[field]);
+  }
+  return out as T;
+}
+
+/**
+ * Write side of field-level security: fields the profile may not edit (hidden, masked or read-only) are
+ * dropped from an update, so a crafted request – or a form that received a masked value – cannot change them.
+ */
+export function stripUneditable<T extends object>(ctx: AccessContext, module: ModuleKey, input: T): T {
+  const rules = ctx.profile.fieldPermissions[module];
+  if (!rules) return input;
+  const out: Record<string, unknown> = { ...(input as Record<string, unknown>) };
+  for (const [field, level] of Object.entries(rules)) if (level !== "edit") delete out[field];
+  return out as T;
+}

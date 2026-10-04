@@ -18,6 +18,10 @@ export function LoginForm() {
         <Label htmlFor="password">Password</Label>
         <Input id="password" name="password" type="password" autoComplete="current-password" required />
       </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="code">Authenticator code (only with two-step sign-in)</Label>
+        <Input id="code" name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={7} pattern="[0-9 ]*" />
+      </div>
       {state?.error ? (
         <p className="text-sm text-red-600" role="alert">
           {state.error}

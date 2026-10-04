@@ -10,6 +10,27 @@ import fs from "node:fs";
 import path from "node:path";
 import { startEmbeddedPostgres } from "./lib/embedded-pg";
 
+/**
+ * Hand-written indexes and foreign keys (prisma/unmanaged.json) are unknown to the Prisma schema, so the diff
+ * proposes to drop them. Those statements are removed; any other DROP INDEX / DROP CONSTRAINT is reported so it
+ * is reviewed before the migration is committed.
+ */
+function keepUnmanaged(sql: string): string {
+  const unmanaged = JSON.parse(fs.readFileSync(path.join("prisma", "unmanaged.json"), "utf8")) as { indexes: string[]; foreignKeys: string[] };
+  const keep = new Set([...unmanaged.indexes, ...unmanaged.foreignKeys]);
+  const kept: string[] = [];
+  const out = sql.replace(/-- Drop(?:Index|ForeignKey)\r?\n(?:DROP INDEX "([^"]+)";|ALTER TABLE "[^"]+" DROP CONSTRAINT "([^"]+)";)\r?\n(?:\r?\n)?/g, (block, index?: string, fk?: string) => {
+    const name = index ?? fk ?? "";
+    if (!keep.has(name)) return block;
+    kept.push(name);
+    return "";
+  });
+  if (kept.length) console.log(`Kept ${kept.length} hand-written object(s) the diff wanted to drop: ${kept.join(", ")}`);
+  const remaining = [...out.matchAll(/DROP INDEX "([^"]+)"|DROP CONSTRAINT "([^"]+)"/g)].map((m) => m[1] ?? m[2]);
+  if (remaining.length) console.warn(`REVIEW: the migration drops ${remaining.join(", ")} – if one of them is hand-written, add it to prisma/unmanaged.json and regenerate.`);
+  return out;
+}
+
 async function main() {
   const name = process.argv[2];
   if (!name) throw new Error("usage: pnpm db:new-migration <name>");
@@ -19,11 +40,12 @@ async function main() {
     const env = { ...process.env, DATABASE_URL: db.url };
     const opts = { env, shell: process.platform === "win32" } as const;
     execFileSync(prisma, ["migrate", "deploy"], { ...opts, stdio: "inherit" });
-    const sql = execFileSync(
+    const generated = execFileSync(
       prisma,
       ["migrate", "diff", "--from-url", `"${db.url}"`, "--to-schema-datamodel", "prisma/schema.prisma", "--script"],
       { ...opts, encoding: "utf8" },
     );
+    const sql = keepUnmanaged(generated);
     if (!sql.trim() || /empty migration/i.test(sql)) {
       console.log("No schema changes.");
       return;

@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { AccessError, isAccessError } from "@/server/access/errors";
 import { BadRequestError, RateLimitError } from "@/server/errors";
+import { captureException } from "@/server/error-tracking";
 import { logger } from "@/server/log";
 
 export interface ApiErrorBody {
@@ -42,6 +43,7 @@ export function toErrorResponse(err: unknown): { status: number; body: ApiErrorB
     return { status: 400, body: { error: { code: err.code, message: err.message } } };
   }
   logger.error({ err }, "unhandled error");
+  captureException(err, { kind: "api" });
   return { status: 500, body: { error: { code: "INTERNAL", message: "Something went wrong" } } };
 }
 

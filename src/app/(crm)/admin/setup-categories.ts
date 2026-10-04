@@ -66,6 +66,7 @@ export const SETUP_CATEGORIES: SetupCategory[] = [
       { href: "/admin/audit", label: "Audit log", available: true },
       { href: "/imports", label: "Import data", available: true },
       { href: "/exports", label: "Export & backup", available: true },
+      { href: "/admin/access-review", label: "Access review", available: true },
     ],
   },
   {

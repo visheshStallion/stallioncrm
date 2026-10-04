@@ -6,6 +6,7 @@ import { PageTitleRow } from "@/components/crm/primitives";
 import { StickyFormFooter } from "@/components/crm/record";
 import { can } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
+import { fieldMaskView } from "@/server/access/field-mask";
 import { isManagerOf } from "@/server/access/visibility";
 import { scopedDb } from "@/server/db";
 import { customFormProps, storedCustomValues } from "@/server/modules/customization/form";
@@ -20,10 +21,14 @@ export const metadata = { title: "Edit Deal" };
 export default async function EditDealPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ctx = await requireContext();
-  const deal = await getDeal(ctx, id).catch((e) => {
-    if (isAccessError(e)) notFound();
-    throw e;
-  });
+  const deal = fieldMaskView(
+    ctx,
+    "deals",
+    await getDeal(ctx, id).catch((e) => {
+      if (isAccessError(e)) notFound();
+      throw e;
+    }),
+  );
   if (!can(ctx, "deals", "edit", deal)) forbidden();
   const [dir, extra, custom, stored] = await Promise.all([getDirectory(ctx), dealFormLookups(ctx), customFormProps(ctx, "deals"), scopedDb(ctx).deal.findUnique({ where: { id }, select: { customFields: true } })]);
   const brand = dir.brands.find((b) => b.id === deal.brandId);

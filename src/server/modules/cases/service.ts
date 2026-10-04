@@ -9,6 +9,7 @@ import type { CasePriority, Prisma } from "@prisma/client";
 import { normalizePhone } from "@/lib/phone";
 import { assertCan } from "@/server/access/can";
 import { ForbiddenError, NotFoundError } from "@/server/access/errors";
+import { stripUneditable } from "@/server/access/field-mask";
 import type { AccessContext } from "@/server/access/types";
 import { canWriteTo, isManagerOf } from "@/server/access/visibility";
 import { scopedDb } from "@/server/db";
@@ -110,7 +111,7 @@ async function loadEditable(ctx: AccessContext, id: string) {
 
 export async function updateCase(ctx: AccessContext, id: string, input: UpdateCaseInput) {
   const current = await loadEditable(ctx, id);
-  const data = updateCaseSchema.parse(input);
+  const data = updateCaseSchema.parse(stripUneditable(ctx, "cases", input)); // field-level security on writes
   const db = scopedDb(ctx);
   if (data.dealId && data.dealId !== current.dealId) {
     const deal = await db.deal.findUnique({ where: { id: data.dealId }, select: { brandId: true } });

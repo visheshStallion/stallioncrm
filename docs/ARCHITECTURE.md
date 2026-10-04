@@ -643,7 +643,28 @@ User-facing description: [MOBILE.md](MOBILE.md).
   per-type channels are pure functions in `notifications/preferences.ts`. `PushSubscription` has RLS "own rows".
   The tick sends the daily digest (idempotent per user and day) and stale-deal notifications.
 
-## 23. Local development
+## 23. Isolation suite, security hardening & operations (prompt 15)
+
+Details and the ASVS status: [SECURITY.md](SECURITY.md). Go-live: [GO_LIVE_CHECKLIST.md](GO_LIVE_CHECKLIST.md).
+
+- **Isolation suite** (`tests/isolation`, vitest project `isolation`, required CI step): a generated fixture
+  (`fixture.ts`: 2 brands × 2 regions, 11 personas, rows of every brand-owned model), the model × persona matrix
+  against an independent reference rule through the scoped client and raw SQL, the access paths, VT-01 … VT-17, and
+  a seeded property-based test. New brand-owned models are detected from the schema.
+- **IDOR scan** (`tests/e2e/zz-idor.spec.ts`): discovers every `/api/v1/**/[id]/**` route from the file system.
+- **Sign-in protection** (`src/server/auth/protection.ts`, `auth/index.ts`): throttling of failed attempts,
+  database lockout (`User.failedLogins`, `lockedUntil`), optional TOTP with an encrypted secret that is omitted
+  from every query by default and not granted to the RLS role, SSO-only switch.
+- **Field-level security on writes**: `stripUneditable` in the update services of leads, deals and cases;
+  `fieldMaskView` on their screens (hidden → null).
+- **Headers & CSRF**: `next.config.ts` (CSP and friends), origin check for the cookie-authenticated JSON API in
+  `middleware.ts`.
+- **Audit log** append-only by trigger (`app_audit_immutable`) in addition to the missing grants.
+- **Operations**: `/api/public/health`, `src/server/error-tracking.ts` + `src/instrumentation.ts`
+  (Sentry-compatible, error and route only), `scripts/backup.sh`, `scripts/bootstrap.ts` (`pnpm db:bootstrap`),
+  access review (`modules/security/service.ts`, Setup → Data Administration).
+
+## 24. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.

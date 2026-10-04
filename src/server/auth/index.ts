@@ -5,13 +5,27 @@ import Credentials from "next-auth/providers/credentials";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { z } from "zod";
 import { audit } from "@/server/db/audit";
-import { findActiveUserIdByEmail, findUserForLogin } from "@/server/db/system";
+import { findActiveUserIdByEmail, findUserForLogin, recordLoginFailure, recordLoginSuccess } from "@/server/db/system";
+import { isRateLimited, rateLimit } from "@/server/rate-limit";
 import { logger } from "@/server/log";
 import { authConfig } from "./config";
+import { LOCKOUT_MINUTES, MAX_FAILED_LOGINS, openSecret, passwordLoginAllowed, verifyTotp } from "./protection";
+
+/** Shown to the user instead of the generic message (they reveal nothing an attacker does not know already). */
+class AccountLocked extends CredentialsSignin {
+  code = "locked";
+}
+class CodeRequired extends CredentialsSignin {
+  code = "code_required";
+}
+class TooManyAttempts extends CredentialsSignin {
+  code = "slow_down";
+}
 
 const credentialsSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1).max(200),
+  code: z.string().trim().max(12).optional(),
 });
 
 function clientIp(request: Request | undefined): string | null {
@@ -25,20 +39,48 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
     Credentials({
-      credentials: { email: { label: "Email" }, password: { label: "Password", type: "password" } },
+      credentials: { email: { label: "Email" }, password: { label: "Password", type: "password" }, code: { label: "Code" } },
       async authorize(raw, request) {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) throw new CredentialsSignin();
-        const { email, password } = parsed.data;
+        const { email, password, code } = parsed.data;
         const ip = clientIp(request);
+        // Throttle guessing: FAILED attempts per address and per account (in-memory window; the lockout below is in the database).
+        const WINDOW = 5 * 60_000;
+        const keys = [[`login:ip:${ip ?? "unknown"}`, 30], [`login:email:${email}`, 10]] as const;
+        if (keys.some(([k, n]) => isRateLimited(k, n, WINDOW))) throw new TooManyAttempts();
         const user = await findUserForLogin(email);
-        const ok =
-          !!user?.active && !!user.passwordHash && (await verify(user.passwordHash, password).catch(() => false));
-        if (!ok || !user) {
-          await audit({ action: "LOGIN_FAILED", entity: "User", entityId: user?.id ?? null, userId: user?.id, ip, after: { email } });
+        const fail = async (reason: string) => {
+          for (const [k, n] of keys) rateLimit(k, n, WINDOW);
+          await audit({ action: "LOGIN_FAILED", entity: "User", entityId: user?.id ?? null, userId: user?.id, ip, after: { email, reason } });
+        };
+        if (!user?.active || user.isIntegration || !user.passwordHash || !passwordLoginAllowed(email)) {
+          // unknown, inactive, integration or SSO-only account: indistinguishable from a wrong password
+          if (user?.passwordHash) await verify(user.passwordHash, password).catch(() => false);
+          await fail("not allowed");
           throw new CredentialsSignin();
         }
-        await audit({ action: "LOGIN", entity: "User", entityId: user.id, userId: user.id, ip });
+        if (user.lockedUntil && user.lockedUntil > new Date()) {
+          await fail("locked");
+          throw new AccountLocked();
+        }
+        if (!(await verify(user.passwordHash, password).catch(() => false))) {
+          const { locked } = await recordLoginFailure(user.id, MAX_FAILED_LOGINS, LOCKOUT_MINUTES);
+          await fail(locked ? "wrong password – account locked" : "wrong password");
+          throw locked ? new AccountLocked() : new CredentialsSignin();
+        }
+        // Two-step sign-in (TOTP) when the user switched it on.
+        if (user.totpEnabledAt && user.totpSecret) {
+          if (!code || !/[0-9]/.test(code)) throw new CodeRequired();
+          const secret = openSecret(user.totpSecret);
+          if (!secret || !verifyTotp(secret, code)) {
+            const { locked } = await recordLoginFailure(user.id, MAX_FAILED_LOGINS, LOCKOUT_MINUTES);
+            await fail(locked ? "wrong code – account locked" : "wrong code");
+            throw locked ? new AccountLocked() : new CredentialsSignin();
+          }
+        }
+        await recordLoginSuccess(user.id);
+        await audit({ action: "LOGIN", entity: "User", entityId: user.id, userId: user.id, ip, after: user.totpEnabledAt ? { twoStep: true } : undefined });
         return { id: user.id };
       },
     }),
@@ -70,6 +112,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const email = (profile?.email ?? user?.email ?? "").toString();
         const match = await findActiveUserIdByEmail(email);
         if (!match) return {};
+        await recordLoginSuccess(match.id);
         await audit({ action: "LOGIN", entity: "User", entityId: match.id, userId: match.id, after: { provider: "entra" } });
         return { sub: match.id };
       }

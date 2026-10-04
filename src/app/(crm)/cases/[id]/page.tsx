@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { formatDateTime } from "@/lib/format";
 import { can, hasPermission } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
+import { fieldMaskView } from "@/server/access/field-mask";
 import { isManagerOf } from "@/server/access/visibility";
 import { recordActivities, usersWhoCanSee } from "@/server/modules/activities/queries";
 import { assignCaseAction, changeCaseStatusAction, updateCaseAction } from "@/server/modules/cases/actions";
@@ -30,10 +31,14 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
   const ctx = await requireContext();
   if (!hasPermission(ctx, "cases", "read")) forbidden();
   // Missing and out-of-scope cases are both 404 – existence is never revealed.
-  const c = await getCase(ctx, id).catch((e) => {
-    if (isAccessError(e)) notFound();
-    throw e;
-  });
+  const c = fieldMaskView(
+    ctx,
+    "cases",
+    await getCase(ctx, id).catch((e) => {
+      if (isAccessError(e)) notFound();
+      throw e;
+    }),
+  );
   const [dir, prefs, notes, attachments, activities, mentionable, colleagues, solutions] = await Promise.all([
     getDirectory(ctx),
     getPreferences(ctx),

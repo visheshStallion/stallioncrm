@@ -9,7 +9,7 @@ import { PrismaClient } from "@prisma/client";
 export function createPrismaClient() {
   return new PrismaClient({
     // Never return password hashes unless a query opts in explicitly (login only).
-    omit: { user: { passwordHash: true } },
+    omit: { user: { passwordHash: true, totpSecret: true } },
     log: process.env.PRISMA_LOG_QUERIES ? ["query", "warn", "error"] : ["warn", "error"],
   });
 }

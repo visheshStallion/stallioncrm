@@ -1,4 +1,5 @@
 import { forbidden } from "next/navigation";
+import { fieldMaskView } from "@/server/access/field-mask";
 import { ActionsMenu, CreateSplitButton, FilterPanel, LayoutToggle, ModuleListFrame, Pagination, ViewSelector, type ViewOption } from "@/components/crm/ListPage";
 import { ViewActions } from "@/components/crm/ViewActions";
 import { can, hasPermission } from "@/server/access/can";
@@ -74,7 +75,10 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
       q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { customerName: { contains: q, mode: "insensitive" } }, { vinChassisNo: { contains: q, mode: "insensitive" } }] } : {},
     ],
   };
-  const { rows, total } = await listDeals(ctx, ui, { where, ...(layout === "kanban" ? { take: 1000 } : { take: paging.per, skip: paging.skip }) });
+  const found = await listDeals(ctx, ui, { where, ...(layout === "kanban" ? { take: 1000 } : { take: paging.per, skip: paging.skip }) });
+  // field-level security of the profile (hidden → "—", masked → partly shown)
+  const rows = found.rows.map((r) => fieldMaskView(ctx, "deals", r));
+  const total = found.total;
 
   return (
     <ModuleListFrame

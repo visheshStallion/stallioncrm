@@ -34,6 +34,19 @@ export default defineConfig({
           hookTimeout: 300_000,
         },
       },
+      {
+        // Brand-isolation suite (prompt 15): a required check in CI – `pnpm test:isolation`.
+        extends: true,
+        test: {
+          name: "isolation",
+          include: ["tests/isolation/**/*.test.ts"],
+          environment: "node",
+          globalSetup: ["tests/support/global-setup.ts"],
+          setupFiles: ["tests/support/integration-setup.ts"],
+          testTimeout: 180_000,
+          hookTimeout: 300_000,
+        },
+      },
     ],
   },
 });

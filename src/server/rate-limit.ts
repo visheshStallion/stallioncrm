@@ -21,3 +21,8 @@ export function rateLimit(key: string, limit: number, windowMs: number, now = Da
 export function resetRateLimits() {
   buckets.clear();
 }
+
+/** Is the key over its limit right now? Does not count as a hit (used to throttle on FAILED attempts only). */
+export function isRateLimited(key: string, limit: number, windowMs: number, now = Date.now()): boolean {
+  return (buckets.get(key) ?? []).filter((t) => now - t < windowMs).length >= limit;
+}

@@ -175,23 +175,32 @@ model Profile {
 }
 
 model User {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   name          String
-  email         String   @unique
+  email         String    @unique
   /// argon2id hash; null for SSO-only users
   passwordHash  String?
   roleId        String
-  role          Role     @relation(fields: [roleId], references: [id])
+  role          Role      @relation(fields: [roleId], references: [id])
   profileId     String
-  profile       Profile  @relation(fields: [profileId], references: [id])
-  active        Boolean  @default(true)
+  profile       Profile   @relation(fields: [profileId], references: [id])
+  active        Boolean   @default(true)
+  // ── sign-in protection (prompt 15) ──
+  /// consecutive failed password attempts; reset by a successful sign-in
+  failedLogins  Int       @default(0)
+  /// no password sign-in before this time (lockout after repeated failures)
+  lockedUntil   DateTime?
+  /// TOTP secret, encrypted with a key derived from AUTH_SECRET; never selectable from user sessions
+  totpSecret    String?
+  totpEnabledAt DateTime?
+  lastLoginAt   DateTime?
   /// integration principal (API / webhooks): cannot sign in interactively
-  isIntegration Boolean  @default(false)
+  isIntegration Boolean   @default(false)
   managerId     String?
-  manager       User?    @relation("UserManager", fields: [managerId], references: [id])
-  reports       User[]   @relation("UserManager")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  manager       User?     @relation("UserManager", fields: [managerId], references: [id])
+  reports       User[]    @relation("UserManager")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   memberships        TerritoryMember[]
   managedBrands      Brand[]           @relation("BrandManager")

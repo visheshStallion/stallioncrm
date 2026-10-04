@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { can, hasPermission } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
+import { fieldMaskView } from "@/server/access/field-mask";
 import { scopedDb } from "@/server/db";
 import { parsePaging } from "@/server/list/filters";
 import { getPrice, listProducts } from "@/server/modules/catalogue/queries";
@@ -173,10 +174,14 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
   if (!hasPermission(ctx, cfg.module, "read")) forbidden();
   if (type === "quote") await expireQuotes(ctx);
   // Missing and out-of-scope documents are both 404.
-  const doc = await getDocument(ctx, type, id).catch((e) => {
-    if (isAccessError(e)) notFound();
-    throw e;
-  });
+  const doc = fieldMaskView(
+    ctx,
+    DOCS[type].module,
+    await getDocument(ctx, type, id).catch((e) => {
+      if (isAccessError(e)) notFound();
+      throw e;
+    }),
+  );
   const [dir, prefs, brandCfg, approval] = await Promise.all([
     getDirectory(ctx),
     getPreferences(ctx),

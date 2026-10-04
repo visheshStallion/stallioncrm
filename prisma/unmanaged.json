@@ -1,0 +1,38 @@
+{
+  "//": "Database objects written by hand in migrations and unknown to the Prisma schema. `prisma migrate diff` wants to drop them in every new migration: scripts/migrate-dev.ts removes those DROP statements, and tests/integration/schema-guards.test.ts fails when one of them is missing. Add every new hand-written index or foreign key here.",
+  "indexes": [
+    "Deal_closeDate_idx",
+    "Deal_stageEnteredAt_idx",
+    "Lead_createdAt_idx",
+    "Lead_search_trgm",
+    "Lead_lastName_trgm",
+    "Lead_mobile_trgm",
+    "Lead_email_trgm",
+    "Deal_name_trgm",
+    "Deal_customerName_trgm",
+    "Deal_vin_trgm",
+    "Account_name_trgm",
+    "Contact_lastName_trgm",
+    "Quote_number_trgm",
+    "SalesOrder_number_trgm",
+    "Invoice_number_trgm",
+    "Case_number_trgm",
+    "Case_subject_trgm",
+    "Product_name_trgm",
+    "Product_code_trgm",
+    "VehicleUnit_vin_trgm",
+    "DocumentLine_vin_trgm"
+  ],
+  "foreignKeys": [
+    "Warehouse_brandId_fkey",
+    "Vendor_brandId_fkey",
+    "VehicleUnit_brandId_fkey",
+    "StockMovement_brandId_fkey",
+    "StockMovement_productId_fkey",
+    "StockMovement_warehouseId_fkey",
+    "InventoryDocument_brandId_fkey",
+    "JournalEntry_brandId_fkey",
+    "InventorySettings_brandId_fkey",
+    "PushSubscription_userId_fkey"
+  ]
+}

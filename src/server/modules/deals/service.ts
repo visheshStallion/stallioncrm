@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { assertCan } from "@/server/access/can";
 import { assertSameBrand } from "@/server/access/brand-tag";
 import { ForbiddenError, NotFoundError } from "@/server/access/errors";
+import { stripUneditable } from "@/server/access/field-mask";
 import type { AccessContext } from "@/server/access/types";
 import { isManagerOf } from "@/server/access/visibility";
 import { audit, scopedDb } from "@/server/db";
@@ -75,6 +76,7 @@ export async function updateDeal(ctx: AccessContext, id: string, input: UpdateDe
   if (input.brandId && input.brandId !== current.brandId) {
     throw new ForbiddenError("The brand of a deal can only be changed through the Brand Change approval");
   }
+  input = stripUneditable(ctx, "deals", input); // field-level security: read-only / hidden fields cannot be changed
   const data: Record<string, unknown> = updateDealSchema.parse(input);
   for (const k of Object.keys(data)) if (!(k in input)) delete data[k];
   if (input.regionId && input.regionId !== current.regionId) {
