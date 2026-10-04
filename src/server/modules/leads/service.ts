@@ -123,15 +123,18 @@ export async function exportLeads(ctx: AccessContext, filters: LeadFilters, ids?
 }
 
 export interface ConvertInput {
-  account: { mode: "new"; type: "INDIVIDUAL" | "COMPANY"; name?: string | null } | { mode: "existing"; accountId: string };
+  account:
+    | { mode: "new"; type: "INDIVIDUAL" | "CORPORATE" | "GOVERNMENT" | "FLEET"; name?: string | null; forceNew?: boolean }
+    | { mode: "existing"; accountId: string };
   contact: { mode: "new" } | { mode: "existing"; contactId: string };
   deal: { name: string; amount?: number | null; closeDate?: string | null };
 }
 
 /**
- * Lead conversion (prompt 02 §6): creates or links the shared Account + Contact, creates a Deal with brand,
- * region, model and owner copied, and marks the lead Converted. Activities move to the deal once the
- * Activities module exists (prompt 07 hooks into `onLeadConverted`).
+ * Lead conversion (prompt 02 §6, prompt 03 §5): links the shared customer – REUSING an existing contact /
+ * account with the same mobile or email instead of creating a duplicate – creates a Deal with brand, region,
+ * model and owner copied, and marks the lead Converted. The lead's marketing consent is recorded for the
+ * lead's brand only. Activities move to the deal once the Activities module exists (`onLeadConverted`).
  */
 export async function convertLead(ctx: AccessContext, id: string, input: ConvertInput) {
   const db = scopedDb(ctx);
@@ -143,33 +146,54 @@ export async function convertLead(ctx: AccessContext, id: string, input: Convert
   if (!input.deal.name?.trim()) throw new BadRequestError("Deal name is required");
 
   const fullName = leadName(lead);
-  let accountId: string;
-  if (input.account.mode === "existing") {
-    const acc = await db.account.findUnique({ where: { id: input.account.accountId }, select: { id: true } });
-    if (!acc) throw new NotFoundError();
-    accountId = acc.id;
-  } else {
-    const acc = await db.account.create({
-      data: {
-        name: input.account.type === "COMPANY" ? input.account.name?.trim() || fullName : fullName,
-        type: input.account.type,
-        city: lead.city,
-        phone: lead.mobile,
-        email: lead.email,
-        createdById: ctx.userId,
-      },
-    });
-    await audit({ ctx, action: "CREATE", entity: "Account", entityId: acc.id, after: acc });
-    accountId = acc.id;
+  const sameContact = [...(lead.mobile ? [{ mobile: lead.mobile }] : []), ...(lead.email ? [{ email: lead.email }] : [])];
+
+  // Existing customer with the same mobile / email → link instead of creating a duplicate.
+  let contactId: string | null = null;
+  let accountId: string | null = null;
+  if (input.contact.mode === "existing") {
+    const c = await db.contact.findFirst({ where: { id: input.contact.contactId, deletedAt: null }, select: { id: true, accountId: true } });
+    if (!c) throw new NotFoundError();
+    contactId = c.id;
+    accountId = c.accountId;
+  } else if (sameContact.length && !(input.account.mode === "new" && input.account.forceNew)) {
+    const match = await db.contact.findFirst({ where: { deletedAt: null, OR: sameContact }, select: { id: true, accountId: true }, orderBy: { createdAt: "asc" } });
+    if (match) {
+      contactId = match.id;
+      accountId = match.accountId;
+    }
   }
 
-  let contactId: string;
-  if (input.contact.mode === "existing") {
-    const c = await db.contact.findUnique({ where: { id: input.contact.contactId }, select: { id: true, accountId: true } });
-    if (!c) throw new NotFoundError();
-    if (!c.accountId) await db.contact.update({ where: { id: c.id }, data: { accountId } });
-    contactId = c.id;
-  } else {
+  if (input.account.mode === "existing") {
+    const acc = await db.account.findFirst({ where: { id: input.account.accountId, deletedAt: null }, select: { id: true } });
+    if (!acc) throw new NotFoundError();
+    accountId = acc.id;
+  } else if (!accountId) {
+    const sameAccount = [...(lead.mobile ? [{ phone: lead.mobile }] : []), ...(lead.email ? [{ email: lead.email }] : [])];
+    const match =
+      sameAccount.length && !input.account.forceNew
+        ? await db.account.findFirst({ where: { deletedAt: null, OR: sameAccount }, select: { id: true }, orderBy: { createdAt: "asc" } })
+        : null;
+    if (match) accountId = match.id;
+    else {
+      const acc = await db.account.create({
+        data: {
+          name: input.account.type === "INDIVIDUAL" ? fullName : input.account.name?.trim() || fullName,
+          type: input.account.type,
+          city: lead.city,
+          phone: lead.mobile,
+          email: lead.email,
+          ownerId: lead.ownerId,
+          createdById: ctx.userId,
+          updatedById: ctx.userId,
+        },
+      });
+      await audit({ ctx, action: "CREATE", entity: "Account", entityId: acc.id, after: acc });
+      accountId = acc.id;
+    }
+  }
+
+  if (!contactId) {
     const c = await db.contact.create({
       data: {
         accountId,
@@ -178,11 +202,27 @@ export async function convertLead(ctx: AccessContext, id: string, input: Convert
         mobile: lead.mobile,
         email: lead.email,
         city: lead.city,
+        ownerId: lead.ownerId,
         createdById: ctx.userId,
+        updatedById: ctx.userId,
       },
     });
     await audit({ ctx, action: "CREATE", entity: "Contact", entityId: c.id, after: c });
     contactId = c.id;
+  } else {
+    const c = await db.contact.findUniqueOrThrow({ where: { id: contactId }, select: { accountId: true } });
+    if (!c.accountId) await db.contact.update({ where: { id: contactId }, data: { accountId } });
+  }
+  const account = await db.account.findUniqueOrThrow({ where: { id: accountId }, select: { primaryContactId: true } });
+  if (!account.primaryContactId) await db.account.update({ where: { id: accountId }, data: { primaryContactId: contactId } });
+
+  // Consent is per brand: the lead's consent applies to the lead's brand only.
+  if (lead.consentMarketing) {
+    await db.contactBrandConsent.upsert({
+      where: { contactId_brandId: { contactId, brandId: lead.brandId } },
+      update: { consent: true, at: lead.consentAt ?? new Date() },
+      create: { contactId, brandId: lead.brandId, consent: true, at: lead.consentAt ?? new Date() },
+    });
   }
 
   const deal = await db.deal.create({

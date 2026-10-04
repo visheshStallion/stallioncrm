@@ -1,6 +1,7 @@
 import "server-only";
 import { hasPermission } from "@/server/access/can";
 import type { AccessContext } from "@/server/access/types";
+import { listAccounts, listContacts } from "@/server/modules/customers/queries";
 import { searchDeals } from "@/server/modules/deals/queries";
 import { leadName, searchLeads } from "@/server/modules/leads/queries";
 
@@ -46,6 +47,17 @@ export async function globalSearch(ctx: AccessContext, rawQuery: string): Promis
         regionId: d.regionId,
         href: `/deals/${d.id}`,
       });
+    }
+  }
+  // Shared customers: found by name or full phone; shown masked per the viewer's field tier.
+  if (hasPermission(ctx, "accounts", "read")) {
+    for (const acc of (await listAccounts(ctx, { q, take: 10 })).rows) {
+      hits.push({ module: "accounts", id: acc.id, title: acc.name, subtitle: [acc.city, acc.phone].filter(Boolean).join(" · "), brandId: null, regionId: null, href: `/accounts/${acc.id}` });
+    }
+  }
+  if (hasPermission(ctx, "contacts", "read")) {
+    for (const c of (await listContacts(ctx, { q, take: 10 })).rows) {
+      hits.push({ module: "contacts", id: c.id, title: c.name, subtitle: [c.accountName, c.mobile].filter(Boolean).join(" · "), brandId: null, regionId: null, href: `/contacts/${c.id}` });
     }
   }
   return hits;

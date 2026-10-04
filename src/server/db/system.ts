@@ -3,7 +3,7 @@
  * context itself). Each one returns only what its caller needs. Do not add general-purpose helpers.
  */
 import "server-only";
-import { BRAND_OWNED_MODELS, delegateName } from "@/server/access/brand-owned";
+import { BRAND_OWNED_MODELS, brandOwnedModelsWith, delegateName } from "@/server/access/brand-owned";
 import { unsafeDb } from "./unsafe";
 
 /** Login: includes the password hash – the only query that may. */
@@ -160,4 +160,49 @@ export function auditTrail(entity: string, entityId: string, take = 50) {
 /** Fallback round-robin counter for a Brand–Region (when no assignment rule matched). */
 export function countLeadsInTerritory(brandId: string, regionId: string): Promise<number> {
   return unsafeDb.lead.count({ where: { brandId, regionId } });
+}
+
+/**
+ * Customer merge (admin / management): re-points every child of `fromId` to `intoId`, INCLUDING soft-deleted
+ * rows and rows of every brand (the merge keeps all brand-owned children). Caller checks permission and audits.
+ */
+export async function repointCustomerChildren(kind: "account" | "contact", fromId: string, intoId: string): Promise<Record<string, number>> {
+  const field = kind === "account" ? "accountId" : "contactId";
+  const moved: Record<string, number> = {};
+  await unsafeDb.$transaction(async (tx) => {
+    for (const model of brandOwnedModelsWith(field)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic over brand-owned delegates
+      const res = await (tx as any)[delegateName(model)].updateMany({ where: { [field]: fromId }, data: { [field]: intoId } });
+      moved[model] = res.count;
+    }
+    if (kind === "account") {
+      moved.Contact = (await tx.contact.updateMany({ where: { accountId: fromId }, data: { accountId: intoId } })).count;
+      const links = await tx.customerBrandLink.findMany({ where: { accountId: fromId } });
+      for (const l of links) {
+        await tx.customerBrandLink.upsert({
+          where: { accountId_brandId: { accountId: intoId, brandId: l.brandId } },
+          update: {},
+          create: { accountId: intoId, brandId: l.brandId, firstSeenAt: l.firstSeenAt },
+        });
+      }
+      await tx.customerBrandLink.deleteMany({ where: { accountId: fromId } });
+    } else {
+      moved.Lead = (await tx.lead.updateMany({ where: { convertedContactId: fromId }, data: { convertedContactId: intoId } })).count;
+      const consents = await tx.contactBrandConsent.findMany({ where: { contactId: fromId } });
+      for (const c of consents) {
+        const existing = await tx.contactBrandConsent.findUnique({ where: { contactId_brandId: { contactId: intoId, brandId: c.brandId } } });
+        // Keep the most recent decision per brand.
+        if (!existing || existing.at < c.at) {
+          await tx.contactBrandConsent.upsert({
+            where: { contactId_brandId: { contactId: intoId, brandId: c.brandId } },
+            update: { consent: c.consent, at: c.at },
+            create: { contactId: intoId, brandId: c.brandId, consent: c.consent, at: c.at },
+          });
+        }
+      }
+      await tx.contactBrandConsent.deleteMany({ where: { contactId: fromId } });
+      await tx.account.updateMany({ where: { primaryContactId: fromId }, data: { primaryContactId: intoId } });
+    }
+  });
+  return moved;
 }

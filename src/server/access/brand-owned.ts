@@ -43,3 +43,10 @@ export function relationsOf(model: string): Map<string, RelationInfo> {
 export function delegateName(model: string): string {
   return model.charAt(0).toLowerCase() + model.slice(1);
 }
+
+/** Brand-owned models that have a given scalar field (e.g. "accountId" → models linked to customers). */
+export function brandOwnedModelsWith(field: string): string[] {
+  return models
+    .filter((m) => BRAND_OWNED_MODELS.has(m.name) && m.fields.some((f) => f.name === field && f.kind === "scalar"))
+    .map((m) => m.name);
+}

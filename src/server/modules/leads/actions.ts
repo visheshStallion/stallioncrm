@@ -106,7 +106,7 @@ export async function convertLeadAction(_p: unknown, fd: FormData): Promise<Acti
       account:
         accountMode === "existing"
           ? { mode: "existing", accountId: str(fd, "accountId") }
-          : { mode: "new", type: accountMode === "company" ? "COMPANY" : "INDIVIDUAL", name: str(fd, "companyName") },
+          : { mode: "new", type: accountMode === "company" ? "CORPORATE" : "INDIVIDUAL", name: str(fd, "companyName") },
       contact: contactId ? { mode: "existing", contactId } : { mode: "new" },
       deal: {
         name: str(fd, "dealName"),
