@@ -178,7 +178,34 @@ the next request. User guide: [ADMIN_GUIDE.md](ADMIN_GUIDE.md).
 - **Minimal shared models** added here and extended later: `Account`, `Contact` (prompt 03), `Product` (prompt 05); Deal
   gained `accountId`, `contactId`, `modelId`.
 
-## 10. Local development
+## 10. Shared customers (prompt 03)
+Accounts and Contacts are **not brand-owned**: one record per customer, readable by every CRM user, with field
+visibility decided per viewer by **tiers** (`src/server/access/customer-tier.ts`):
+
+| Tier | Fields | Who |
+|---|---|---|
+| BASIC | name, type, city, industry, masked phone | every CRM user |
+| CONTACT | + phone, email, address, DOB, notes | the viewer can access at least one brand-owned record of the customer, or owns the customer record |
+| SENSITIVE | + credit limit, KYC status, RC number | scope ALL, or the Brand Manager of a brand linked to the customer |
+
+- The tier is computed in `src/server/modules/customers/queries.ts` (batched) and applied with `maskByTier` in the one
+  place rows are built – so UI, API, search and export always return the same masking. Profile field permissions
+  (`fieldMask`) are applied on top and can only restrict further.
+- "Can access a record" is evaluated through `scopedDb` (so a deal of the customer in a region the user cannot see does
+  not count). This is stricter than "shares a brand".
+- Writes follow the tier: `updateAccount` / `updateContact` reject fields above the caller's tier, and forms do not
+  render inputs for them.
+- **Related lists** on customer pages query brand-owned models through `scopedDb` and show no totals – no count or
+  hint of other brands' records. The "brands this customer buys" chips are derived the same way.
+- **`CustomerBrandLink`** is maintained by the DB trigger `app_link_customer()`; users cannot write it. A new
+  brand-owned model with an `accountId` column must run `SELECT app_track_customer_links('"Model"');` in its migration
+  (a test enforces this) and is then picked up automatically by tiers, chips and merges.
+- **Merge** (`mergeAccounts` / `mergeContacts`, scope ALL + mass-update permission) re-points children of every brand,
+  including soft-deleted ones, via `repointCustomerChildren`, soft-deletes the duplicate with `mergedIntoId` and audits.
+- **Consent** is per brand (`ContactBrandConsent`); users set it only for their own brands.
+- Filtering customer lists is limited to BASIC-tier fields – filtering on a hidden field would leak it.
+
+## 11. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
-PostgreSQL 16 automatically (no Docker needed). The seeded database is a **template**: every integration test file
+PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.

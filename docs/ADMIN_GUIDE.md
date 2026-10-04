@@ -119,3 +119,31 @@ consent box, UTM capture). The brand is taken from the URL only – a form for o
 lead. Protection: hidden honeypot field, per-IP rate limit (`WEB_LEAD_RATE_LIMIT`, default 10 per 10 minutes) and
 optional reCAPTCHA (`RECAPTCHA_SECRET_KEY`; send `recaptchaToken`). WhatsApp / Facebook use the same endpoint with
 `?channel=whatsapp|facebook`; those adapters are stubs (501) until the providers are configured.
+
+## Customers (Accounts & Contacts)
+
+Customers are **shared across brands** – one record per person or company – while deals, quotes, orders and cases stay
+with their brand.
+
+### What each user sees
+| You … | You see |
+|---|---|
+| have no record with the customer | name, type, city, industry and a masked phone (`+234****21`) |
+| can access at least one deal (or other record) of the customer, or you created the customer | also phone, email, address, date of birth, notes |
+| are Management / Administrator, or the Brand Manager of a brand the customer buys | also credit limit, KYC status and RC number |
+
+Searching by a **full phone number** finds the customer for everyone, but the result stays masked. Related lists
+(Deals, …) and the “Brands this customer buys” chips only ever show what you can access – there is no count of other
+brands' records. The same masking applies in the API and in exports (export needs the *export* permission).
+
+### Duplicates
+- When creating an account, possible matches (same phone, email or RC number, or a similar name in the same city) are
+  shown so you can open the existing customer instead.
+- Converting a lead **reuses** an existing customer with the same mobile or email.
+- **Accounts → Actions → Find & merge duplicates** (Administrators and Management only): pick the record to keep; the
+  others are merged into it. Contacts and all deals / quotes / orders / cases of every brand move to the kept record,
+  empty fields are filled from the duplicates, the duplicates are archived and everything is audited.
+
+### Marketing consent
+Recorded **per brand** on the contact page. Opting out of one brand does not opt the customer out of another. Users can
+set consent only for the brands they work in. A lead's consent is carried over for the lead's brand when it is converted.

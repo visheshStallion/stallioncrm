@@ -28,6 +28,7 @@ pnpm db:deploy && pnpm db:seed
 
 # Option B – no Docker: embedded Postgres 16 in ./.local/pg on port 54329 (migrates + seeds on first run)
 pnpm db:local                    # keep running; set DATABASE_URL in .env to the URL it prints
+                                 # (delete ./.local/pg once if it was created before the UTF-8 fix)
 
 pnpm dev                         # http://localhost:3000
 ```
