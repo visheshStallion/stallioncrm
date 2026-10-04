@@ -113,7 +113,8 @@ export const PROFILE_DEFS: Array<{
       permissions: {
         ...grant(TX_MODULES, MANAGER_WRITE),
         ...grant(CUSTOMER_MODULES, { ...SALES_WRITE, export: true, massUpdate: true }),
-        ...grant(CATALOGUE_MODULES, { read: true }),
+        // Brand Managers manage their own brand's catalogue (enforced per brand by canManageBrandData).
+        ...grant(CATALOGUE_MODULES, { read: true, create: true, edit: true, export: true }),
         ...grant(ANALYTICS_MODULES, { read: true, export: true }),
         campaigns: { read: true, create: true, edit: true },
         ...EXPORT_ACCESS,
@@ -261,3 +262,15 @@ export const LEAD_PEOPLE: Array<[first: string, last: string]> = [
 export const LEAD_SOURCES_SEED = ["WALK_IN", "WEBSITE", "WHATSAPP", "REFERRAL", "PHONE", "FACEBOOK"] as const;
 export const LEAD_STATUSES_SEED = ["NEW", "CONTACTED", "QUALIFIED", "NEW", "UNQUALIFIED"] as const;
 export const RATINGS_SEED = ["HOT", "WARM", "COLD"] as const;
+
+/** Fictitious catalogue: 3 models × 2 variants per active brand (generic names – not real model lines). */
+export const CATALOGUE_MODELS = [
+  { model: "Sedan", bodyType: "Sedan", engineCc: 1600, base: 22_000_000 },
+  { model: "SUV", bodyType: "SUV", engineCc: 2000, base: 38_000_000 },
+  { model: "Pickup", bodyType: "Pickup", engineCc: 2400, base: 45_000_000 },
+] as const;
+export const CATALOGUE_VARIANTS = [
+  { variant: "Standard", factor: 1, transmission: "Manual" },
+  { variant: "Premium", factor: 1.18, transmission: "Automatic" },
+] as const;
+export const CATALOGUE_COLOURS = ["White", "Silver", "Black", "Blue"];

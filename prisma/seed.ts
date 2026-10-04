@@ -14,6 +14,9 @@ import {
   BRANDS,
   CUSTOMERS,
   DEAL_STAGES,
+  CATALOGUE_COLOURS,
+  CATALOGUE_MODELS,
+  CATALOGUE_VARIANTS,
   DEALS_PER_BRAND_REGION,
   LEAD_PEOPLE,
   LEAD_SOURCES_SEED,
@@ -31,7 +34,7 @@ import {
 
 export async function seed(prisma: PrismaClient): Promise<void> {
   await prisma.$executeRawUnsafe(
-    `TRUNCATE "AuditLog", "Note", "Attachment", "DealStageHistory", "Pipeline", "SavedView", "AssignmentRule", "Lead", "Deal", "Contact", "Account", "Product", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region" CASCADE`,
+    `TRUNCATE "AuditLog", "VehicleStockRef", "PriceBookEntry", "PriceBook", "Note", "Attachment", "DealStageHistory", "Pipeline", "SavedView", "AssignmentRule", "Lead", "Deal", "Contact", "Account", "Product", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region" CASCADE`,
   );
 
   // Regions
@@ -219,15 +222,43 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     }
   }
 
-  // Models of interest (minimal catalogue – prompt 05 replaces it with the full product master).
+  // Catalogue: 3 models × 2 variants per active brand, a default price book and a few stock references.
   const products = new Map<string, string[]>();
-  for (const code of ACTIVE_BRANDS) {
+  for (const [bi, code] of ACTIVE_BRANDS.entries()) {
+    const brandId = brands.get(code)!;
+    const book = await prisma.priceBook.create({
+      data: { brandId, name: "2026 Standard Price List", validFrom: new Date(Date.UTC(2026, 0, 1)), validTo: new Date(Date.UTC(2026, 11, 31)), isDefault: true },
+    });
     const ids: string[] = [];
-    for (const vehicle of VEHICLE_TYPES) {
-      const p = await prisma.product.create({
-        data: { brandId: brands.get(code)!, code: `${code}-${vehicle.toUpperCase()}`, name: `${code} ${vehicle}` },
-      });
-      ids.push(p.id);
+    for (const m of CATALOGUE_MODELS) {
+      for (const v of CATALOGUE_VARIANTS) {
+        const listPrice = Math.round((m.base * v.factor * (1 + bi * 0.03)) / 50_000) * 50_000;
+        const p = await prisma.product.create({
+          data: {
+            brandId,
+            code: `${code}-${m.model.toUpperCase()}-${v.variant.slice(0, 3).toUpperCase()}`,
+            name: `${code} ${m.model} ${v.variant}`,
+            model: `${code} ${m.model}`,
+            variant: v.variant,
+            category: "VEHICLE",
+            modelYear: 2026,
+            bodyType: m.bodyType,
+            fuel: "Petrol",
+            transmission: v.transmission,
+            engineCc: m.engineCc,
+            colours: CATALOGUE_COLOURS,
+            listPrice,
+            description: `Fictitious ${m.bodyType.toLowerCase()} for demo data.`,
+          },
+        });
+        ids.push(p.id);
+        await prisma.priceBookEntry.create({ data: { priceBookId: book.id, productId: p.id, price: listPrice, maxDiscountPct: v.variant === "Premium" ? 5 : 3 } });
+        for (let k = 0; k < 2; k++) {
+          await prisma.vehicleStockRef.create({
+            data: { brandId, productId: p.id, vin: `${code}${m.model.slice(0, 2).toUpperCase()}${v.variant[0]}${String(1000 + ids.length * 10 + k)}`, colour: CATALOGUE_COLOURS[(ids.length + k) % CATALOGUE_COLOURS.length], location: "Lagos yard", status: k === 0 ? "IN_STOCK" : "IN_TRANSIT" },
+          });
+        }
+      }
     }
     products.set(code, ids);
   }
@@ -259,7 +290,7 @@ export async function seed(prisma: PrismaClient): Promise<void> {
             status,
             unqualifiedReason: status === "UNQUALIFIED" ? "Budget too low" : null,
             rating: RATINGS_SEED[m % RATINGS_SEED.length] as LeadRating,
-            modelOfInterestId: products.get(code)![m % VEHICLE_TYPES.length],
+            modelOfInterestId: products.get(code)![m % products.get(code)!.length],
             budget: 15_000_000 + ((m * 2_500_000) % 40_000_000),
             brandId: brands.get(code)!,
             regionId: regions.get(region)!,

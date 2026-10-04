@@ -50,6 +50,8 @@ model Brand {
   assignmentRules AssignmentRule[]
   customerLinks   CustomerBrandLink[]
   pipelines       Pipeline[]
+  priceBooks      PriceBook[]
+  stockRefs       VehicleStockRef[]
   notes           Note[]
   attachments     Attachment[]
   contactConsents ContactBrandConsent[]
@@ -503,21 +505,112 @@ model CustomerBrandLink {
 // ─────────────────────────── Catalogue (minimal) ───────────────────────────
 // Prompt 05 extends Product (variants, prices, price books). Brand-tagged, not brand-owned.
 
+enum ProductCategory {
+  VEHICLE
+  ACCESSORY
+  EXTENDED_WARRANTY
+  SERVICE_PACKAGE
+  INSURANCE
+}
+
+/// Brand-tagged master data (prompt 05): readable by users of the brand, editable by its Brand Manager and Admin.
+/// scopedDb + RLS restrict it to the user's brands. Any brand-owned record may only reference products of ITS brand.
 model Product {
-  id        String   @id @default(cuid())
-  brandId   String
-  brand     Brand    @relation(fields: [brandId], references: [id])
-  code      String
-  name      String
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String          @id @default(cuid())
+  brandId      String
+  brand        Brand           @relation(fields: [brandId], references: [id])
+  /// SKU, unique per brand
+  code         String
+  /// display name ("<model> <variant>")
+  name         String
+  category     ProductCategory @default(VEHICLE)
+  model        String?
+  variant      String?
+  modelYear    Int?
+  bodyType     String?
+  fuel         String?
+  transmission String?
+  engineCc     Int?
+  colours      String[]        @default([])
+  /// list price in NGN
+  listPrice    Decimal?        @db.Decimal(14, 2)
+  taxCode      String          @default("VAT")
+  taxRatePct   Decimal         @default(7.5) @db.Decimal(5, 2)
+  imageUrls    String[]        @default([])
+  specSheetUrl String?
+  description  String?
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
   leads           Lead[]
-  deals           Deal[]           @relation("DealModel")
+  deals           Deal[]            @relation("DealModel")
   assignmentRules AssignmentRule[]
+  priceEntries    PriceBookEntry[]
+  stock           VehicleStockRef[]
 
   @@unique([brandId, code])
+  @@index([brandId, active])
+}
+
+model PriceBook {
+  id        String    @id @default(cuid())
+  brandId   String
+  brand     Brand     @relation(fields: [brandId], references: [id])
+  name      String
+  validFrom DateTime  @db.Date
+  validTo   DateTime? @db.Date
+  active    Boolean   @default(true)
+  isDefault Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  entries PriceBookEntry[]
+
+  @@unique([brandId, name])
+}
+
+model PriceBookEntry {
+  id             String    @id @default(cuid())
+  priceBookId    String
+  priceBook      PriceBook @relation(fields: [priceBookId], references: [id], onDelete: Cascade)
+  /// must be a product of the price book's brand (enforced by trigger)
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id])
+  price          Decimal   @db.Decimal(14, 2)
+  /// used by discount approvals (prompt 08)
+  maxDiscountPct Decimal?  @db.Decimal(5, 2)
+  notes          String?
+
+  @@unique([priceBookId, productId])
+}
+
+enum StockStatus {
+  IN_TRANSIT
+  IN_STOCK
+  RESERVED
+  SOLD
+}
+
+/// Lightweight VIN reference so deals can reserve a vehicle. Replaced by the inventory module (prompt 16).
+model VehicleStockRef {
+  id        String      @id @default(cuid())
+  brandId   String
+  brand     Brand       @relation(fields: [brandId], references: [id])
+  productId String
+  product   Product     @relation(fields: [productId], references: [id])
+  vin       String
+  colour    String?
+  location  String?
+  status    StockStatus @default(IN_STOCK)
+  /// reserving / selling deal
+  dealId    String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([brandId, vin])
+  @@index([productId, status])
+  @@index([dealId])
 }
 
 // ─────────────────────────────────── Leads ───────────────────────────────────
