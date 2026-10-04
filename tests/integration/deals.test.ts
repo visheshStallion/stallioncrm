@@ -4,6 +4,7 @@ import type { AccessContext } from "@/server/access/types";
 import { scopedDb } from "@/server/db/scoped";
 import { dealStageHistory, getDeal, listDeals, listPipelines } from "@/server/modules/deals/queries";
 import * as svc from "@/server/modules/deals/service";
+import { createQuoteFromDeal } from "@/server/modules/documents/service";
 import * as notes from "@/server/modules/notes/service";
 import { localDriver, setStorageDriver } from "@/server/storage";
 import os from "node:os";
@@ -133,7 +134,10 @@ describe("Blueprint enforcement", () => {
     const foreign = await unsafeDb.product.findFirstOrThrow({ where: { brandId: I.brand("SNMNL") } });
     await expect(svc.moveDealStage(exec, id, stageIds.get("TEST_DRIVE")!, { testDriveDate: "2026-10-06", modelId: foreign.id } as never)).rejects.toThrow(/record's brand/);
     await svc.moveDealStage(exec, id, stageIds.get("TEST_DRIVE")!, { testDriveDate: "2026-10-06", modelId: model.id } as never);
-    await svc.moveDealStage(exec, id, stageIds.get("QUOTATION")!); // "quote" check is not enforced until quotes exist
+    // Quotation requires a quote for the deal
+    await expect(svc.moveDealStage(exec, id, stageIds.get("QUOTATION")!)).rejects.toThrow(/quote exists/i);
+    await createQuoteFromDeal(exec, id);
+    await svc.moveDealStage(exec, id, stageIds.get("QUOTATION")!);
     await expect(svc.moveDealStage(exec, id, stageIds.get("BOOKING")!, { depositAmount: 1_000_000 } as never)).rejects.toThrow(/Deposit receipt no\./);
     await svc.moveDealStage(exec, id, stageIds.get("BOOKING")!, { depositAmount: 1_000_000, depositReceiptNo: "RCP-1" } as never);
     await expect(svc.moveDealStage(exec, id, stageIds.get("CLOSED_LOST")!)).rejects.toThrow(/Loss reason/);
