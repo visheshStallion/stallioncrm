@@ -8,6 +8,7 @@
  *     owner / createdBy / updatedBy stamped;
  *   • updates that move a record re-validate and re-resolve the territory; brand changes need scope ALL
  *     (everyone else goes through the brand-change approval, prompt 08);
+ *   • INACTIVE brands: creates rejected, existing records read-only (bulk writes skip them);
  *   • nested writes INTO brand-owned models are rejected (they would skip validation);
  *   • create / update / delete on brand-owned models are audited.
  * Layer 2 (Postgres RLS): every operation – including $queryRaw – runs in a transaction as role
@@ -138,6 +139,22 @@ function scalar(v: unknown): unknown {
   return isObj(v) && "set" in v ? v.set : v;
 }
 
+/** Inactive brands (BUSINESS_CONTEXT / prompt 01): no new records, existing records read-only. */
+async function assertBrandWritable(brandId: string, purpose: "create" | "modify"): Promise<void> {
+  const brand = await systemDb.brand.findUnique({ where: { id: brandId }, select: { code: true, status: true } });
+  if (!brand) throw new ForbiddenError("Unknown brand");
+  if (brand.status === "INACTIVE") {
+    throw new ForbiddenError(
+      purpose === "create"
+        ? `Brand ${brand.code} is inactive – no new records`
+        : `Records of inactive brand ${brand.code} are read-only`,
+    );
+  }
+}
+
+/** Bulk writes skip records of inactive brands. */
+const NOT_INACTIVE_BRAND = { brand: { status: { not: "INACTIVE" } } };
+
 async function prepareCreateData(model: string, data: Obj, ctx: AccessContext): Promise<Obj> {
   if ("brand" in data || "region" in data || "territory" in data) {
     throw new ForbiddenError(`${model}: set brandId / regionId as scalars (territory is resolved automatically)`);
@@ -150,6 +167,7 @@ async function prepareCreateData(model: string, data: Obj, ctx: AccessContext): 
   if (!canWriteTo(ctx, brandId, regionId)) {
     throw new ForbiddenError("You cannot create records for this brand/region");
   }
+  await assertBrandWritable(brandId, "create");
   return {
     ...data,
     territoryId: await resolveTerritory(systemDb, brandId, regionId),
@@ -187,6 +205,7 @@ async function prepareUpdateData(
   if (!canWriteTo(ctx, brandId, regionId)) {
     throw new ForbiddenError("You cannot move records to this brand/region");
   }
+  if (brandId !== existing.brandId) await assertBrandWritable(brandId, "create");
   out.territoryId = await resolveTerritory(systemDb, brandId, regionId);
   return out;
 }
@@ -209,6 +228,9 @@ async function scopeBrandOwnedArgs(
       }
       a.data = { ...a.data, updatedById: ctx.userId };
     }
+    if (operation.startsWith("updateMany") || operation === "deleteMany") {
+      a.where = andWhere(a.where, NOT_INACTIVE_BRAND);
+    }
     return { args: a };
   }
 
@@ -218,6 +240,7 @@ async function scopeBrandOwnedArgs(
     let before: Obj | null | undefined;
     if (operation === "update" || operation === "delete" || operation === "upsert") {
       before = await (unsafeDb as any)[delegateName(model)].findFirst({ where: a.where });
+      if (before) await assertBrandWritable(before.brandId, "modify");
     }
     if (operation === "update") {
       a.data = await prepareUpdateData(model, originalWhere, a.data ?? {}, ctx, filter);

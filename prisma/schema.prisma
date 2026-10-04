@@ -31,6 +31,9 @@ model Brand {
   erpCompanyCode String?
   docPrefix      String?
   logoUrl        String?
+  /// Uploaded logo (small image, served by /api/v1/brands/[id]/logo). Takes precedence over logoUrl.
+  logoData       Bytes?
+  logoMimeType   String?
   /// Hex colour used by BrandBadge (e.g. "#1d4ed8"). Falls back to a palette when null.
   color          String?
   status         BrandStatus @default(ACTIVE)
@@ -160,6 +163,7 @@ enum AuditAction {
   LOGIN
   LOGIN_FAILED
   LOGOUT
+  IMPORT
 }
 
 model AuditLog {

@@ -6,6 +6,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { AccessError, isAccessError } from "@/server/access/errors";
+import { BadRequestError } from "@/server/errors";
 import { logger } from "@/server/log";
 
 export interface ApiErrorBody {
@@ -19,8 +20,20 @@ export function toErrorResponse(err: unknown): { status: number; body: ApiErrorB
   if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
     return { status: 404, body: { error: { code: "NOT_FOUND", message: "Not found" } } };
   }
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+    const target = (err.meta?.target as string[] | string | undefined) ?? "value";
+    return {
+      status: 400,
+      body: { error: { code: "DUPLICATE", message: `${Array.isArray(target) ? target.join(", ") : target} already exists` } },
+    };
+  }
   if (err instanceof ZodError) {
-    return { status: 400, body: { error: { code: "VALIDATION", message: "Invalid input", issues: err.issues } } };
+    const first = err.issues[0];
+    const message = first ? `${first.path.join(".") || "input"}: ${first.message}` : "Invalid input";
+    return { status: 400, body: { error: { code: "VALIDATION", message, issues: err.issues } } };
+  }
+  if (err instanceof BadRequestError) {
+    return { status: 400, body: { error: { code: err.code, message: err.message } } };
   }
   logger.error({ err }, "unhandled error");
   return { status: 500, body: { error: { code: "INTERNAL", message: "Something went wrong" } } };

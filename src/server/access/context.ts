@@ -33,7 +33,7 @@ export function buildAccessContext(rows: AccessRows, allBrandIds: string[]): Acc
       scope === "ALL"
         ? allBrandIds
         : [...new Set(memberships.map((m) => m.brandId))].sort(),
-    isAdmin: permissions.setup?.edit === true,
+    isAdmin: permissions.admin?.edit === true,
   };
 }
 

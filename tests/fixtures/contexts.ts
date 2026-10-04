@@ -41,7 +41,7 @@ export function makeCtx(opts: {
     profile: p,
     memberships,
     brandIds: scope === "ALL" ? ALL_BRANDS.map(B) : [...new Set(memberships.map((m) => m.brandId))].sort(),
-    isAdmin: p.permissions.setup?.edit === true,
+    isAdmin: p.permissions.admin?.edit === true,
   };
 }
 

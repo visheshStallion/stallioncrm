@@ -75,7 +75,9 @@ export const PROFILES = {
 const TX_MODULES = ["leads", "deals", "quotes", "salesOrders", "invoices", "activities", "cases"];
 const CUSTOMER_MODULES = ["accounts", "contacts"];
 const CATALOGUE_MODULES = ["products", "priceBooks"];
-const ANALYTICS_MODULES = ["reports", "dashboards"];
+const ANALYTICS_MODULES = ["reports", "dashboards", "forecasts"];
+// Capability modules: "export" = may export data (matrix row "Export data"), "import" = data import, "admin" = setup.
+const EXPORT_ACCESS = { export: { read: true, export: true } };
 
 type Perm = Partial<Record<"read" | "create" | "edit" | "delete" | "export" | "massUpdate" | "approve", boolean>>;
 const grant = (modules: string[], perm: Perm) =>
@@ -116,6 +118,7 @@ export const PROFILE_DEFS: Array<{
         ...grant(CATALOGUE_MODULES, { read: true }),
         ...grant(ANALYTICS_MODULES, { read: true, export: true }),
         campaigns: { read: true, create: true, edit: true },
+        ...EXPORT_ACCESS,
       },
       fieldPermissions: basicCustomerFields,
     },
@@ -128,6 +131,7 @@ export const PROFILE_DEFS: Array<{
         ...grant(CATALOGUE_MODULES, { read: true }),
         ...grant(ANALYTICS_MODULES, { read: true, export: true }),
         campaigns: { read: true, create: true, edit: true },
+        ...EXPORT_ACCESS,
       },
       fieldPermissions: basicCustomerFields,
     },
@@ -140,6 +144,7 @@ export const PROFILE_DEFS: Array<{
         ...grant(CATALOGUE_MODULES, { read: true }),
         ...grant(ANALYTICS_MODULES, { read: true, export: true }),
         campaigns: { read: true },
+        ...EXPORT_ACCESS,
       },
       fieldPermissions: {},
     },
@@ -148,7 +153,7 @@ export const PROFILE_DEFS: Array<{
       scope: "ALL",
       permissions: {
         ...grant(
-          [...TX_MODULES, ...CUSTOMER_MODULES, ...CATALOGUE_MODULES, ...ANALYTICS_MODULES, "campaigns", "setup"],
+          [...TX_MODULES, ...CUSTOMER_MODULES, ...CATALOGUE_MODULES, ...ANALYTICS_MODULES, "campaigns", "import", "export", "admin"],
           { read: true, create: true, edit: true, delete: true, export: true, massUpdate: true },
         ),
       },
