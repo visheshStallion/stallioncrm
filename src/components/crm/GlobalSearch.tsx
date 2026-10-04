@@ -15,7 +15,7 @@ interface Hit {
   href: string;
 }
 
-const MODULE_LABELS: Record<string, string> = { leads: "Leads", deals: "Deals", contacts: "Contacts", accounts: "Accounts" };
+const MODULE_LABELS: Record<string, string> = { leads: "Leads", deals: "Deals", contacts: "Contacts", accounts: "Accounts", cases: "Cases", activities: "Activities", quotes: "Quotes", salesOrders: "Sales orders", invoices: "Invoices", products: "Products", inventory: "Vehicle stock" };
 
 /**
  * Global search / command palette (Ctrl/⌘+K). Results come from /api/v1/search, which only searches
@@ -144,7 +144,7 @@ export function GlobalSearch({ brands }: { brands: Array<{ id: string; code: str
                   })}
                 </div>
               ))}
-              {q.trim().length >= 2 && hits.length === 0 ? <p className="p-3 text-sm text-text-muted">No results in your scope.</p> : null}
+              {q.trim().length >= 2 && hits.length === 0 ? <p className="p-3 text-sm text-text-muted">No results.</p> : null}
               {q.trim().length >= 2 ? (
                 <button type="button" onClick={() => go(`/search?q=${encodeURIComponent(q)}`)} className="w-full rounded px-2 py-1.5 text-left text-xs text-primary hover:bg-muted">
                   See all results for “{q}”

@@ -10,6 +10,8 @@ import { myNotifications } from "@/server/modules/notifications/service";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
 import { getUiFilters } from "@/server/request";
+import { MobileNav } from "@/components/pwa/MobileNav";
+import { PwaClient } from "@/components/pwa/PwaClient";
 import { BrandSwitcher } from "./BrandSwitcher";
 import { GlobalSearch } from "./GlobalSearch";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
@@ -46,23 +48,25 @@ export async function AppShell({ ctx, children }: { ctx: AccessContext; children
 
   return (
     <div className="flex min-h-screen bg-canvas">
-      <ModuleRail
-        items={railItems}
-        brand={railBrand}
-        prefs={prefs.rail ?? { order: RAIL_ORDER.map((i) => i.key), pinned: DEFAULT_PINNED, collapsed: false }}
-      />
+      <div className="hidden md:flex">
+        <ModuleRail
+          items={railItems}
+          brand={railBrand}
+          prefs={prefs.rail ?? { order: RAIL_ORDER.map((i) => i.key), pinned: DEFAULT_PINNED, collapsed: false }}
+        />
+      </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-[52px] items-center gap-3 border-b border-border bg-surface px-4" data-testid="top-bar">
+        <header className="sticky top-0 z-30 flex h-[52px] items-center gap-2 border-b border-border bg-surface px-3 md:gap-3 md:px-4" data-testid="top-bar">
           <BrandSwitcher
             brands={dir.myBrands.map((b) => ({ id: b.id, label: `${b.code} – ${b.name}` }))}
             regions={dir.myRegions.map((r) => ({ id: r.id, label: r.name }))}
             brandId={filters.brandId ?? null}
             regionId={filters.regionId ?? null}
           />
-          <div className="flex flex-1 justify-center">
+          <div className="hidden flex-1 justify-center md:flex">
             <GlobalSearch brands={dir.brands.map((b) => ({ id: b.id, code: b.code, color: b.color }))} />
           </div>
-          <div className="flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-1">
             {lookups ? (
               <QuickCreateMenu
                 items={quickCreate}
@@ -70,8 +74,10 @@ export async function AppShell({ ctx, children }: { ctx: AccessContext; children
               />
             ) : null}
             <NotificationsBell count={notifications.unread} items={notifications.rows} />
-            <CalendarShortcut />
-            {ctx.isAdmin ? <SetupGear /> : null}
+            <span className="hidden md:contents">
+              <CalendarShortcut />
+              {ctx.isAdmin ? <SetupGear /> : null}
+            </span>
             <AvatarMenu
               user={{ ...ctx.user, profileName: ctx.profile.name }}
               prefs={{ theme: prefs.theme, density: prefs.density, dateFormat: prefs.dateFormat }}
@@ -79,8 +85,10 @@ export async function AppShell({ ctx, children }: { ctx: AccessContext; children
             />
           </div>
         </header>
-        <main className="flex-1 p-5">{children}</main>
+        <PwaClient />
+        <main className="flex-1 p-3 pb-20 md:p-5 md:pb-5">{children}</main>
       </div>
+      <MobileNav items={railItems} unread={notifications.unread} />
       <KeyboardShortcuts />
     </div>
   );

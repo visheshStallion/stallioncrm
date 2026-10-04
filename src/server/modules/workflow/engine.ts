@@ -278,6 +278,7 @@ const HANDLERS: Record<string, (job: Job) => Promise<unknown>> = {
   "webhook.deliver": async (job) => (await import("@/server/integrations/webhooks")).deliverWebhook(job),
   "erp.post": async (job) => (await import("@/server/integrations/erp")).postDocumentJob(job),
   "erp.journal": async (job) => (await import("@/server/integrations/erp")).postJournalJob(job),
+  "push.send": async (job) => (await import("@/server/modules/notifications/service")).sendPush(job),
   "email.users": async (job) => {
     const p = job.payload as { userIds: string[]; subject: string; text: string; brandId?: string | null };
     return { sent: await (await import("@/server/modules/messaging/service")).emailUsers(p.userIds, p.subject, p.text, p.brandId) };
@@ -329,5 +330,8 @@ export async function tick(now = new Date()) {
   const expiredExports = await (await import("@/server/modules/exports/service")).purgeExpiredExports();
   await (await import("@/server/db/api-store")).purgeApiLeftovers(now);
   const expiredReservations = await (await import("@/server/modules/inventory/service")).expireReservations(now);
-  return { scheduled, ...jobs, reminders, autoApproved, expiredExports, expiredReservations };
+  const notifications = await import("@/server/modules/notifications/service");
+  const staleDeals = await notifications.notifyStaleDeals((brandId) => automationContext(brandId), now);
+  const digests = await notifications.sendDigests(now);
+  return { scheduled, ...jobs, reminders, autoApproved, expiredExports, expiredReservations, staleDeals, digests };
 }

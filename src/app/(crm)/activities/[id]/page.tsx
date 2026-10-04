@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
+import { AttachmentsCard } from "@/components/crm/NotesAttachments";
 import { StatusPill } from "@/components/crm/primitives";
 import { Field, FieldSection, RecordHeader } from "@/components/crm/record";
+import { TestDriveCapture } from "@/components/pwa/TestDriveCapture";
 import { RegionBadge } from "@/components/RegionBadge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +17,7 @@ import { createCaseFromActivityAction } from "@/server/modules/cases/actions";
 import { getActivity } from "@/server/modules/activities/queries";
 import { RECURRENCE_OPTIONS } from "@/server/modules/activities/recurrence";
 import { STATUS_LABELS, TYPE_LABELS, type ActivityTypeKey } from "@/server/modules/activities/schema";
+import { listAttachments } from "@/server/modules/notes/service";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
 import { requireContext } from "@/server/request";
@@ -30,7 +33,7 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
     if (isAccessError(e)) notFound();
     throw e;
   });
-  const [dir, prefs] = await Promise.all([getDirectory(ctx), getPreferences(ctx)]);
+  const [dir, prefs, attachments] = await Promise.all([getDirectory(ctx), getPreferences(ctx), listAttachments(ctx, "Activity", id)]);
   const brand = dir.brands.find((b) => b.id === a.brandId);
   const region = dir.regions.find((r) => r.id === a.regionId);
   const df = prefs.dateFormat;
@@ -194,6 +197,9 @@ export default async function ActivityPage({ params }: { params: Promise<{ id: s
             </ActionForm>
           </section>
         ) : null}
+        {/* licence photo and indemnity signature of a test drive (prompt 14) – stored as attachments of the activity */}
+        {a.type === "TEST_DRIVE" && can(ctx, "activities", "edit", a) ? <TestDriveCapture activityId={a.id} path={`/activities/${a.id}`} /> : null}
+        {a.type === "TEST_DRIVE" || attachments.length ? <AttachmentsCard entity="Activity" entityId={a.id} path={`/activities/${a.id}`} attachments={attachments} canEdit={can(ctx, "activities", "edit", a)} dateFormat={df} /> : null}
       </div>
     </div>
   );

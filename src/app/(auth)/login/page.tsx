@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { WipeOfflineData } from "@/components/pwa/PwaClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getRequestContext } from "@/server/request";
@@ -12,6 +13,7 @@ export default async function LoginPage() {
   const sso = !!process.env.AUTH_MICROSOFT_ENTRA_ID_ID;
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
+      <WipeOfflineData />
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-xl">StallionCRM</CardTitle>

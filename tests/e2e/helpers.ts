@@ -6,7 +6,7 @@ export async function login(page: Page, key: string) {
   await page.getByLabel("Email").fill(email(key));
   await page.getByLabel("Password").fill(SEED_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByTestId("current-user")).toBeVisible();
+  await expect(page.getByTestId("current-user")).toBeAttached(); // the name is hidden on phone widths
 }
 
 export async function signOut(page: Page) {

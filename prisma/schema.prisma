@@ -2318,3 +2318,18 @@ model InventorySettings {
   pdiTemplate             String[]  @default([])
   updatedAt               DateTime  @updatedAt
 }
+
+// ───────────────────────── Mobile, search & notifications (prompt 14) ─────────────────────────
+
+/// Web-push subscription of one browser of one user. RLS: a user reads and writes only their own rows.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

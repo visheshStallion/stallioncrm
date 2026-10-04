@@ -6,6 +6,10 @@ import { TYPE_LABELS, type ActivityTypeKey } from "@/server/modules/activities/s
 import { searchCases } from "@/server/modules/cases/queries";
 import { listAccounts, listContacts } from "@/server/modules/customers/queries";
 import { searchDeals } from "@/server/modules/deals/queries";
+import { scopedDb } from "@/server/db";
+import { listProducts } from "@/server/modules/catalogue/queries";
+import { DOCS, type DocType } from "@/server/modules/documents/config";
+import { listUnits } from "@/server/modules/inventory/queries";
 import { leadName, searchLeads } from "@/server/modules/leads/queries";
 
 export interface SearchHit {
@@ -19,8 +23,10 @@ export interface SearchHit {
 }
 
 /**
- * Global search (stub). Every searcher queries through scopedDb, so results never include records
- * outside the user's scope. Later modules add their searcher here.
+ * Global search (prompt 14): leads, deals, customers, cases, activities, quotes, sales orders, invoices,
+ * products and vehicle stock – by name, phone, e-mail, VIN and document number. "Contains" matching, backed by
+ * trigram indexes. Every searcher queries through scopedDb (and RLS), with the module's own masking, so a
+ * result never includes a record or a field outside the user's scope – and there is no count of hidden results.
  */
 export async function globalSearch(ctx: AccessContext, rawQuery: string): Promise<SearchHit[]> {
   const q = rawQuery.trim().slice(0, 100);
@@ -72,6 +78,26 @@ export async function globalSearch(ctx: AccessContext, rawQuery: string): Promis
     for (const a of await searchActivities(ctx, q)) {
       hits.push({ module: "activities", id: a.id, title: a.subject, subtitle: [TYPE_LABELS[a.type as ActivityTypeKey], a.status.toLowerCase()].join(" · "), brandId: a.brandId, regionId: a.regionId, href: `/activities/${a.id}` });
     }
+  }
+  // Documents by number, customer or the VIN on a line.
+  for (const type of ["quote", "salesOrder", "invoice"] as DocType[]) {
+    const cfg = DOCS[type];
+    if (!hasPermission(ctx, cfg.module, "read")) continue;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic over the three document delegates
+    const rows = await (scopedDb(ctx) as any)[type].findMany({
+      where: { OR: [{ number: { contains: q, mode: "insensitive" } }, { lines: { some: { vin: { contains: q, mode: "insensitive" } } } }, { deal: { customerName: { contains: q, mode: "insensitive" } } }] },
+      select: { id: true, number: true, status: true, brandId: true, regionId: true, deal: { select: { customerName: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+    });
+    for (const d of rows) hits.push({ module: cfg.module, id: d.id, title: d.number, subtitle: [cfg.label, d.deal?.customerName, String(d.status).toLowerCase().replace(/_/g, " ")].filter(Boolean).join(" · "), brandId: d.brandId, regionId: d.regionId, href: `${cfg.path}/${d.id}` });
+  }
+  if (hasPermission(ctx, "products", "read")) {
+    for (const p of (await listProducts(ctx, { q, take: 8 })).rows) hits.push({ module: "products", id: p.id, title: p.name, subtitle: p.code, brandId: p.brandId, regionId: null, href: `/products/${p.id}` });
+  }
+  // Vehicle stock by VIN: the inventory rules apply (own brands; sales users find available units by the last six characters only).
+  if (hasPermission(ctx, "inventory", "read") && q.length >= 4) {
+    for (const u of (await listUnits(ctx, { q }, { take: 8 })).rows) hits.push({ module: "inventory", id: u.id, title: u.vin, subtitle: [u.productName, u.statusLabel].join(" · "), brandId: u.brandId, regionId: null, href: `/inventory/units/${u.id}` });
   }
   return hits;
 }

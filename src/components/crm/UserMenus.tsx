@@ -46,13 +46,21 @@ export function NotificationsBell({ count, items = [] }: { count: number; items?
       )}
     >
       {items.length === 0 ? (
-        <p className="px-3 py-4 text-center text-sm text-text-muted">You&apos;re all caught up.</p>
+        <p className="px-3 py-4 text-center text-sm text-text-muted">
+          You&apos;re all caught up.{" "}
+          <Link href="/notifications" className="text-primary underline">
+            Notification centre
+          </Link>
+        </p>
       ) : (
         <div className="w-80" data-testid="notifications">
           <div className="flex items-center border-b border-border px-3 py-2">
             <span className="text-[13px] font-semibold">Notifications</span>
+            <Link href="/notifications" className="ml-auto text-xs text-primary underline">
+              See all
+            </Link>
             {count > 0 ? (
-              <button type="button" onClick={markRead} disabled={pending} className="ml-auto text-xs text-primary hover:underline">
+              <button type="button" onClick={markRead} disabled={pending} className="ml-3 text-xs text-primary hover:underline">
                 Mark all read
               </button>
             ) : null}

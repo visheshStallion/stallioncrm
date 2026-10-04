@@ -22,7 +22,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           name="q"
           defaultValue={q}
           placeholder="At least 2 characters"
-          className="h-9 w-80 rounded-md border border-border bg-background px-3 text-sm"
+          className="h-11 w-full max-w-80 rounded-md border border-border bg-background px-3 text-base md:h-9 md:text-sm"
           aria-label="Search query"
         />
       </form>
@@ -30,7 +30,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         <Card>
           <CardContent className="divide-y divide-border p-0" data-testid="search-results">
             {hits.length === 0 ? (
-              <p className="p-5 text-sm text-muted-foreground">No results in your scope.</p>
+              <p className="p-5 text-sm text-muted-foreground">No results.</p>
             ) : (
               hits.map((h) => (
                 <Link

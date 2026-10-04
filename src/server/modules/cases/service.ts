@@ -185,7 +185,7 @@ export async function escalateCase(ctx: AccessContext, id: string): Promise<stri
     recipients = brand?.brandManagerId ? [brand.brandManagerId] : [];
   }
   await db.case.update({ where: { id }, data: { status: "ESCALATED", escalatedAt: new Date() }, select: { id: true } });
-  await notify(ctx, [...new Set([...recipients, c.ownerId])], { kind: "INFO", title: `SLA breached: case ${c.number}`, body: c.subject, href: `/cases/${c.id}` });
+  await notify(ctx, [...new Set([...recipients, c.ownerId])], { kind: "SLA", title: `SLA breached: case ${c.number}`, body: c.subject, href: `/cases/${c.id}` });
   return `escalated to ${recipients.length} ${role}`;
 }
 

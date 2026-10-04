@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Bell,
   BookOpen,
   Building2,
   Calendar,
@@ -14,11 +15,15 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Megaphone,
+  MoreHorizontal,
   Receipt,
+  ScanLine,
+  Search,
   ShoppingCart,
   TrendingUp,
   UserPlus,
   Warehouse,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -43,6 +48,11 @@ const ICONS: Record<string, LucideIcon> = {
   "layout-dashboard": LayoutDashboard,
   "trending-up": TrendingUp,
   "check-circle": CheckCircle2,
+  bell: Bell,
+  "more-horizontal": MoreHorizontal,
+  "scan-line": ScanLine,
+  search: Search,
+  zap: Zap,
 };
 
 export function Icon({ name, className }: { name: string; className?: string }) {

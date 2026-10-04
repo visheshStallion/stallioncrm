@@ -56,7 +56,7 @@ test("HMNL exec cannot open an SNMNL deal (404) via UI or API, nor find it by se
   expect(api.status()).toBe(404);
 
   await page.goto("/search?q=SNMNL");
-  await expect(page.getByTestId("search-results")).toContainText("No results in your scope");
+  await expect(page.getByTestId("search-results")).toContainText("No results");
 });
 
 test("Abuja exec sees all brands, Abuja only", async ({ page }) => {
