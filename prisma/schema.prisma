@@ -69,6 +69,9 @@ model Brand {
   contactConsents   ContactBrandConsent[]
   approvalProcesses ApprovalProcess[]
   workflowRules     WorkflowRule[]
+  reports           Report[]
+  targets           Target[]
+  forecastNotes     ForecastNote[]
 }
 
 /// Legacy company codes (e.g. from the HR rep file) mapped to a brand. Configurable, never hard-coded.
@@ -99,6 +102,7 @@ model Region {
   activities       Activity[]
   attachments      Attachment[]
   assignmentRules  AssignmentRule[]
+  targets          Target[]
 }
 
 /// Territory tree: level 0 = Group root, level 1 = Brand, level 2 = "BRAND – Region".
@@ -193,6 +197,9 @@ model User {
   assignmentRules    AssignmentRule[]
   userPreferences    UserPreference[]
   approvalTasks      ApprovalTask[]    @relation("ApprovalTaskApprover")
+  savedReports       Report[]
+  targets            Target[]          @relation("TargetUser")
+  forecastNotes      ForecastNote[]
 }
 
 model TerritoryMember {
@@ -1343,4 +1350,86 @@ model Job {
 
   @@index([status, runAt])
   @@index([ruleId, createdAt])
+}
+
+// ───────────────────────── Reports, dashboards, forecasts & targets (prompt 09) ─────────────────────────
+
+enum ReportFolder {
+  PRIVATE
+  BRAND
+  GROUP
+}
+
+/// Saved report. Sharing (folder) only decides who can OPEN the definition – it always runs with the viewer's access.
+model Report {
+  id          String       @id @default(cuid())
+  /// stable key of the seeded standard reports
+  key         String?      @unique
+  name        String
+  description String?
+  /// deals | leads | quotes | activities
+  module      String
+  /// columns, filters, date range, grouping, summaries, chart (src/server/modules/reports/definition.ts)
+  definition  Json
+  folder      ReportFolder @default(PRIVATE)
+  /// folder BRAND: shared with the users of this brand
+  brandId     String?
+  brand       Brand?       @relation(fields: [brandId], references: [id])
+  /// NULL = standard report
+  ownerId     String?
+  owner       User?        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([folder, brandId])
+  @@index([ownerId])
+}
+
+enum PeriodType {
+  MONTH
+  QUARTER
+}
+
+/// Sales target for a period at brand, brand-region or user level (set by Head of Sales / the Brand Manager).
+model Target {
+  id          String     @id @default(cuid())
+  periodType  PeriodType
+  /// first day of the month / quarter
+  periodStart DateTime   @db.Date
+  brandId     String
+  brand       Brand      @relation(fields: [brandId], references: [id])
+  /// NULL = whole brand
+  regionId    String?
+  region      Region?    @relation(fields: [regionId], references: [id])
+  /// set = target of one sales exec (regionId is then set too)
+  userId      String?
+  user        User?      @relation("TargetUser", fields: [userId], references: [id], onDelete: Cascade)
+  units       Int        @default(0)
+  revenue     Decimal    @default(0) @db.Decimal(16, 2)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([periodType, periodStart, brandId])
+}
+
+/// Manager's commit / adjustment note on a forecast line.
+model ForecastNote {
+  id          String     @id @default(cuid())
+  periodType  PeriodType
+  periodStart DateTime   @db.Date
+  brandId     String
+  brand       Brand      @relation(fields: [brandId], references: [id])
+  regionId    String?
+  /// the exec the note is about (optional)
+  userId      String?
+  /// manager's adjustment of the forecast amount (+ / -)
+  adjustment  Decimal?   @db.Decimal(16, 2)
+  note        String
+  authorId    String
+  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+
+  @@index([periodType, periodStart, brandId])
 }

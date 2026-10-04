@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { login } from "./helpers";
 
 /** WCAG 2.1 AA (axe) on the main page templates – no serious or critical violations (prompt 17 §7). */
-for (const path of ["/", "/deals", "/deals?layout=kanban", "/leads", "/leads/new", "/admin", "/activities", "/activities?view=calendar", "/activities/new?type=testdrive", "/approvals", "/admin/workflows/new", "/admin/jobs"]) {
+for (const path of ["/", "/deals", "/deals?layout=kanban", "/leads", "/leads/new", "/admin", "/activities", "/activities?view=calendar", "/activities/new?type=testdrive", "/approvals", "/admin/workflows/new", "/admin/jobs", "/reports", "/reports/pipeline-by-stage-brand", "/reports/new", "/dashboards", "/forecasts"]) {
   test(`a11y: ${path}`, async ({ page }) => {
     await login(page, "admin");
     await page.goto(path);

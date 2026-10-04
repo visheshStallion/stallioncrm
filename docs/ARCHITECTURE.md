@@ -375,7 +375,62 @@ Module `src/server/modules/activities` (+ `notifications`), UI under `src/app/(c
   OR group (deeper trees are accepted by the engine and API); approval processes are seeded and tunable (active,
   auto-approve) – a full process designer is not part of this prompt.
 
-## 16. Local development
+## 16. Reports, dashboards, forecasts & targets (prompt 09)
+
+**Rule:** every analytics query runs through `scopedDb(ctx)` – in practice `scopedDb(ctx).$queryRaw`, i.e. inside the
+viewer's RLS transaction (role `stallion_rls` + `app.*` settings). Postgres filters every table a query touches
+(base table, joins, sub-selects, the `DealFact` view) by the **viewer's** access, whoever built or shared the report.
+
+### Report engine (`src/server/modules/reports`)
+
+- `catalog.ts` – the modules (deals, leads, quotes, activities), their joins (deal ↔ account ↔ product, activity
+  counts) and fields, each with a fixed SQL fragment. These fragments are the only identifiers that reach a
+  query; a definition selects catalog **keys** (validated by `definition.ts`) and all values are bound parameters.
+  Contact details (phone, email, licence numbers) are not in the catalog.
+- `engine.ts` – one SQL statement per run: `GROUP BY` up to three levels (dates by day / week / month / quarter /
+  year in Africa/Lagos time), summaries (count, sum, avg, min, max), filters, date presets, or a paged record
+  list. Three standard reports that span several tables (funnel, lead source ROI, exec performance) are fixed
+  queries in the same file. Timestamps are compared as UTC literals so results do not depend on the session
+  time zone.
+- `service.ts` – saved reports. Folder = who can **open** the definition (RLS on `Report`): Private (owner only –
+  management included), Brand (users of that brand), Group (everyone); standard reports have no owner and are
+  read-only ("Save a copy"). Opening a shared report runs it with the viewer's context.
+- **Export** (`GET /api/v1/reports/:id/export?format=csv|xlsx`): requires `reports.export` (the Sales Exec profile
+  has none → 403, no buttons), exports exactly the rows the viewer sees, and writes an `EXPORT` audit entry with
+  the row count. XLSX is produced by `src/lib/xlsx.ts` (no dependency; cells are inline strings / numbers, never
+  formulas); CSV neutralises formula injection.
+- Standard reports are seeded by `app_seed_reports()` (migration; also called by the dev seed): pipeline by stage
+  and brand, won by brand / region / month, conversion funnel, lead source ROI, exec performance, lost deals by
+  reason and competitor, stale deals, discount given vs approved, quote aging.
+
+### Dashboards (`src/server/modules/dashboards`)
+
+Four definitions in code (Group, Brand, Region, My Sales) made of KPI tiles, charts, tables, a target meter and
+a leaderboard. A viewer lands on the dashboard of their role but may open any of them – the same definition
+shows different numbers per viewer because every widget is computed with their context ("My" widgets add an
+owner filter). Charts are dependency-free server-rendered SVG (`src/components/charts.tsx`) with text alternatives.
+
+### Forecasts & targets (`src/server/modules/forecasts`)
+
+- `Target` (month / quarter × brand × optional region × optional user; units and revenue). Set by management or
+  the brand's own Brand Manager (`forecasts.edit` + brand-level manager membership); RLS allows writes only to
+  management and brand-level members and reads to the brand's managers, the brand-region's members (region and
+  user targets) and the user concerned. Colleagues' personal targets are additionally hidden from non-managers
+  in the service.
+- **Forecast** for deals expected to close in the period = won + committed (open deals at Booking or later) +
+  weighted rest (amount × stage probability) + managers' adjustments, rolled up User → Brand-Region → Brand →
+  Group. A level without its own target shows the sum of the targets below it. `ForecastNote` holds the commit /
+  adjustment notes of managers.
+
+### Performance
+
+`DealFact` is a view `WITH (security_invoker = true)` – RLS of `Deal` applies to whoever queries it. With 100,000
+deals (`tests/integration/analytics-performance.test.ts`) dashboards load in well under the 2 s budget
+(roughly 50–450 ms on a developer machine), so no materialized views were added: they cannot carry RLS and
+would need a per-viewer filter layer on top. If volumes grow, add them behind security-invoker views and
+refresh them from the job queue of prompt 08.
+
+## 17. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.

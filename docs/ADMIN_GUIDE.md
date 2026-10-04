@@ -227,3 +227,13 @@ standard stages and stages that contain deals cannot be removed).
 - A record with a pending approval is locked for everyone except administrators. Requests can be recalled by
   the requester from the record page.
 
+## Analytics permissions
+
+- **Reports** – `read` opens reports, `create` / `edit` allow building own reports, `export` allows CSV / XLSX
+  export (every export is in the audit log with its row count). The Sales Exec profile has no export.
+- **Forecasts** – `edit` lets Management and Brand Managers set targets and add forecast notes; a Brand Manager
+  can only do this for the brand they manage.
+- Sharing a report (Brand or Group folder) never widens access: every viewer sees only their own records.
+- Existing installations: review the Reports / Forecasts rows of your profiles after this update (the seeded
+  defaults only apply to a fresh database).
+

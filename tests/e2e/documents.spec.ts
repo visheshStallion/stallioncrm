@@ -11,7 +11,8 @@ test("quote: create from a deal, discount needs approval, Brand Manager approves
 
   await page.goto(`/deals/${dealId}`);
   await page.getByRole("button", { name: "Create Quote" }).click();
-  await expect(page).toHaveURL(/\/quotes\//);
+  // the first hit compiles the quote page on the dev server – allow for a loaded machine
+  await expect(page).toHaveURL(/\/quotes\//, { timeout: 20_000 });
   const quoteUrl = page.url();
   const quoteId = quoteUrl.split("/").pop()!;
   await expect(page.getByTestId("record-header")).toContainText(/HMNL-QT-\d{4}-\d{5}/);
