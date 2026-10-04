@@ -165,8 +165,8 @@ describe("users", () => {
     const preview = await svc.deactivationPreview(admin, uid);
     const dealLines = preview.filter((l) => l.model === "Deal");
     expect(dealLines.map((l) => l.brandCode).sort()).toEqual(["HMNL", "SNMNL"]);
-    const open = await unsafeDb.deal.count({ where: { ownerId: uid, stage: { notIn: ["CLOSED_WON", "CLOSED_LOST"] } } });
-    const closed = await unsafeDb.deal.count({ where: { ownerId: uid, stage: { in: ["CLOSED_WON", "CLOSED_LOST"] } } });
+    const open = await unsafeDb.deal.count({ where: { ownerId: uid, stage: { type: "OPEN" } } });
+    const closed = await unsafeDb.deal.count({ where: { ownerId: uid, stage: { type: { not: "OPEN" } } } });
     expect(dealLines.reduce((a, l) => a + l.count, 0)).toBe(open);
     // open leads are reassigned too; converted / unqualified ones stay
     const openLeads = await unsafeDb.lead.count({ where: { ownerId: uid, status: { in: ["NEW", "CONTACTED", "QUALIFIED"] } } });

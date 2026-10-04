@@ -54,6 +54,7 @@ describe("territory tree & resolution", () => {
       await unsafeDb.territory.deleteMany({ where: { OR: [{ regionId }, { brandId: brand.id }], level: 2 } });
       await unsafeDb.territory.deleteMany({ where: { brandId: brand.id } });
       if (regionId) await unsafeDb.region.delete({ where: { id: regionId } });
+      await unsafeDb.pipeline.deleteMany({ where: { brandId: brand.id } }); // default pipeline created with the brand
       await unsafeDb.brand.delete({ where: { id: brand.id } });
     }
   });
