@@ -1,0 +1,224 @@
+// StallionCRM – core data model (prompt 00).
+// Later modules extend this file. Every BRAND-OWNED model MUST:
+//   1. include the base mixin fields below (brandId, regionId, territoryId, ownerId,
+//      createdById, updatedById, createdAt, updatedAt, deletedAt), and
+//   2. get RLS enabled in its migration: SELECT app_enable_brand_rls('"<Model>"');
+// The access engine detects brand-owned models automatically (brandId + regionId + ownerId),
+// and tests/integration/rls-coverage.test.ts fails if RLS is missing on any of them.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────── Organisation ───────────────────────────────
+
+enum BrandStatus {
+  ACTIVE
+  FUTURE
+  INACTIVE
+}
+
+model Brand {
+  id             String      @id @default(cuid())
+  code           String      @unique
+  name           String
+  legalEntity    String?
+  erpCompanyCode String?
+  docPrefix      String?
+  logoUrl        String?
+  /// Hex colour used by BrandBadge (e.g. "#1d4ed8"). Falls back to a palette when null.
+  color          String?
+  status         BrandStatus @default(ACTIVE)
+  brandManagerId String?
+  brandManager   User?       @relation("BrandManager", fields: [brandManagerId], references: [id])
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  aliases     BrandCodeAlias[]
+  territories Territory[]
+  deals       Deal[]
+}
+
+/// Legacy company codes (e.g. from the HR rep file) mapped to a brand. Configurable, never hard-coded.
+model BrandCodeAlias {
+  alias   String @id
+  brandId String
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  note    String?
+
+  @@index([brandId])
+}
+
+model Region {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  territories Territory[]
+  deals       Deal[]
+}
+
+/// Territory tree: level 0 = Group root, level 1 = Brand, level 2 = "BRAND – Region".
+model Territory {
+  id        String      @id @default(cuid())
+  name      String      @unique
+  level     Int
+  parentId  String?
+  parent    Territory?  @relation("TerritoryTree", fields: [parentId], references: [id])
+  children  Territory[] @relation("TerritoryTree")
+  brandId   String?
+  brand     Brand?      @relation(fields: [brandId], references: [id])
+  regionId  String?
+  region    Region?     @relation(fields: [regionId], references: [id])
+  managerId String?
+  manager   User?       @relation("TerritoryManager", fields: [managerId], references: [id])
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  members TerritoryMember[]
+  deals   Deal[]
+
+  @@unique([brandId, regionId])
+  @@index([parentId])
+}
+
+model Role {
+  id           String  @id @default(cuid())
+  name         String  @unique
+  parentRoleId String?
+  parentRole   Role?   @relation("RoleHierarchy", fields: [parentRoleId], references: [id])
+  childRoles   Role[]  @relation("RoleHierarchy")
+  users        User[]
+}
+
+enum ProfileScope {
+  ALL
+  TERRITORY
+}
+
+model Profile {
+  id               String       @id @default(cuid())
+  name             String       @unique
+  scope            ProfileScope @default(TERRITORY)
+  /// module → { read, create, edit, delete, export, massUpdate, approve }
+  permissions      Json         @default("{}")
+  /// module → field → "hidden" | "masked" | "read" | "edit"
+  fieldPermissions Json         @default("{}")
+  users            User[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  /// argon2id hash; null for SSO-only users
+  passwordHash String?
+  roleId       String
+  role         Role     @relation(fields: [roleId], references: [id])
+  profileId    String
+  profile      Profile  @relation(fields: [profileId], references: [id])
+  active       Boolean  @default(true)
+  managerId    String?
+  manager      User?    @relation("UserManager", fields: [managerId], references: [id])
+  reports      User[]   @relation("UserManager")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships       TerritoryMember[]
+  managedBrands     Brand[]           @relation("BrandManager")
+  managedTerritories Territory[]      @relation("TerritoryManager")
+  ownedDeals        Deal[]            @relation("DealOwner")
+  createdDeals      Deal[]            @relation("DealCreatedBy")
+  updatedDeals      Deal[]            @relation("DealUpdatedBy")
+  auditLogs         AuditLog[]
+}
+
+model TerritoryMember {
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  territoryId String
+  territory   Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  isManager   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@id([userId, territoryId])
+  @@index([territoryId])
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  EXPORT
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+}
+
+model AuditLog {
+  id       String      @id @default(cuid())
+  at       DateTime    @default(now())
+  userId   String?
+  user     User?       @relation(fields: [userId], references: [id])
+  action   AuditAction
+  entity   String
+  entityId String?
+  brandId  String?
+  before   Json?
+  after    Json?
+  ip       String?
+
+  @@index([entity, entityId])
+  @@index([userId, at])
+  @@index([brandId, at])
+}
+
+// ─────────────────────────── Brand-owned records ───────────────────────────
+
+enum DealStage {
+  ENQUIRY
+  TEST_DRIVE
+  QUOTATION
+  BOOKING
+  FINANCE_PAYMENT
+  DELIVERY
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+/// Minimal Deal used by the foundation to demonstrate isolation. Prompt 04 extends it.
+model Deal {
+  id           String    @id @default(cuid())
+  name         String
+  customerName String?
+  amount       Decimal?  @db.Decimal(14, 2)
+  stage        DealStage @default(ENQUIRY)
+  closeDate    DateTime?
+
+  // ── brand-owned base mixin ──
+  brandId     String
+  brand       Brand      @relation(fields: [brandId], references: [id])
+  regionId    String
+  region      Region     @relation(fields: [regionId], references: [id])
+  territoryId String?
+  territory   Territory? @relation(fields: [territoryId], references: [id])
+  ownerId     String
+  owner       User       @relation("DealOwner", fields: [ownerId], references: [id])
+  createdById String?
+  createdBy   User?      @relation("DealCreatedBy", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?      @relation("DealUpdatedBy", fields: [updatedById], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
+
+  @@index([brandId, regionId])
+  @@index([ownerId])
+}

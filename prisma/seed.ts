@@ -1,0 +1,192 @@
+/**
+ * Seed – FICTITIOUS data only. Wipes and recreates organisation data + demo deals.
+ * Run: pnpm db:seed (also runs after `prisma migrate reset`).
+ */
+import { hash } from "@node-rs/argon2";
+import { PrismaClient, type DealStage } from "@prisma/client";
+import {
+  ensureBrandTerritories,
+  ensureRootTerritory,
+} from "../src/server/access/territory";
+import {
+  ACTIVE_BRANDS,
+  BRAND_ALIASES,
+  BRANDS,
+  CUSTOMERS,
+  DEAL_STAGES,
+  DEALS_PER_BRAND_REGION,
+  PROFILE_DEFS,
+  REGIONS,
+  ROLE_PARENTS,
+  SEED_PASSWORD,
+  USERS,
+  VEHICLE_TYPES,
+  email,
+} from "./seed-data";
+
+export async function seed(prisma: PrismaClient): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `TRUNCATE "AuditLog", "Deal", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region" CASCADE`,
+  );
+
+  // Regions
+  const regions = new Map<string, string>();
+  for (const name of REGIONS) {
+    const r = await prisma.region.create({ data: { name } });
+    regions.set(name, r.id);
+  }
+
+  // Brands + aliases + territory tree (root → brand → brand–region)
+  await ensureRootTerritory(prisma);
+  const brands = new Map<string, string>();
+  for (const b of BRANDS) {
+    const brand = await prisma.brand.create({
+      data: {
+        code: b.code,
+        name: b.name,
+        color: b.color,
+        status: b.status,
+        legalEntity: `${b.code} legal entity (placeholder)`,
+        erpCompanyCode: b.code,
+        docPrefix: b.code,
+      },
+    });
+    brands.set(b.code, brand.id);
+    await ensureBrandTerritories(prisma, brand.id);
+  }
+  for (const a of BRAND_ALIASES) {
+    await prisma.brandCodeAlias.create({
+      data: { alias: a.alias, brandId: brands.get(a.brand)!, note: a.note },
+    });
+  }
+
+  // Roles (parents first)
+  const roles = new Map<string, string>();
+  const pending = Object.entries(ROLE_PARENTS);
+  while (pending.length) {
+    const idx = pending.findIndex(([, parent]) => parent === null || roles.has(parent));
+    const [name, parent] = pending.splice(idx, 1)[0]!;
+    const role = await prisma.role.create({
+      data: { name, parentRoleId: parent ? roles.get(parent) : null },
+    });
+    roles.set(name, role.id);
+  }
+
+  // Profiles
+  const profiles = new Map<string, string>();
+  for (const p of PROFILE_DEFS) {
+    const profile = await prisma.profile.create({
+      data: { name: p.name, scope: p.scope, permissions: p.permissions, fieldPermissions: p.fieldPermissions },
+    });
+    profiles.set(p.name, profile.id);
+  }
+
+  // Users
+  const passwordHash = await hash(SEED_PASSWORD);
+  const users = new Map<string, string>();
+  for (const u of USERS) {
+    const user = await prisma.user.create({
+      data: {
+        name: u.name,
+        email: email(u.key),
+        passwordHash,
+        roleId: roles.get(u.role)!,
+        profileId: profiles.get(u.profile)!,
+      },
+    });
+    users.set(u.key, user.id);
+  }
+  for (const u of USERS) {
+    if (u.manager) {
+      await prisma.user.update({ where: { id: users.get(u.key)! }, data: { managerId: users.get(u.manager)! } });
+    }
+  }
+
+  // Brand managers + territory managers
+  for (const code of ACTIVE_BRANDS) {
+    const bmId = users.get(`bm.${code.toLowerCase()}`)!;
+    const brandId = brands.get(code)!;
+    await prisma.brand.update({ where: { id: brandId }, data: { brandManagerId: bmId } });
+    await prisma.territory.updateMany({ where: { brandId, regionId: null }, data: { managerId: bmId } });
+    await prisma.territory.updateMany({
+      where: { brandId, regionId: regions.get("Lagos")! },
+      data: { managerId: bmId },
+    });
+  }
+  await prisma.territory.updateMany({
+    where: { regionId: { in: ["Abuja", "Port Harcourt", "Ibadan"].map((r) => regions.get(r)!) } },
+    data: { managerId: users.get("rsm")! },
+  });
+  const territories = await prisma.territory.findMany();
+  const rootId = territories.find((t) => t.level === 0)!.id;
+  const territoryFor = (key: string): string => {
+    if (key === "ROOT") return rootId;
+    const [code, region] = key.split("|");
+    const brandId = brands.get(code!)!;
+    const regionId = region ? regions.get(region)! : null;
+    const t = territories.find((x) => x.brandId === brandId && x.regionId === regionId);
+    if (!t) throw new Error(`territory not found: ${key}`);
+    return t.id;
+  };
+
+  // Territory memberships
+  for (const u of USERS) {
+    const isManager = u.key.startsWith("bm.") || u.key === "rsm";
+    await prisma.territoryMember.createMany({
+      data: u.territories.map((t) => ({
+        userId: users.get(u.key)!,
+        territoryId: territoryFor(t),
+        isManager,
+      })),
+    });
+  }
+
+  // Demo deals: 5 per active brand × region, owned by a member of that territory.
+  let n = 0;
+  const baseDate = Date.UTC(2026, 9, 1);
+  for (const code of ACTIVE_BRANDS) {
+    for (const region of REGIONS) {
+      const key = `${code}|${region}`;
+      const owners = USERS.filter((u) => u.territories.includes(key) && u.role !== "Regional Sales Manager");
+      const ownerKeys = owners.length ? owners.map((u) => u.key) : ["rsm"];
+      for (let i = 0; i < DEALS_PER_BRAND_REGION; i++) {
+        const customer = CUSTOMERS[n % CUSTOMERS.length]!;
+        const vehicle = VEHICLE_TYPES[i % VEHICLE_TYPES.length]!;
+        const ownerId = users.get(ownerKeys[i % ownerKeys.length]!)!;
+        await prisma.deal.create({
+          data: {
+            name: `${code} ${vehicle} – ${customer}`,
+            customerName: customer,
+            amount: 18_000_000 + ((n * 7_350_000) % 60_000_000),
+            stage: DEAL_STAGES[(n + i) % DEAL_STAGES.length] as DealStage,
+            closeDate: new Date(baseDate + ((n * 3) % 90) * 86_400_000),
+            brandId: brands.get(code)!,
+            regionId: regions.get(region)!,
+            territoryId: territoryFor(key),
+            ownerId,
+            createdById: ownerId,
+            updatedById: ownerId,
+          },
+        });
+        n++;
+      }
+    }
+  }
+}
+
+async function main() {
+  const prisma = new PrismaClient();
+  try {
+    await seed(prisma);
+    console.log("Seeded fictitious data.");
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+if (typeof require !== "undefined" && require.main === module) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
