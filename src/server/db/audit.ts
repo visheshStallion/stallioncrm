@@ -42,7 +42,7 @@ export async function audit(entry: AuditEntry): Promise<void> {
         brandId: entry.brandId ?? null,
         before: toAuditJson(entry.before),
         after: toAuditJson(entry.after),
-        userId: entry.ctx?.userId ?? entry.userId ?? null,
+        userId: entry.ctx?.userId || entry.userId || null,
         ip: entry.ctx?.ip ?? entry.ip ?? null,
       },
     });

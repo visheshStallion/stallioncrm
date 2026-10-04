@@ -45,6 +45,11 @@ export interface AccessContext {
   isAdmin: boolean;
   /** Client IP of the current request, used by audit(). */
   ip?: string | null;
+  /**
+   * System context (no signed-in user, e.g. web-to-lead intake): createdBy/updatedBy stay null and
+   * audit entries have no user. Its memberships still bound what it can create.
+   */
+  system?: boolean;
 }
 
 /** The minimum shape of a brand-owned record needed for visibility decisions. */

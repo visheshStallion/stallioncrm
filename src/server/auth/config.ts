@@ -4,7 +4,8 @@
  */
 import type { NextAuthConfig } from "next-auth";
 
-export const PUBLIC_PATHS = ["/login", "/api/auth"];
+/** No session required. /api/public = web-to-lead and channel webhooks (own abuse controls). */
+export const PUBLIC_PATHS = ["/login", "/api/auth", "/api/public"];
 
 export const authConfig = {
   pages: { signIn: "/login" },

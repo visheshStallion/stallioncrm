@@ -2,6 +2,7 @@ import "server-only";
 import { hasPermission } from "@/server/access/can";
 import type { AccessContext } from "@/server/access/types";
 import { searchDeals } from "@/server/modules/deals/queries";
+import { leadName, searchLeads } from "@/server/modules/leads/queries";
 
 export interface SearchHit {
   module: string;
@@ -21,6 +22,19 @@ export async function globalSearch(ctx: AccessContext, rawQuery: string): Promis
   const q = rawQuery.trim().slice(0, 100);
   if (q.length < 2) return [];
   const hits: SearchHit[] = [];
+  if (hasPermission(ctx, "leads", "read")) {
+    for (const l of await searchLeads(ctx, q)) {
+      hits.push({
+        module: "leads",
+        id: l.id,
+        title: leadName(l),
+        subtitle: [l.city, l.status].filter(Boolean).join(" · "),
+        brandId: l.brandId,
+        regionId: l.regionId,
+        href: `/leads/${l.id}`,
+      });
+    }
+  }
   if (hasPermission(ctx, "deals", "read")) {
     for (const d of await searchDeals(ctx, q)) {
       hits.push({

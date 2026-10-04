@@ -130,3 +130,34 @@ export async function auditEntities(): Promise<string[]> {
   const rows = await unsafeDb.auditLog.findMany({ distinct: ["entity"], select: { entity: true }, orderBy: { entity: "asc" } });
   return rows.map((r) => r.entity);
 }
+
+/**
+ * Duplicate check across ALL brands: how many non-deleted leads match mobile/email, excluding the ids
+ * the user can already see. Returns a COUNT only – never details of another brand's lead.
+ */
+export async function countHiddenLeadMatches(
+  match: { mobile: string | null; email: string | null },
+  excludeIds: string[],
+): Promise<number> {
+  const or = [
+    ...(match.mobile ? [{ mobile: match.mobile }] : []),
+    ...(match.email ? [{ email: match.email }] : []),
+  ];
+  if (or.length === 0) return 0;
+  return unsafeDb.lead.count({ where: { OR: or, deletedAt: null, id: { notIn: excludeIds } } });
+}
+
+/** Field history for a record's timeline. Caller MUST have verified the record is visible to the user. */
+export function auditTrail(entity: string, entityId: string, take = 50) {
+  return unsafeDb.auditLog.findMany({
+    where: { entity, entityId },
+    include: { user: { select: { name: true } } },
+    orderBy: { at: "desc" },
+    take,
+  });
+}
+
+/** Fallback round-robin counter for a Brand–Region (when no assignment rule matched). */
+export function countLeadsInTerritory(brandId: string, regionId: string): Promise<number> {
+  return unsafeDb.lead.count({ where: { brandId, regionId } });
+}

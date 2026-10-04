@@ -27,7 +27,8 @@ import {
 import { ForbiddenError } from "@/server/access/errors";
 import { resolveTerritory } from "@/server/access/territory";
 import type { AccessContext } from "@/server/access/types";
-import { brandScopeWhere, canWriteTo } from "@/server/access/visibility";
+import { loadAccessContext } from "@/server/access/context";
+import { brandScopeWhere, canWriteTo, hasTerritoryAccess } from "@/server/access/visibility";
 import { audit } from "./audit";
 import { rlsSessionQueries } from "./rls";
 import { unsafeDb } from "./unsafe";
@@ -152,6 +153,28 @@ async function assertBrandWritable(brandId: string, purpose: "create" | "modify"
   }
 }
 
+/** The acting user id for createdBy/updatedBy (null for system contexts such as web-to-lead intake). */
+const actor = (ctx: AccessContext) => (ctx.system ? null : ctx.userId);
+
+/**
+ * Ownership rule: a record can only be owned by an ACTIVE user who has territory access to the
+ * record's brand/region (or scope ALL). Owner = the acting user needs no extra check.
+ */
+async function assertOwnerEligible(
+  ctx: AccessContext,
+  ownerId: unknown,
+  pairs: Array<{ brandId: string; regionId: string }>,
+): Promise<void> {
+  if (typeof ownerId !== "string" || (ownerId === ctx.userId && !ctx.system)) return;
+  const owner = await loadAccessContext(ownerId);
+  if (!owner) throw new ForbiddenError("The owner must be an active user");
+  for (const p of pairs) {
+    if (!hasTerritoryAccess(owner, p.brandId, p.regionId)) {
+      throw new ForbiddenError(`${owner.user.name} has no access to this brand/region and cannot own the record`);
+    }
+  }
+}
+
 /** Bulk writes skip records of inactive brands. */
 const NOT_INACTIVE_BRAND = { brand: { status: { not: "INACTIVE" } } };
 
@@ -168,12 +191,15 @@ async function prepareCreateData(model: string, data: Obj, ctx: AccessContext): 
     throw new ForbiddenError("You cannot create records for this brand/region");
   }
   await assertBrandWritable(brandId, "create");
+  const ownerId = data.ownerId ?? ctx.userId;
+  if (!ownerId) throw new ForbiddenError(`${model}: ownerId is required`);
+  await assertOwnerEligible(ctx, ownerId, [{ brandId, regionId }]);
   return {
     ...data,
     territoryId: await resolveTerritory(systemDb, brandId, regionId),
-    ownerId: data.ownerId ?? ctx.userId,
-    createdById: ctx.userId,
-    updatedById: ctx.userId,
+    ownerId,
+    createdById: actor(ctx),
+    updatedById: actor(ctx),
   };
 }
 
@@ -187,8 +213,10 @@ async function prepareUpdateData(
   if ("brand" in data || "region" in data || "territory" in data || "territoryId" in data) {
     throw new ForbiddenError(`${model}: change brandId / regionId as scalars (territory is resolved automatically)`);
   }
-  const out: Obj = { ...data, updatedById: ctx.userId };
-  if (!("brandId" in data) && !("regionId" in data)) return out;
+  const out: Obj = { ...data, updatedById: actor(ctx) };
+  const moves = "brandId" in data || "regionId" in data;
+  const reowns = "ownerId" in data;
+  if (!moves && !reowns) return out;
 
   const delegate = (unsafeDb as any)[delegateName(model)];
   const existing = await delegate.findFirst({
@@ -196,6 +224,10 @@ async function prepareUpdateData(
     select: { brandId: true, regionId: true },
   });
   if (!existing) return out; // the scoped update itself will fail with "record not found"
+  if (!moves) {
+    await assertOwnerEligible(ctx, scalar(data.ownerId), [existing]);
+    return out;
+  }
 
   const brandId = (scalar(data.brandId) as string | undefined) ?? existing.brandId;
   const regionId = (scalar(data.regionId) as string | undefined) ?? existing.regionId;
@@ -206,6 +238,7 @@ async function prepareUpdateData(
     throw new ForbiddenError("You cannot move records to this brand/region");
   }
   if (brandId !== existing.brandId) await assertBrandWritable(brandId, "create");
+  if (reowns) await assertOwnerEligible(ctx, scalar(data.ownerId), [{ brandId, regionId }]);
   out.territoryId = await resolveTerritory(systemDb, brandId, regionId);
   return out;
 }
@@ -226,7 +259,15 @@ async function scopeBrandOwnedArgs(
       if (isObj(a.data) && ["brandId", "regionId", "territoryId", "brand", "region"].some((k) => k in a.data)) {
         throw new ForbiddenError("Bulk updates cannot move records between brands/regions");
       }
-      a.data = { ...a.data, updatedById: ctx.userId };
+      a.data = { ...a.data, updatedById: actor(ctx) };
+      if (isObj(a.data) && "ownerId" in a.data) {
+        const pairs = await (unsafeDb as any)[delegateName(model)].findMany({
+          where: a.where,
+          distinct: ["brandId", "regionId"],
+          select: { brandId: true, regionId: true },
+        });
+        await assertOwnerEligible(ctx, scalar(a.data.ownerId), pairs);
+      }
     }
     if (operation.startsWith("updateMany") || operation === "deleteMany") {
       a.where = andWhere(a.where, NOT_INACTIVE_BRAND);
