@@ -24,37 +24,48 @@ enum BrandStatus {
 }
 
 model Brand {
-  id             String      @id @default(cuid())
-  code           String      @unique
-  name           String
-  legalEntity    String?
-  erpCompanyCode String?
-  docPrefix      String?
-  logoUrl        String?
+  id                    String      @id @default(cuid())
+  code                  String      @unique
+  name                  String
+  legalEntity           String?
+  erpCompanyCode        String?
+  docPrefix             String?
+  logoUrl               String?
   /// Uploaded logo (small image, served by /api/v1/brands/[id]/logo). Takes precedence over logoUrl.
-  logoData       Bytes?
-  logoMimeType   String?
+  logoData              Bytes?
+  logoMimeType          String?
   /// Hex colour used by BrandBadge (e.g. "#1d4ed8"). Falls back to a palette when null.
-  color          String?
-  status         BrandStatus @default(ACTIVE)
-  brandManagerId String?
-  brandManager   User?       @relation("BrandManager", fields: [brandManagerId], references: [id])
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  color                 String?
+  status                BrandStatus @default(ACTIVE)
+  /// Printed on quotes / orders / invoices (PDF templates per brand)
+  address               String?
+  bankDetails           String?
+  documentTerms         String?
+  /// Discount above this % needs Brand Manager approval; above the escalation % Head of Sales (BUSINESS_CONTEXT §10)
+  discountApprovalPct   Decimal     @default(3) @db.Decimal(5, 2)
+  discountEscalationPct Decimal     @default(7) @db.Decimal(5, 2)
+  brandManagerId        String?
+  brandManager          User?       @relation("BrandManager", fields: [brandManagerId], references: [id])
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
-  aliases         BrandCodeAlias[]
-  territories     Territory[]
-  deals           Deal[]
-  leads           Lead[]
-  products        Product[]
-  assignmentRules AssignmentRule[]
-  customerLinks   CustomerBrandLink[]
-  pipelines       Pipeline[]
-  priceBooks      PriceBook[]
-  stockRefs       VehicleStockRef[]
-  notes           Note[]
-  attachments     Attachment[]
-  contactConsents ContactBrandConsent[]
+  aliases          BrandCodeAlias[]
+  territories      Territory[]
+  deals            Deal[]
+  leads            Lead[]
+  products         Product[]
+  assignmentRules  AssignmentRule[]
+  customerLinks    CustomerBrandLink[]
+  pipelines        Pipeline[]
+  priceBooks       PriceBook[]
+  quotes           Quote[]
+  salesOrders      SalesOrder[]
+  invoices         Invoice[]
+  approvalRequests ApprovalRequest[]
+  stockRefs        VehicleStockRef[]
+  notes            Note[]
+  attachments      Attachment[]
+  contactConsents  ContactBrandConsent[]
 }
 
 /// Legacy company codes (e.g. from the HR rep file) mapped to a brand. Configurable, never hard-coded.
@@ -74,12 +85,16 @@ model Region {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  territories     Territory[]
-  deals           Deal[]
-  leads           Lead[]
-  notes           Note[]
-  attachments     Attachment[]
-  assignmentRules AssignmentRule[]
+  territories      Territory[]
+  deals            Deal[]
+  leads            Lead[]
+  notes            Note[]
+  quotes           Quote[]
+  salesOrders      SalesOrder[]
+  invoices         Invoice[]
+  approvalRequests ApprovalRequest[]
+  attachments      Attachment[]
+  assignmentRules  AssignmentRule[]
 }
 
 /// Territory tree: level 0 = Group root, level 1 = Brand, level 2 = "BRAND – Region".
@@ -163,6 +178,11 @@ model User {
   ownedAccounts      Account[]         @relation("AccountOwner")
   ownedContacts      Contact[]         @relation("ContactOwner")
   ownedNotes         Note[]            @relation("NoteOwner")
+  ownedQuotes        Quote[]           @relation("QuoteOwner")
+  ownedSalesOrders   SalesOrder[]      @relation("SalesOrderOwner")
+  ownedInvoices      Invoice[]         @relation("InvoiceOwner")
+  requestedApprovals ApprovalRequest[] @relation("ApprovalOwner")
+  approvalsToDecide  ApprovalRequest[] @relation("ApprovalApprover")
   ownedAttachments   Attachment[]      @relation("AttachmentOwner")
   assignmentRules    AssignmentRule[]
   userPreferences    UserPreference[]
@@ -315,6 +335,9 @@ model Deal {
   deletedAt   DateTime?
 
   stageHistory DealStageHistory[]
+  quotes       Quote[]
+  salesOrders  SalesOrder[]
+  invoices     Invoice[]
 
   /// VIN / chassis number is unique per brand
   @@unique([brandId, vinChassisNo])
@@ -548,6 +571,7 @@ model Product {
   assignmentRules AssignmentRule[]
   priceEntries    PriceBookEntry[]
   stock           VehicleStockRef[]
+  documentLines   DocumentLine[]
 
   @@unique([brandId, code])
   @@index([brandId, active])
@@ -769,4 +793,275 @@ model UserPreference {
   updatedAt DateTime @updatedAt
 
   @@id([userId, key])
+}
+
+// ───────────────────────── Quotes, Sales Orders & Invoices (prompt 06) ─────────────────────────
+
+enum QuoteStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  ALLOCATED
+  DELIVERED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PART_PAID
+  PAID
+  VOID
+}
+
+model Quote {
+  id                String      @id @default(cuid())
+  /// {docPrefix}-{QT|SO|INV}-{YYYY}-{00001}; assigned by the DB trigger app_document_number() (gap-free per brand / type / year)
+  number            String      @unique @default("")
+  dealId            String
+  deal              Deal        @relation(fields: [dealId], references: [id])
+  accountId         String?
+  contactId         String?
+  issueDate         DateTime    @default(now()) @db.Date
+  currency          String      @default("NGN")
+  /// header discount in percent, applied after line discounts
+  headerDiscountPct Decimal     @default(0) @db.Decimal(5, 2)
+  subtotal          Decimal     @default(0) @db.Decimal(14, 2)
+  discountTotal     Decimal     @default(0) @db.Decimal(14, 2)
+  taxTotal          Decimal     @default(0) @db.Decimal(14, 2)
+  total             Decimal     @default(0) @db.Decimal(14, 2)
+  terms             String?
+  notes             String?
+  priceBookId       String?
+  /// the document this one was converted from (quote → order → invoice)
+  sourceDocumentId  String?
+  status            QuoteStatus @default(DRAFT)
+  validUntil        DateTime?   @db.Date
+
+  // ── brand-owned base mixin (brand and region are inherited from the deal) ──
+  brandId     String
+  brand       Brand     @relation(fields: [brandId], references: [id])
+  regionId    String
+  region      Region    @relation(fields: [regionId], references: [id])
+  territoryId String?
+  ownerId     String
+  owner       User      @relation("QuoteOwner", fields: [ownerId], references: [id])
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  lines DocumentLine[]
+
+  @@index([dealId])
+  @@index([brandId, regionId])
+  @@index([ownerId])
+}
+
+model SalesOrder {
+  id                String      @id @default(cuid())
+  /// {docPrefix}-{QT|SO|INV}-{YYYY}-{00001}; assigned by the DB trigger app_document_number() (gap-free per brand / type / year)
+  number            String      @unique @default("")
+  dealId            String
+  deal              Deal        @relation(fields: [dealId], references: [id])
+  accountId         String?
+  contactId         String?
+  issueDate         DateTime    @default(now()) @db.Date
+  currency          String      @default("NGN")
+  /// header discount in percent, applied after line discounts
+  headerDiscountPct Decimal     @default(0) @db.Decimal(5, 2)
+  subtotal          Decimal     @default(0) @db.Decimal(14, 2)
+  discountTotal     Decimal     @default(0) @db.Decimal(14, 2)
+  taxTotal          Decimal     @default(0) @db.Decimal(14, 2)
+  total             Decimal     @default(0) @db.Decimal(14, 2)
+  terms             String?
+  notes             String?
+  priceBookId       String?
+  /// the document this one was converted from (quote → order → invoice)
+  sourceDocumentId  String?
+  status            OrderStatus @default(DRAFT)
+  expectedDelivery  DateTime?   @db.Date
+
+  // ── brand-owned base mixin (brand and region are inherited from the deal) ──
+  brandId     String
+  brand       Brand     @relation(fields: [brandId], references: [id])
+  regionId    String
+  region      Region    @relation(fields: [regionId], references: [id])
+  territoryId String?
+  ownerId     String
+  owner       User      @relation("SalesOrderOwner", fields: [ownerId], references: [id])
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  lines DocumentLine[]
+
+  @@index([dealId])
+  @@index([brandId, regionId])
+  @@index([ownerId])
+}
+
+model Invoice {
+  id                String        @id @default(cuid())
+  /// {docPrefix}-{QT|SO|INV}-{YYYY}-{00001}; assigned by the DB trigger app_document_number() (gap-free per brand / type / year)
+  number            String        @unique @default("")
+  dealId            String
+  deal              Deal          @relation(fields: [dealId], references: [id])
+  accountId         String?
+  contactId         String?
+  issueDate         DateTime      @default(now()) @db.Date
+  currency          String        @default("NGN")
+  /// header discount in percent, applied after line discounts
+  headerDiscountPct Decimal       @default(0) @db.Decimal(5, 2)
+  subtotal          Decimal       @default(0) @db.Decimal(14, 2)
+  discountTotal     Decimal       @default(0) @db.Decimal(14, 2)
+  taxTotal          Decimal       @default(0) @db.Decimal(14, 2)
+  total             Decimal       @default(0) @db.Decimal(14, 2)
+  terms             String?
+  notes             String?
+  priceBookId       String?
+  /// the document this one was converted from (quote → order → invoice)
+  sourceDocumentId  String?
+  status            InvoiceStatus @default(DRAFT)
+  dueDate           DateTime?     @db.Date
+  amountPaid        Decimal       @default(0) @db.Decimal(14, 2)
+
+  // ── brand-owned base mixin (brand and region are inherited from the deal) ──
+  brandId     String
+  brand       Brand     @relation(fields: [brandId], references: [id])
+  regionId    String
+  region      Region    @relation(fields: [regionId], references: [id])
+  territoryId String?
+  ownerId     String
+  owner       User      @relation("InvoiceOwner", fields: [ownerId], references: [id])
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  lines    DocumentLine[]
+  payments Payment[]
+
+  @@index([dealId])
+  @@index([brandId, regionId])
+  @@index([ownerId])
+}
+
+/// Line of exactly one document. RLS: visible when its document is.
+model DocumentLine {
+  id           String      @id @default(cuid())
+  quoteId      String?
+  quote        Quote?      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  salesOrderId String?
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  invoiceId    String?
+  invoice      Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position     Int
+  /// must be a product of the document's brand
+  productId    String?
+  product      Product?    @relation(fields: [productId], references: [id])
+  description  String
+  qty          Decimal     @db.Decimal(12, 2)
+  unitPrice    Decimal     @db.Decimal(14, 2)
+  discountPct  Decimal     @default(0) @db.Decimal(5, 2)
+  taxRate      Decimal     @default(7.5) @db.Decimal(5, 2)
+  /// qty × unitPrice less the line discount (before header discount and tax)
+  lineTotal    Decimal     @db.Decimal(14, 2)
+  vin          String?
+
+  @@index([quoteId])
+  @@index([salesOrderId])
+  @@index([invoiceId])
+}
+
+/// Receipt against an invoice (deposit / balance). RLS: visible when the invoice is.
+model Payment {
+  id           String   @id @default(cuid())
+  invoiceId    String
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amount       Decimal  @db.Decimal(14, 2)
+  /// CASH | TRANSFER | POS | CHEQUE | FINANCE
+  method       String
+  reference    String?
+  receivedAt   DateTime @default(now())
+  receivedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+/// Gap-free document numbering: one row per brand / type / year, locked by the numbering trigger.
+model DocumentCounter {
+  brandId String
+  type    String
+  year    Int
+  last    Int    @default(0)
+
+  @@id([brandId, type, year])
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// Approval request (minimal for discount approvals; prompt 08 extends it). Brand-owned: owner = requester.
+model ApprovalRequest {
+  id           String         @id @default(cuid())
+  /// DISCOUNT (more kinds in prompt 08)
+  kind         String
+  entity       String
+  entityId     String
+  status       ApprovalStatus @default(PENDING)
+  /// 1 = Brand Manager, 2 = Head of Sales
+  level        Int            @default(1)
+  approverId   String?
+  approver     User?          @relation("ApprovalApprover", fields: [approverId], references: [id])
+  reason       String?
+  decidedAt    DateTime?
+  decisionNote String?
+
+  brandId     String
+  brand       Brand     @relation(fields: [brandId], references: [id])
+  regionId    String
+  region      Region    @relation(fields: [regionId], references: [id])
+  territoryId String?
+  ownerId     String
+  owner       User      @relation("ApprovalOwner", fields: [ownerId], references: [id])
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([entity, entityId])
+  @@index([approverId, status])
+  @@index([brandId, regionId])
+}
+
+/// Outbox of domain events (e.g. document.confirmed) for integrations (prompt 13). Written by the system only.
+model DomainEvent {
+  id          String    @id @default(cuid())
+  name        String
+  brandId     String?
+  payload     Json
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([processedAt, createdAt])
 }
