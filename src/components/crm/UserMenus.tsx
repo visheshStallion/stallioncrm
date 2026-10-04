@@ -1,0 +1,137 @@
+"use client";
+
+import { Bell, Calendar, LogOut, Settings } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { toastResult } from "@/components/Toaster";
+import { cn } from "@/lib/utils";
+import { setPreferenceAction } from "@/server/modules/preferences/actions";
+import type { Preferences } from "@/server/modules/preferences/schema";
+import { DropdownMenu } from "./overlays";
+import { Avatar } from "./primitives";
+
+const iconBtn = "flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-muted hover:text-text";
+
+/** Notifications bell with counter (the feed arrives with prompt 14). */
+export function NotificationsBell({ count }: { count: number }) {
+  return (
+    <DropdownMenu
+      label="Notifications"
+      trigger={({ toggle, open, id }) => (
+        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={id} aria-label={`Notifications (${count})`} className={cn(iconBtn, "relative")}>
+          <Bell className="h-4 w-4" />
+          {count > 0 ? (
+            <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-danger px-1 text-[10px] font-semibold text-white">{count > 99 ? "99+" : count}</span>
+          ) : null}
+        </button>
+      )}
+    >
+      <p className="px-3 py-4 text-center text-sm text-text-muted">You&apos;re all caught up.</p>
+    </DropdownMenu>
+  );
+}
+
+export function CalendarShortcut() {
+  return (
+    <Link href="/activities?view=calendar" className={iconBtn} aria-label="Calendar" title="Calendar">
+      <Calendar className="h-4 w-4" />
+    </Link>
+  );
+}
+
+export function SetupGear() {
+  return (
+    <Link href="/admin" className={iconBtn} aria-label="Setup" title="Setup" data-testid="setup-gear">
+      <Settings className="h-4 w-4" />
+    </Link>
+  );
+}
+
+/** Avatar menu: profile, preferences (theme, density, date format), sign out. */
+export function AvatarMenu({
+  user,
+  prefs,
+  logout,
+}: {
+  user: { name: string; email: string; roleName: string; profileName: string };
+  prefs: Pick<Preferences, "theme" | "density" | "dateFormat">;
+  logout: () => Promise<void>;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const set = (key: string, value: string) =>
+    start(async () => {
+      const res = await setPreferenceAction(key, value);
+      toastResult(res);
+      router.refresh();
+    });
+  const seg = (key: keyof typeof prefs, options: Array<[string, string]>) => (
+    <div className="flex rounded-md border border-border p-0.5" role="radiogroup" aria-label={key}>
+      {options.map(([value, label]) => (
+        <button
+          key={value}
+          type="button"
+          role="radio"
+          aria-checked={prefs[key] === value}
+          disabled={pending}
+          onClick={() => set(key, value)}
+          className={cn("flex-1 rounded px-2 py-1 text-xs", prefs[key] === value ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <DropdownMenu
+      label="Account"
+      className="w-72"
+      trigger={({ toggle, open, id }) => (
+        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={id} aria-label="Account menu" className="flex items-center gap-2 rounded-md px-1 py-0.5 hover:bg-muted" data-testid="avatar-menu">
+          <Avatar name={user.name} size={28} />
+          <span className="hidden text-left leading-tight lg:block">
+            <span className="block text-[13px] font-medium" data-testid="current-user">
+              {user.name}
+            </span>
+            <span className="block text-[11px] text-text-muted">{user.roleName}</span>
+          </span>
+        </button>
+      )}
+    >
+      <div className="flex items-center gap-3 border-b border-border px-3 pb-3 pt-2">
+        <Avatar name={user.name} size={36} />
+        <div className="min-w-0">
+          <div className="truncate font-semibold">{user.name}</div>
+          <div className="truncate text-xs text-text-muted">{user.email}</div>
+          <div className="text-xs text-text-muted">{user.profileName} profile</div>
+        </div>
+      </div>
+      <div className="space-y-2 px-3 py-3">
+        <div className="text-[11px] font-semibold uppercase text-text-muted">Theme</div>
+        {seg("theme", [
+          ["light", "Light"],
+          ["dark", "Dark"],
+          ["system", "System"],
+        ])}
+        <div className="text-[11px] font-semibold uppercase text-text-muted">Density</div>
+        {seg("density", [
+          ["comfortable", "Comfortable"],
+          ["compact", "Compact"],
+        ])}
+        <div className="text-[11px] font-semibold uppercase text-text-muted">Date format</div>
+        {seg("dateFormat", [
+          ["DD/MM/YYYY", "DD/MM"],
+          ["MM/DD/YYYY", "MM/DD"],
+          ["YYYY-MM-DD", "ISO"],
+        ])}
+      </div>
+      <form action={logout} className="border-t border-border p-1">
+        <button type="submit" role="menuitem" className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left hover:bg-muted" aria-label="Sign out">
+          <LogOut className="h-4 w-4" /> Sign out
+        </button>
+      </form>
+    </DropdownMenu>
+  );
+}

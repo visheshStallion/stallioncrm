@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toastResult } from "@/components/Toaster";
 import { Select } from "@/components/ui/select";
-import { setFiltersAction } from "./actions";
+import { setFiltersAction } from "@/app/(crm)/actions";
 
 interface Option {
   id: string;
@@ -12,7 +12,7 @@ interface Option {
 }
 
 /** Brand switcher + region filter. Only lists the user's own brands/regions; narrows, never widens. */
-export function FilterBar({
+export function BrandSwitcher({
   brands,
   regions,
   brandId,
@@ -38,6 +38,7 @@ export function FilterBar({
       <Select
         aria-label="Brand"
         data-testid="brand-switcher"
+        className="h-8 max-w-[200px] text-[13px]"
         value={brandId ?? ""}
         onChange={(e) => update({ brandId: e.target.value || null, regionId })}
       >
@@ -51,6 +52,7 @@ export function FilterBar({
       <Select
         aria-label="Region"
         data-testid="region-filter"
+        className="h-8 max-w-[160px] text-[13px]"
         value={regionId ?? ""}
         onChange={(e) => update({ brandId, regionId: e.target.value || null })}
       >
