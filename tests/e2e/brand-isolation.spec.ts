@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { email } from "../../prisma/seed-data";
-import { login } from "./helpers";
+import { login, signOut } from "./helpers";
 
 async function badgeTexts(page: Page) {
   return [...new Set(await page.getByTestId("data-row").getByTestId("brand-badge").allInnerTexts())]
@@ -26,13 +26,13 @@ test("wrong password is rejected", async ({ page }) => {
 test("HMNL Lagos exec sees only HMNL deals; brand switcher lists only HMNL", async ({ page }) => {
   await login(page, "exec.hmnl.1");
   await page.goto("/deals");
-  await expect(page.getByTestId("deal-total")).toHaveText("5 deal(s) in your scope");
+  await expect(page.getByTestId("total-records")).toHaveText("5");
   expect(await badgeTexts(page)).toEqual(["HMNL"]);
 
   const options = await page.getByTestId("brand-switcher").locator("option").allInnerTexts();
   expect(options).toEqual(["All my brands", "HMNL – Hyundai"]);
   // Setup is not in the nav for a sales exec.
-  await expect(page.getByTestId("module-nav")).not.toContainText("Setup");
+  await expect(page.getByTestId("setup-gear")).toHaveCount(0);
 });
 
 test("HMNL exec cannot open an SNMNL deal (404) via UI or API, nor find it by search", async ({ page }) => {
@@ -42,8 +42,7 @@ test("HMNL exec cannot open an SNMNL deal (404) via UI or API, nor find it by se
   expect(href).toMatch(/^\/deals\//);
   const dealId = href!.split("/").pop()!;
 
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByText("Sign in to continue")).toBeVisible();
+  await signOut(page);
   await expect
     .poll(async () => (await page.context().cookies()).some((c) => c.name.includes("session-token")))
     .toBe(false);
@@ -62,8 +61,8 @@ test("HMNL exec cannot open an SNMNL deal (404) via UI or API, nor find it by se
 
 test("Abuja exec sees all brands, Abuja only", async ({ page }) => {
   await login(page, "exec.abuja");
-  await page.goto("/deals");
-  await expect(page.getByTestId("deal-total")).toHaveText("25 deal(s) in your scope");
+  await page.goto("/deals?per=50");
+  await expect(page.getByTestId("total-records")).toHaveText("25");
   expect(await badgeTexts(page)).toEqual(["HMNL", "SMGL", "SNMNL", "THPL", "ZANL"]);
   const regions = [...new Set(await page.getByTestId("data-row").getByTestId("region-badge").allInnerTexts())];
   expect(regions.map((r) => r.trim())).toEqual(["Abuja"]);
@@ -72,11 +71,11 @@ test("Abuja exec sees all brands, Abuja only", async ({ page }) => {
 test("brand switcher narrows results (MD, filter to ZANL)", async ({ page }) => {
   await login(page, "md");
   await page.goto("/deals");
-  await expect(page.getByTestId("deal-total")).toHaveText("100 deal(s) in your scope");
+  await expect(page.getByTestId("total-records")).toHaveText("100");
   await page.getByTestId("brand-switcher").selectOption({ label: "ZANL – ZANL" });
-  await expect(page.getByTestId("deal-total")).toHaveText("20 deal(s) in your scope");
+  await expect(page.getByTestId("total-records")).toHaveText("20");
   await page.getByTestId("brand-switcher").selectOption({ label: "All my brands" });
-  await expect(page.getByTestId("deal-total")).toHaveText("100 deal(s) in your scope");
+  await expect(page.getByTestId("total-records")).toHaveText("100");
 });
 
 test("sales exec gets 403 on a module their profile cannot read", async ({ page }) => {

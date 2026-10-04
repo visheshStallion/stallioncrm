@@ -17,7 +17,7 @@ const ADMIN_APIS = ["/api/v1/admin/brands", "/api/v1/admin/users", "/api/v1/admi
 for (const key of ["md", "exec.hmnl.1"]) {
   test(`non-admin (${key}) gets 404 on every /admin route and API`, async ({ page }) => {
     await login(page, key);
-    await expect(page.getByTestId("module-nav")).not.toContainText("Admin");
+    await expect(page.getByTestId("setup-gear")).toHaveCount(0);
     for (const path of ADMIN_PAGES) {
       const res = await page.goto(path);
       expect(res?.status(), path).toBe(404);
@@ -31,7 +31,8 @@ for (const key of ["md", "exec.hmnl.1"]) {
 
 test("administrator can open admin screens", async ({ page }) => {
   await login(page, "admin");
-  await page.getByTestId("module-nav").getByRole("link", { name: "Admin" }).click();
+  await page.getByTestId("setup-gear").click();
+  await expect(page.getByTestId("setup-landing")).toBeVisible();
   await page.goto("/admin/brands");
   await expect(page.getByTestId("brand-row")).toHaveCount(10);
   await page.goto("/admin/territories");

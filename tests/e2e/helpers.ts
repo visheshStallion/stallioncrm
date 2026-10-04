@@ -8,3 +8,9 @@ export async function login(page: Page, key: string) {
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByTestId("current-user")).toBeVisible();
 }
+
+export async function signOut(page: Page) {
+  await page.getByTestId("avatar-menu").click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
+  await expect(page.getByText("Sign in to continue")).toBeVisible();
+}

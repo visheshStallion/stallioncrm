@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { login } from "./helpers";
+import { login, signOut } from "./helpers";
 
 const stamp = Date.now().toString(36);
 
@@ -35,8 +35,7 @@ test("web-to-lead → round-robin assignment → conversion; other brands cannot
 
   // 4. An HMNL Lagos exec cannot open the Abuja lead (404 UI + API)
   const leadId = leadUrl.split("/").pop()!;
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByText("Sign in to continue")).toBeVisible();
+  await signOut(page);
   await login(page, "exec.hmnl.1");
   const res = await page.goto(`/leads/${leadId}`);
   expect(res?.status()).toBe(404);
@@ -46,14 +45,18 @@ test("web-to-lead → round-robin assignment → conversion; other brands cannot
 test("lead list: views, kanban and permission-aware actions", async ({ page }) => {
   await login(page, "exec.hmnl.1");
   await page.goto("/leads");
-  await expect(page.getByTestId("lead-views")).toContainText("My open leads");
-  await expect(page.getByTestId("lead-views")).toContainText("Hot leads this week");
+  await page.getByTestId("view-selector").click();
+  await expect(page.getByTestId("view-menu")).toContainText("My Open Leads");
+  await expect(page.getByTestId("view-menu")).toContainText("Hot Leads This Week");
+  await page.keyboard.press("Escape");
   const badges = await page.getByTestId("data-row").getByTestId("brand-badge").allInnerTexts();
   expect(new Set(badges.map((b) => b.trim()))).toEqual(new Set(["HMNL"]));
   // Sales Exec has no export / mass update
-  await expect(page.getByRole("link", { name: "Export" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Actions" }).click();
+  await expect(page.getByRole("menuitem", { name: /Export/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await page.goto("/leads?layout=kanban");
-  await expect(page.getByTestId("kanban-column").filter({ hasText: "Contacted" })).toBeVisible();
+  await expect(page.getByRole("listitem", { name: "Contacted", exact: true })).toBeVisible();
   // Export forbidden via API too
   expect((await page.request.get("/api/v1/leads/export")).status()).toBe(403);
 });
