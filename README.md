@@ -6,6 +6,7 @@ entitled to – via UI, search, reports, exports, related lists or the API.
 
 - Business rules: [`docs/BUSINESS_CONTEXT.md`](docs/BUSINESS_CONTEXT.md)
 - How it is enforced and how to add a module: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Administering brands, territories, profiles and users: [`docs/ADMIN_GUIDE.md`](docs/ADMIN_GUIDE.md)
 - Decision record: [`docs/adr/0001-brand-isolation.md`](docs/adr/0001-brand-isolation.md)
 
 > **Public repository.** Never commit real employee or customer data. Seed data is fictitious; real users are
@@ -36,7 +37,7 @@ role `stallion_rls` used for Row-Level Security). The default `postgres` user is
 | Email | Role | Sees |
 |---|---|---|
 | `md@stallioncrm.test` | Managing Director | everything |
-| `admin@stallioncrm.test` | CRM Administrator | everything + setup |
+| `admin@stallioncrm.test` | CRM Administrator | everything + `/admin` |
 | `bm.hmnl@stallioncrm.test` | Brand Manager HMNL | HMNL, all regions |
 | `exec.hmnl.1@stallioncrm.test` | Lagos Sales Exec | HMNL – Lagos |
 | `exec.multi.1@stallioncrm.test` | Lagos Sales Exec (multi-brand) | HMNL + SNMNL – Lagos |

@@ -75,6 +75,7 @@ A Prisma client extension over **every** operation:
 | findMany/First, count, aggregate, groupBy, updateMany, deleteMany | `where = AND(where, scope, deletedAt: null)` |
 | findUnique(OrThrow), update, delete, upsert | scope appended to the unique `where` (`AND`) |
 | create / createMany / upsert.create | brandId + regionId mandatory scalars, must pass `canWriteTo`; `territoryId = resolveTerritory()`; `createdById/updatedById` stamped |
+| any write to a record of an INACTIVE brand, or create in one | rejected (bulk writes skip such records) |
 | update moving brandId / regionId | re-validated; **brand change requires scope ALL** (others → brand-change approval, prompt 08); territory re-resolved |
 | updateMany touching brand/region | rejected |
 | include / select / `_count` of list relations to brand-owned models (any depth) | scope injected into the relation `where` |
@@ -157,6 +158,15 @@ and anything security-relevant. Secrets (`passwordHash`, `password`, `token`, `s
    * an E2E isolation case in `tests/e2e/`.
 10. **Docs**: update `BUSINESS_CONTEXT.md` first if a rule changes, then this file.
 
-## 8. Local development
+## 8. Administration (prompt 01)
+`src/server/modules/admin` – every service starts with `assertAdmin(ctx)` (`admin.edit` permission; others get
+**404**), writes through `scopedDb` and calls `audit()` explicitly (admin tables are not brand-owned). Two
+narrow system queries support it: `moveTerritoryRecords` (includes soft-deleted rows) and `queryAuditLog` (the RLS role
+cannot read `AuditLog`). Role → territory rules live in `src/server/access/quick-assign.ts` (pure; used by the UI
+helper and the CSV import). The access context is rebuilt on every request, so membership / profile changes apply on
+the next request. User guide: [ADMIN_GUIDE.md](ADMIN_GUIDE.md).
+
+## 9. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
-PostgreSQL 16 automatically (no Docker needed). E2E uses `E2E_DATABASE_URL` or an embedded database likewise.
+PostgreSQL 16 automatically (no Docker needed). The seeded database is a **template**: every integration test file
+runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.
