@@ -1,13 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { SEED_PASSWORD, email } from "../../prisma/seed-data";
-
-async function login(page: Page, key: string) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email(key));
-  await page.getByLabel("Password").fill(SEED_PASSWORD);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByTestId("current-user")).toBeVisible();
-}
+import { email } from "../../prisma/seed-data";
+import { login } from "./helpers";
 
 async function badgeTexts(page: Page) {
   return [...new Set(await page.getByTestId("data-row").getByTestId("brand-badge").allInnerTexts())]
@@ -86,8 +79,8 @@ test("brand switcher narrows results (MD, filter to ZANL)", async ({ page }) => 
   await expect(page.getByTestId("deal-total")).toHaveText("100 deal(s) in your scope");
 });
 
-test("sales exec gets 403 on setup", async ({ page }) => {
+test("sales exec gets 403 on a module their profile cannot read", async ({ page }) => {
   await login(page, "exec.hmnl.1");
-  await page.goto("/setup");
+  await page.goto("/campaigns");
   await expect(page.getByText("Access denied")).toBeVisible();
 });

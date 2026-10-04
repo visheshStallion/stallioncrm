@@ -21,9 +21,9 @@ describe("can – permission matrix (BUSINESS_CONTEXT §7)", () => {
     }
   });
 
-  it("only the administrator has setup", () => {
-    expect(can(CTX.admin, "setup", "edit")).toBe(true);
-    for (const ctx of [CTX.md, CTX.bmHmnl, CTX.rsm, CTX.lagosHmnl]) expect(can(ctx, "setup", "read")).toBe(false);
+  it("only the administrator has admin", () => {
+    expect(can(CTX.admin, "admin", "edit")).toBe(true);
+    for (const ctx of [CTX.md, CTX.bmHmnl, CTX.rsm, CTX.lagosHmnl]) expect(can(ctx, "admin", "read")).toBe(false);
     expect(CTX.admin.isAdmin).toBe(true);
     expect(CTX.md.isAdmin).toBe(false);
   });
