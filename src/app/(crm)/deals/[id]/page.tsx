@@ -24,6 +24,9 @@ import { listAttachments, listNotes } from "@/server/modules/notes/service";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
 import { requireContext } from "@/server/request";
+import { CreateQuoteButton } from "../../_documents/DocActions";
+import { DOCS } from "@/server/modules/documents/config";
+import { dealDocuments } from "@/server/modules/documents/queries";
 import { BlueprintButtons } from "../Blueprint";
 
 const PAYMENT: Record<string, string> = { CASH: "Cash", BANK_FINANCE: "Bank finance", LEASE: "Lease", FLEET: "Fleet" };
@@ -38,7 +41,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
     throw e;
   });
   const current = tab === "timeline" ? "timeline" : "overview";
-  const [dir, prefs, pipeline, lookups, notes, attachments, users, stock] = await Promise.all([
+  const [dir, prefs, pipeline, lookups, notes, attachments, users, stock, documents] = await Promise.all([
     getDirectory(ctx),
     getPreferences(ctx),
     getPipeline(ctx, deal.pipelineId),
@@ -50,6 +53,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
     hasPermission(ctx, "products", "read")
       ? listStock(ctx, { OR: [{ dealId: id }, { brandId: deal.brandId, status: { in: ["IN_STOCK", "IN_TRANSIT"] }, ...(deal.modelId ? { productId: deal.modelId } : {}) }] })
       : Promise.resolve([]),
+    dealDocuments(ctx, id),
   ]);
   const reserved = stock.filter((s) => s.dealId === id);
   const available = stock.filter((s) => s.dealId !== id);
@@ -100,12 +104,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
         nav={<RecordNav module="deals" id={deal.id} basePath="/deals" />}
         actions={
           <>
-            <Button variant="outline" disabled title="Quotes arrive with prompt 06">
-              Create Quote
-            </Button>
-            <Button variant="outline" disabled title="Sales orders arrive with prompt 06">
-              Create Sales Order
-            </Button>
+            {deal.stageType === "OPEN" && can(ctx, "quotes", "create", deal) && brand?.status !== "INACTIVE" ? <CreateQuoteButton dealId={deal.id} /> : null}
             {canEdit ? (
               <Button asChild>
                 <Link href={`/deals/${deal.id}/edit`} data-shortcut="edit">
@@ -247,7 +246,22 @@ export default async function DealPage({ params, searchParams }: { params: Promi
             <NotesCard entity="Deal" entityId={deal.id} path={`/deals/${deal.id}`} notes={notes} canEdit={canEdit} dateFormat={df} />
             <AttachmentsCard entity="Deal" entityId={deal.id} path={`/deals/${deal.id}`} attachments={attachments} canEdit={canEdit} dateFormat={df} />
             <RelatedListCard id="open-activities" title="Activities" empty="Activities arrive with prompt 07." />
-            <RelatedListCard id="quotes" title="Quotes / Sales Orders" empty="Quotes and sales orders arrive with prompt 06." />
+            <RelatedListCard id="quotes" title="Quotes / Sales Orders / Invoices" count={documents.length} empty="No documents yet – use Create Quote. A sales order is created from an accepted quote, an invoice from a confirmed order.">
+              {documents.length ? (
+                <ul className="divide-y divide-border" data-testid="deal-documents">
+                  {documents.map((d) => (
+                    <li key={`${d.type}:${d.id}`} className="flex items-center gap-3 py-1.5">
+                      <span className="w-24 text-xs text-text-muted">{DOCS[d.type].label}</span>
+                      <Link href={`${DOCS[d.type].path}/${d.id}`} className="flex-1 font-medium text-primary hover:underline">
+                        {d.number}
+                      </Link>
+                      <StatusPill>{DOCS[d.type].statuses[d.status]}</StatusPill>
+                      <span className="w-36 text-right tabular-nums">{formatMoney(d.total)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : undefined}
+            </RelatedListCard>
           </div>
         </div>
       )}

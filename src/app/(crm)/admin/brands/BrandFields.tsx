@@ -12,6 +12,11 @@ export interface BrandFormValues {
   logoUrl?: string | null;
   status?: string;
   brandManagerId?: string | null;
+  address?: string | null;
+  bankDetails?: string | null;
+  documentTerms?: string | null;
+  discountApprovalPct?: unknown;
+  discountEscalationPct?: unknown;
 }
 
 /** Shared brand form fields (create + edit). */
@@ -73,6 +78,26 @@ export function BrandFields({
       <div className="space-y-1">
         <Label htmlFor="logoUrl">Logo URL (optional)</Label>
         <Input id="logoUrl" name="logoUrl" defaultValue={values.logoUrl ?? ""} placeholder="https://…" />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="discountApprovalPct">Discount needing Brand Manager approval (above %)</Label>
+        <Input id="discountApprovalPct" name="discountApprovalPct" type="number" min={0} max={100} step="0.01" defaultValue={String(values.discountApprovalPct ?? 3)} />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="discountEscalationPct">Discount needing Head of Sales approval (above %)</Label>
+        <Input id="discountEscalationPct" name="discountEscalationPct" type="number" min={0} max={100} step="0.01" defaultValue={String(values.discountEscalationPct ?? 7)} />
+      </div>
+      <div className="space-y-1 sm:col-span-3">
+        <Label htmlFor="address">Address (printed on quotes, orders and invoices)</Label>
+        <Input id="address" name="address" defaultValue={values.address ?? ""} />
+      </div>
+      <div className="space-y-1 sm:col-span-3">
+        <Label htmlFor="bankDetails">Bank details (printed on documents)</Label>
+        <Input id="bankDetails" name="bankDetails" defaultValue={values.bankDetails ?? ""} />
+      </div>
+      <div className="space-y-1 sm:col-span-3">
+        <Label htmlFor="documentTerms">Default terms &amp; conditions</Label>
+        <textarea id="documentTerms" name="documentTerms" defaultValue={values.documentTerms ?? ""} className="h-20 w-full rounded-md border border-border bg-background p-2 text-sm" />
       </div>
     </div>
   );
