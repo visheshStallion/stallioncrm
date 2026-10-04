@@ -1,10 +1,11 @@
 /** Route-handler factories shared by /api/v1/quotes, /salesOrders and /invoices. */
 import "server-only";
 import { apiHandler } from "@/server/api";
+import { fieldMask, fieldMaskMany } from "@/server/access/field-mask";
 import { BadRequestError } from "@/server/errors";
-import { parsePaging } from "@/server/list/filters";
+import { listMeta, parseApiPaging } from "@/server/modules/api/paging";
 import { requireApiContext } from "@/server/request";
-import type { DocType } from "./config";
+import { DOCS, type DocType } from "./config";
 import { documentPdfModel, renderDocumentPdf } from "./pdf";
 import { getDocument, listDocuments } from "./queries";
 import { createQuoteFromDeal, expireQuotes, saveDocument } from "./service";
@@ -17,10 +18,10 @@ export function listHandlers(type: DocType) {
     GET: apiHandler(async (req) => {
       const ctx = await requireApiContext();
       const sp = Object.fromEntries(new URL(req.url).searchParams);
-      const paging = parsePaging(sp);
+      const paging = parseApiPaging(sp);
       if (type === "quote") await expireQuotes(ctx);
       const { rows, total } = await listDocuments(ctx, type, { brandId: sp.brandId, regionId: sp.regionId }, { q: sp.q, status: sp.status, dealId: sp.dealId, take: paging.per, skip: paging.skip });
-      return Response.json({ data: rows, meta: { total, page: paging.page, per: paging.per } });
+      return Response.json({ data: fieldMaskMany(ctx, DOCS[type].module, rows), meta: listMeta(total, paging) });
     }),
     /** POST { dealId } – new draft quote for a deal (orders and invoices are created by conversion). */
     POST: apiHandler(async (req) => {
@@ -29,7 +30,7 @@ export function listHandlers(type: DocType) {
       const { dealId } = (await req.json()) as { dealId?: string };
       if (!dealId) throw new BadRequestError("dealId is required");
       const quote = await createQuoteFromDeal(ctx, dealId);
-      return Response.json({ data: await getDocument(ctx, type, quote.id) }, { status: 201 });
+      return Response.json({ data: fieldMask(ctx, DOCS[type].module, await getDocument(ctx, type, quote.id)) }, { status: 201 });
     }),
   };
 }
@@ -39,14 +40,14 @@ export function itemHandlers(type: DocType) {
     /** 404 for missing AND out-of-scope documents. */
     GET: apiHandler<Params>(async (_req, { params }) => {
       const ctx = await requireApiContext();
-      return Response.json({ data: await getDocument(ctx, type, (await params).id) });
+      return Response.json({ data: fieldMask(ctx, DOCS[type].module, await getDocument(ctx, type, (await params).id)) });
     }),
     /** PATCH { lines, headerDiscountPct, date, terms, notes } – draft documents only; totals are computed server-side. */
     PATCH: apiHandler<Params>(async (req, { params }) => {
       const ctx = await requireApiContext();
       const { id } = await params;
       await saveDocument(ctx, type, id, await req.json());
-      return Response.json({ data: await getDocument(ctx, type, id) });
+      return Response.json({ data: fieldMask(ctx, DOCS[type].module, await getDocument(ctx, type, id)) });
     }),
   };
 }

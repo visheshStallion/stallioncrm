@@ -6,3 +6,12 @@ export class BadRequestError extends Error {
     this.name = "BadRequestError";
   }
 }
+
+/** Too many requests for an API token / client. → HTTP 429 with Retry-After */
+export class RateLimitError extends Error {
+  readonly code = "RATE_LIMITED";
+  constructor(readonly retryAfterSec: number) {
+    super("Too many requests – slow down");
+    this.name = "RateLimitError";
+  }
+}

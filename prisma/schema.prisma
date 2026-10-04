@@ -186,6 +186,8 @@ model User {
   profileId    String
   profile      Profile  @relation(fields: [profileId], references: [id])
   active       Boolean  @default(true)
+  /// integration principal (API / webhooks): cannot sign in interactively
+  isIntegration Boolean @default(false)
   managerId    String?
   manager      User?    @relation("UserManager", fields: [managerId], references: [id])
   reports      User[]   @relation("UserManager")
@@ -1919,4 +1921,140 @@ model ExportJob {
   finishedAt DateTime?
 
   @@index([userId, createdAt])
+}
+
+// ───────────────────────── API tokens, webhooks & integrations (prompt 13) ─────────────────────────
+// All of these are system tables: the RLS role has no access, the services in src/server/modules/api and
+// src/server/integrations reach them through src/server/db/api-store.ts.
+
+/// Bearer token for /api/v1. Bound to a user (personal token) or an integration principal (a user flagged
+/// isIntegration with its own profile + territories). Only the SHA-256 hash is stored.
+model ApiToken {
+  id          String    @id @default(cuid())
+  name        String
+  /// PERSONAL | INTEGRATION | OAUTH (issued by the client-credentials grant, short-lived)
+  kind        String    @default("PERSONAL")
+  /// first characters of the token, shown in lists so a token can be recognised
+  prefix      String
+  tokenHash   String    @unique
+  userId      String
+  /// optional narrowing to these brands (never widens what the user may see)
+  brandIds    String[]  @default([])
+  /// requests per minute
+  rateLimit   Int       @default(120)
+  clientId    String?
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// OAuth2 client (client-credentials grant) of an integration principal.
+model OAuthClient {
+  id          String   @id @default(cuid())
+  name        String
+  clientId    String   @unique
+  secretHash  String
+  /// the integration principal the issued tokens act as
+  userId      String
+  brandIds    String[] @default([])
+  rateLimit   Int      @default(300)
+  active      Boolean  @default(true)
+  createdById String?
+  createdAt   DateTime @default(now())
+}
+
+/// Replay protection for POST requests carrying an Idempotency-Key (per token).
+model IdempotencyKey {
+  id          String   @id @default(cuid())
+  /// token id
+  scope       String
+  key         String
+  requestHash String
+  status      Int
+  body        Json
+  createdAt   DateTime @default(now())
+
+  @@unique([scope, key])
+  @@index([createdAt])
+}
+
+/// Outbound webhook subscription. Payloads are built with the access of `userId` (the principal), so they
+/// contain only the records and fields that principal may see.
+model WebhookSubscription {
+  id          String   @id @default(cuid())
+  name        String
+  url         String
+  /// HMAC-SHA256 signing secret (shown once on creation)
+  secret      String
+  events      String[]
+  /// empty = every brand the principal can see
+  brandIds    String[] @default([])
+  userId      String
+  active      Boolean  @default(true)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deliveries WebhookDelivery[]
+}
+
+model WebhookDelivery {
+  id             String              @id @default(cuid())
+  subscriptionId String
+  subscription   WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  event          String
+  entity         String
+  entityId       String
+  brandId        String?
+  /// PENDING | DELIVERED | FAILED | SKIPPED (record not visible to the principal)
+  status         String              @default("PENDING")
+  attempts       Int                 @default(0)
+  responseStatus Int?
+  error          String?
+  createdAt      DateTime            @default(now())
+  deliveredAt    DateTime?
+
+  @@index([subscriptionId, createdAt])
+}
+
+/// Id of a CRM record in an external system (ERP company of the brand's legal entity, OEM portal …).
+model ExternalRef {
+  id          String   @id @default(cuid())
+  /// erp:business-central | erp:zoho-books | erp:csv | oem:<code>
+  system      String
+  entity      String
+  entityId    String
+  brandId     String
+  /// the ERP company (Brand.erpCompanyCode) the document was posted to
+  companyCode String?
+  externalId  String
+  status      String   @default("POSTED")
+  data        Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([system, entity, entityId])
+  @@index([system, externalId])
+}
+
+/// Online payment link (Paystack / Flutterwave) for an invoice or booking deposit.
+model PaymentLink {
+  id          String    @id @default(cuid())
+  invoiceId   String
+  brandId     String
+  provider    String
+  reference   String    @unique
+  amount      Decimal   @db.Decimal(14, 2)
+  url         String
+  /// PENDING | PAID | FAILED
+  status      String    @default("PENDING")
+  createdById String?
+  createdAt   DateTime  @default(now())
+  paidAt      DateTime?
+
+  @@index([invoiceId])
 }

@@ -72,6 +72,10 @@ export const SETUP_CATEGORIES: SetupCategory[] = [
     key: "developer",
     title: "Developer Space",
     description: "API keys and webhooks",
-    items: [{ href: "/admin/api", label: "API & webhooks", available: false }],
+    items: [
+      { href: "/admin/api", label: "API & integrations", available: true },
+      { href: "/admin/webhooks", label: "Webhooks", available: true },
+      { href: "/tokens", label: "My API tokens", available: true },
+    ],
   },
 ];

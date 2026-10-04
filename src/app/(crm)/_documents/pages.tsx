@@ -4,6 +4,7 @@ import { BrandBadge } from "@/components/BrandBadge";
 import { ModuleListFrame, Pagination, ViewSelector } from "@/components/crm/ListPage";
 import { ApprovalBanner, EmptyState, StatusPill, type Tone } from "@/components/crm/primitives";
 import { Field, FieldSection, RecordHeader, RelatedListCard } from "@/components/crm/record";
+import { PaymentLinks } from "@/components/crm/PaymentLinks";
 import { RegionBadge } from "@/components/RegionBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -334,6 +335,7 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
                 {doc.payments.length === 0 ? <li className="py-1 text-text-muted">No payments recorded.</li> : null}
               </ul>
               {canEdit && ["ISSUED", "PART_PAID"].includes(doc.status) ? <PaymentForm invoiceId={doc.id} balance={Math.round(balance * 100) / 100} /> : null}
+              <PaymentLinks ctx={ctx} invoiceId={doc.id} brandId={doc.brandId} canCreate={canEdit && ["ISSUED", "PART_PAID"].includes(doc.status)} balance={Math.round(balance * 100) / 100} />
             </div>
           </RelatedListCard>
         ) : null}

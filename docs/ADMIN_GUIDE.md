@@ -285,3 +285,21 @@ standard stages and stages that contain deals cannot be removed).
 - **Layouts**: one default per module plus optional brand variants. Notation, one item per line –
   sections `Title: cf_a, cf_b`; rules `REQUIRE cf_financeBank WHEN paymentType eq FINANCE`
   (actions SHOW, HIDE, REQUIRE; operators eq, neq, in, isEmpty, notEmpty, gt, lt).
+
+## API, webhooks & integrations (Setup → Developer Space)
+
+See [API.md](API.md) for the integrator's view.
+
+- **Integration principals**: create one per external system and per purpose, with the narrowest profile and
+  only the brands it needs (e.g. "ERP connector HMNL" → HMNL). A principal cannot sign in; deactivate it under
+  Users to cut an integration off at once.
+- **Tokens**: the token is shown once – store it in the other system's secret store. Give tokens an expiry,
+  revoke unused ones (the list shows "last used"). Users manage their own tokens under avatar → My API tokens;
+  administrators see and can revoke all of them.
+- **OAuth clients**: for systems that support the client-credentials grant; disabling a client revokes its tokens.
+- **Webhooks**: choose the principal deliberately – it decides which records and fields leave the CRM. Use the
+  brand filter for brand-specific receivers. Watch the delivery log; "Skipped" means the principal may not see
+  the record.
+- **ERP**: set each brand's ERP company code (Setup → Brands) before switching the adapter on. Failed postings
+  are in the automation run log (job type `erp.post`) and can be retried there.
+- **Payments**: keys are per brand (`PAYSTACK_SECRET_KEY_<BRAND>`); a brand without a key has no payment-link button.

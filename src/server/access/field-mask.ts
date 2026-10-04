@@ -32,14 +32,14 @@ export function maskValue(field: string, value: unknown): unknown {
  * Applies field-level permissions to a record (shallow): hidden fields are removed, masked fields
  * are partially obscured. Returns a new object; the input is not mutated.
  */
-export function fieldMask<T extends Record<string, unknown>>(
+export function fieldMask<T extends object>(
   ctx: AccessContext,
   module: ModuleKey,
   record: T,
 ): Partial<T> {
   const rules = ctx.profile.fieldPermissions[module];
   if (!rules) return { ...record };
-  const out: Record<string, unknown> = { ...record };
+  const out: Record<string, unknown> = { ...(record as Record<string, unknown>) };
   for (const [field, level] of Object.entries(rules)) {
     if (!(field in out)) continue;
     if (level === "hidden") delete out[field];
@@ -48,7 +48,7 @@ export function fieldMask<T extends Record<string, unknown>>(
   return out as Partial<T>;
 }
 
-export function fieldMaskMany<T extends Record<string, unknown>>(
+export function fieldMaskMany<T extends object>(
   ctx: AccessContext,
   module: ModuleKey,
   records: T[],

@@ -52,6 +52,8 @@ export interface AccessContext {
    * audit entries have no user. Its memberships still bound what it can create.
    */
   system?: boolean;
+  /** Set when the request was authenticated with an API token (prompt 13); used for idempotency keys. */
+  tokenId?: string;
   /** Workflow automation context: its writes do not trigger workflow rules again (no cascades). */
   automation?: boolean;
 }

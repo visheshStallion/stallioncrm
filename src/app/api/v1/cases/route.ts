@@ -1,5 +1,6 @@
 import { apiHandler } from "@/server/api";
-import { parsePaging } from "@/server/list/filters";
+import { fieldMask, fieldMaskMany } from "@/server/access/field-mask";
+import { listMeta, parseApiPaging } from "@/server/modules/api/paging";
 import { listCases } from "@/server/modules/cases/queries";
 import { createCase } from "@/server/modules/cases/service";
 import { requireApiContext } from "@/server/request";
@@ -8,13 +9,13 @@ import { requireApiContext } from "@/server/request";
 export const GET = apiHandler(async (req) => {
   const ctx = await requireApiContext();
   const sp = Object.fromEntries(new URL(req.url).searchParams);
-  const paging = parsePaging(sp);
+  const paging = parseApiPaging(sp);
   const { rows, total } = await listCases(ctx, { queue: sp.queue ?? "all", q: sp.q, type: sp.type, dealId: sp.dealId, accountId: sp.accountId }, { brandId: sp.brandId, regionId: sp.regionId }, { take: paging.per, skip: paging.skip });
-  return Response.json({ data: rows, meta: { total, page: paging.page, per: paging.per } });
+  return Response.json({ data: fieldMaskMany(ctx, "cases", rows), meta: listMeta(total, paging) });
 });
 
 /** POST /api/v1/cases – with dealId the brand comes from the deal (404 when hidden); otherwise brandId + regionId (403 outside the caller's territories). */
 export const POST = apiHandler(async (req) => {
   const ctx = await requireApiContext();
-  return Response.json({ data: await createCase(ctx, await req.json()) }, { status: 201 });
+  return Response.json({ data: fieldMask(ctx, "cases", await createCase(ctx, await req.json())) }, { status: 201 });
 });

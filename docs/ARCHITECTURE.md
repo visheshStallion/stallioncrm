@@ -551,7 +551,37 @@ UI under `/imports`, `/exports` and `/admin/customization`. Runbook: [MIGRATION_
   evaluated in the browser for the form and **again on the server** when saving. Standard fields keep their
   position; forms for custom fields exist on leads and deals, other modules take them through the API.
 
-## 20. Local development
+## 20. Public API, webhooks & integrations (prompt 13)
+
+Guide for integrators: [API.md](API.md). Code: `src/server/modules/api` (tokens, paging, soft delete, OpenAPI),
+`src/server/integrations` (events, webhooks, erp, payments, oem, calendar), system store `src/server/db/api-store.ts`.
+
+- **One access model.** `requireApiContext()` resolves `Authorization: Bearer scrm_…` to the token's user
+  and builds the ordinary `AccessContext` – from there the API is the same code path as the UI (`scopedDb`,
+  RLS, `can()`, field masks). Integration principals are users flagged `isIntegration` (no password, cannot
+  sign in). `restrictToBrands` narrows a context to the token's brands and can never widen it. The edge
+  middleware lets bearer requests through for `/api/v1/*` only; pages always need a session.
+- **System tables.** `ApiToken`, `OAuthClient`, `IdempotencyKey`, `WebhookSubscription`, `WebhookDelivery`,
+  `ExternalRef`, `PaymentLink` are revoked from the RLS role; services check owner / administrator and call
+  the narrow functions of `api-store.ts`. Token and client secrets are stored as SHA-256 hashes.
+- **Field masks at the boundary.** API responses and webhook payloads of deals, cases, activities and documents
+  pass through `fieldMask` (leads and customers are masked by their queries).
+- **Events.** `scopedDb` reports single creates / updates of Lead, Deal, Quote, SalesOrder, Invoice and Case
+  to `integrations/events.ts`; `deriveEvents` (pure) names them, `dispatchEvent` writes the outbox
+  (`DomainEvent`) and enqueues one `webhook.deliver` job per matching subscription and an idempotent
+  `erp.post` job. Quote approval is raised by the approvals service (the approval engine writes with the
+  system client). Dispatch never throws into the user's action.
+- **Webhook delivery.** The job loads the record with the subscription principal's context; hidden → SKIPPED.
+  Body signed with HMAC-SHA256 over `<timestamp>.<body>`; https + public address only (SSRF guard shared with
+  workflow webhooks); retries through the job queue's back-off; `WebhookDelivery` is the log.
+- **Per-legal-entity integrations.** ERP adapter, base URL, token and payment keys resolve per brand
+  (`brandEnv`). `erp.post` reads the document with a context bound to the event's brand and posts it to
+  `Brand.erpCompanyCode`; reconciliation checks the company code; payment webhooks are verified with the
+  merchant key of the brand owning the reference.
+- **Idempotency & limits.** `apiHandler` replays stored responses for `Idempotency-Key` (token-scoped,
+  24 h). Rate limits are per token and per process (in-memory) – see API.md for the multi-instance caveat.
+
+## 21. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.

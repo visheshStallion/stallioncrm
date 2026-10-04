@@ -26,6 +26,7 @@ async function announce(ctx: AccessContext, o: ApprovalOutcome) {
   if (o.status !== "PENDING" && o.requesterId !== ctx.userId) {
     await notify(ctx, [o.requesterId], { kind: "APPROVAL", title: `${label} ${STATUS_LABELS[o.status]!.toLowerCase()}`, body: o.title, href: recordHref(o.entity, o.entityId) ?? "/approvals?tab=submitted" });
   }
+  if (o.entity === "Quote" && o.status === "APPROVED") await (await import("@/server/integrations/events")).dispatchEvent("quote.approved", o.entityId);
   return o;
 }
 

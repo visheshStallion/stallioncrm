@@ -1,6 +1,6 @@
 import { apiHandler } from "@/server/api";
+import { listMeta, parseApiPaging } from "@/server/modules/api/paging";
 import { BadRequestError } from "@/server/errors";
-import { parsePaging } from "@/server/list/filters";
 import { listProducts } from "@/server/modules/catalogue/queries";
 import { createProduct } from "@/server/modules/catalogue/service";
 import { requireApiContext } from "@/server/request";
@@ -9,9 +9,9 @@ import { requireApiContext } from "@/server/request";
 export const GET = apiHandler(async (req) => {
   const ctx = await requireApiContext();
   const sp = Object.fromEntries(new URL(req.url).searchParams);
-  const paging = parsePaging(sp);
+  const paging = parseApiPaging(sp);
   const { rows, total } = await listProducts(ctx, { brandId: sp.brandId, q: sp.q, activeOnly: sp.active === "true", take: paging.per, skip: paging.skip });
-  return Response.json({ data: rows, meta: { total, page: paging.page, per: paging.per } });
+  return Response.json({ data: rows, meta: listMeta(total, paging) });
 });
 
 /** POST { brandId, ...product } – Brand Manager of that brand or administrator. */

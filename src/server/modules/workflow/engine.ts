@@ -275,6 +275,8 @@ const HANDLERS: Record<string, (job: Job) => Promise<unknown>> = {
   "campaign.batch": async (job) => (await import("@/server/modules/messaging/campaigns")).processCampaignBatch(job),
   "import.run": async (job) => (await import("@/server/modules/imports/service")).runImport(job),
   "export.run": async (job) => (await import("@/server/modules/exports/service")).runExport(job),
+  "webhook.deliver": async (job) => (await import("@/server/integrations/webhooks")).deliverWebhook(job),
+  "erp.post": async (job) => (await import("@/server/integrations/erp")).postDocumentJob(job),
   "email.users": async (job) => {
     const p = job.payload as { userIds: string[]; subject: string; text: string; brandId?: string | null };
     return { sent: await (await import("@/server/modules/messaging/service")).emailUsers(p.userIds, p.subject, p.text, p.brandId) };
@@ -314,6 +316,9 @@ function kick() {
   });
 }
 
+/** For other modules that enqueue jobs which should run right after the request. */
+export const kickJobs = () => kick();
+
 /** One scheduler tick (cron): scheduled rules, due jobs, activity reminders and approval auto-approvals. */
 export async function tick(now = new Date()) {
   const scheduled = await runScheduler(now);
@@ -321,5 +326,6 @@ export async function tick(now = new Date()) {
   const reminders = await processReminders(automationContext("", "ALL"), now);
   const autoApproved = (await autoApproveDue(now)).length;
   const expiredExports = await (await import("@/server/modules/exports/service")).purgeExpiredExports();
+  await (await import("@/server/db/api-store")).purgeApiLeftovers(now);
   return { scheduled, ...jobs, reminders, autoApproved, expiredExports };
 }

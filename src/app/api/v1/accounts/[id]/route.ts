@@ -1,4 +1,5 @@
 import { apiHandler } from "@/server/api";
+import { deleteHandler } from "@/server/modules/api/delete-route";
 import { accountBrands, accountDeals, getAccount } from "@/server/modules/customers/queries";
 import { updateAccount } from "@/server/modules/customers/service";
 import { requireApiContext } from "@/server/request";
@@ -20,3 +21,6 @@ export const PATCH = apiHandler<Params>(async (req, { params }) => {
   await updateAccount(ctx, id, await req.json());
   return Response.json({ data: await getAccount(ctx, id) });
 });
+
+/** Soft delete – needs the delete permission; 404 outside the caller's scope. */
+export const DELETE = deleteHandler("accounts");

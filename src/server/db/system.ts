@@ -17,7 +17,7 @@ export function findUserForLogin(email: string) {
 /** SSO: match an existing active user by email (no auto-provisioning). */
 export function findActiveUserIdByEmail(email: string) {
   return unsafeDb.user.findFirst({
-    where: { email: email.trim().toLowerCase(), active: true },
+    where: { email: email.trim().toLowerCase(), active: true, isIntegration: false },
     select: { id: true },
   });
 }

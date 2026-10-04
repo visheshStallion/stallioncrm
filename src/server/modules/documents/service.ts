@@ -379,7 +379,7 @@ export async function addPayment(ctx: AccessContext, invoiceId: string, input: u
   const balance = doc.total - (doc.amountPaid ?? 0);
   if (data.amount > balance + 0.005) throw new BadRequestError(`The payment exceeds the outstanding balance of ${balance.toFixed(2)}`);
   const db = scopedDb(ctx);
-  const payment = await db.payment.create({ data: { invoiceId, ...data, receivedById: ctx.userId } });
+  const payment = await db.payment.create({ data: { invoiceId, ...data, receivedById: ctx.userId || null } });
   await audit({ ctx, action: "CREATE", entity: "Payment", entityId: payment.id, brandId: doc.brandId, after: payment });
   const paid = (doc.amountPaid ?? 0) + data.amount;
   await setStatus(ctx, "invoice", invoiceId, paymentStatus(doc.total, paid), { amountPaid: paid });

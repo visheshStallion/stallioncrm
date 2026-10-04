@@ -1,4 +1,6 @@
 import { apiHandler } from "@/server/api";
+import { fieldMask } from "@/server/access/field-mask";
+import { deleteHandler } from "@/server/modules/api/delete-route";
 import { getDeal } from "@/server/modules/deals/queries";
 import { changeDealOwner, moveDealStage, updateDeal } from "@/server/modules/deals/service";
 import { requireApiContext } from "@/server/request";
@@ -8,7 +10,7 @@ type Params = { params: Promise<{ id: string }> };
 /** 404 for missing AND out-of-scope deals. */
 export const GET = apiHandler<Params>(async (_req, { params }) => {
   const ctx = await requireApiContext();
-  return Response.json({ data: await getDeal(ctx, (await params).id) });
+  return Response.json({ data: fieldMask(ctx, "deals", await getDeal(ctx, (await params).id)) });
 });
 
 /**
@@ -23,5 +25,8 @@ export const PATCH = apiHandler<Params>(async (req, { params }) => {
   if (typeof ownerId === "string") await changeDealOwner(ctx, id, ownerId);
   if (typeof stageId === "string") await moveDealStage(ctx, id, stageId, rest as never);
   else if (Object.keys(rest).length) await updateDeal(ctx, id, rest as never);
-  return Response.json({ data: await getDeal(ctx, id) });
+  return Response.json({ data: fieldMask(ctx, "deals", await getDeal(ctx, id)) });
 });
+
+/** Soft delete – needs the delete permission; 404 outside the caller's scope. */
+export const DELETE = deleteHandler("deals");

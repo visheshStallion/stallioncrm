@@ -309,6 +309,7 @@ async function scopeBrandOwnedArgs(
 
 /** Models with workflow rules (src/server/modules/workflow/modules.ts). */
 const WORKFLOW_MODELS = new Set(["Lead", "Deal", "Quote", "SalesOrder", "Case"]);
+const EVENT_MODELS = new Set(["Lead", "Deal", "Quote", "SalesOrder", "Invoice", "Case"]);
 
 const AUDITED: Record<string, AuditAction> = {
   create: "CREATE",
@@ -392,6 +393,11 @@ function buildScopedDb(ctx: AccessContext) {
         if (model && WORKFLOW_MODELS.has(model) && (operation === "create" || operation === "update") && !ctx.automation) {
           const { onRecordWritten } = await import("@/server/modules/workflow/engine");
           await onRecordWritten(ctx, model, operation, before, result, isObj(finalArgs.data) ? finalArgs.data : {});
+        }
+        // Business events (prompt 13): webhooks and integrations. Fired for automation writes too.
+        if (model && EVENT_MODELS.has(model) && (operation === "create" || operation === "update")) {
+          const { onRecordEvent } = await import("@/server/integrations/events");
+          await onRecordEvent(model, operation, before, result, isObj(finalArgs.data) ? finalArgs.data : {});
         }
         return result;
       },

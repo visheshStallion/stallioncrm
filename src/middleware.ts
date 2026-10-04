@@ -11,6 +11,9 @@ export default async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return NextResponse.next();
 
+  // API tokens (prompt 13): validated by the route handler (requireApiContext) – never for pages.
+  if (pathname.startsWith("/api/v1/") && req.headers.get("authorization")?.startsWith("Bearer scrm_")) return NextResponse.next();
+
   const token = await getToken({
     req,
     secret: process.env.AUTH_SECRET,

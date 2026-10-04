@@ -35,9 +35,20 @@ export async function requireContext(): Promise<AccessContext> {
   return ctx;
 }
 
-/** Route handlers: throws UnauthenticatedError (→ 401). */
+/** `Authorization: Bearer scrm_…` → the token's access context (prompt 13). Cached for the request. */
+const getTokenContext = cache(async (): Promise<AccessContext | null> => {
+  const header = (await headers()).get("authorization");
+  if (!header?.startsWith("Bearer scrm_")) return null;
+  const { authenticateToken } = await import("@/server/modules/api/tokens");
+  return { ...(await authenticateToken(header.slice(7).trim())), ip: await clientIp() };
+});
+
+/**
+ * Route handlers: the API token's context when a bearer token is sent, otherwise the session's.
+ * Throws UnauthenticatedError (→ 401).
+ */
 export async function requireApiContext(): Promise<AccessContext> {
-  const ctx = await getRequestContext();
+  const ctx = (await getTokenContext()) ?? (await getRequestContext());
   if (!ctx) throw new UnauthenticatedError();
   return ctx;
 }

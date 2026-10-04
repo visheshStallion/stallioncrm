@@ -91,7 +91,7 @@ export const saveSchema = z.object({
 });
 export type SaveInput = z.input<typeof saveSchema>;
 
-export const PAYMENT_METHODS = ["CASH", "TRANSFER", "POS", "CHEQUE", "FINANCE"] as const;
+export const PAYMENT_METHODS = ["CASH", "TRANSFER", "POS", "CHEQUE", "FINANCE", "ONLINE"] as const;
 export const paymentSchema = z.object({
   amount: z.coerce.number().positive().max(1e12),
   method: z.enum(PAYMENT_METHODS),

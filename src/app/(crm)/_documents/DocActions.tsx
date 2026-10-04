@@ -92,7 +92,7 @@ export function PaymentForm({ invoiceId, balance }: { invoiceId: string; balance
     <div className="flex flex-wrap items-center gap-2" data-testid="payment-form">
       <Input value={amount} onChange={(e) => setAmount(e.target.value)} type="number" min={0} step="0.01" className="h-8 w-40 text-right" aria-label="Payment amount" />
       <Select value={method} onChange={(e) => setMethod(e.target.value)} className="h-8" aria-label="Payment method">
-        {["TRANSFER", "CASH", "POS", "CHEQUE", "FINANCE"].map((m) => (
+        {["TRANSFER", "CASH", "POS", "CHEQUE", "FINANCE", "ONLINE"].map((m) => (
           <option key={m} value={m}>
             {m.charAt(0) + m.slice(1).toLowerCase()}
           </option>

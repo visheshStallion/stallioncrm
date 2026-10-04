@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Calendar, LogOut, Settings } from "lucide-react";
+import { Bell, Calendar, KeyRound, LogOut, Settings } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
@@ -178,6 +178,11 @@ export function AvatarMenu({
           ["MM/DD/YYYY", "MM/DD"],
           ["YYYY-MM-DD", "ISO"],
         ])}
+      </div>
+      <div className="border-t border-border p-1">
+        <Link href="/tokens" role="menuitem" className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 hover:bg-muted">
+          <KeyRound className="h-4 w-4" /> My API tokens
+        </Link>
       </div>
       <form action={logout} className="border-t border-border p-1">
         <button type="submit" role="menuitem" className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left hover:bg-muted" aria-label="Sign out">

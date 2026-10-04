@@ -189,8 +189,8 @@ describe("quote → sales order → invoice", () => {
 
     const eventsBefore = await unsafeDb.domainEvent.count();
     await svc.confirmOrder(exec, order.id);
-    const event = await unsafeDb.domainEvent.findFirstOrThrow({ orderBy: { createdAt: "desc" } });
-    expect(await unsafeDb.domainEvent.count()).toBe(eventsBefore + 1);
+    const event = await unsafeDb.domainEvent.findFirstOrThrow({ where: { name: "document.confirmed" }, orderBy: { createdAt: "desc" } });
+    expect(await unsafeDb.domainEvent.count()).toBe(eventsBefore + 2); // document.confirmed + salesorder.confirmed (prompt 13)
     expect(event.name).toBe("document.confirmed");
     expect(event.payload).toMatchObject({ documentType: "salesOrder", number: so.number, brandCode: "HMNL", erpCompanyCode: "ERP-HMNL" });
 

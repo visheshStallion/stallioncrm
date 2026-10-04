@@ -28,6 +28,7 @@ async function main() {
       AUTH_SECRET: process.env.AUTH_SECRET ?? "e2e-only-secret-not-for-production-0123456789",
       MESSAGING_WEBHOOK_SECRET: process.env.MESSAGING_WEBHOOK_SECRET ?? "e2e-webhook-secret",
       CRON_SECRET: process.env.CRON_SECRET ?? "e2e-cron-secret",
+      WEBHOOK_ALLOW_PRIVATE: "1",
       AUTH_TRUST_HOST: "true",
       AUTH_URL: `http://localhost:${port}`,
     },

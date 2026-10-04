@@ -1,4 +1,5 @@
 import { apiHandler } from "@/server/api";
+import { deleteHandler } from "@/server/modules/api/delete-route";
 import { getLead } from "@/server/modules/leads/queries";
 import { changeLeadOwner, updateLead } from "@/server/modules/leads/service";
 import { requireApiContext } from "@/server/request";
@@ -20,3 +21,6 @@ export const PATCH = apiHandler<Params>(async (req, { params }) => {
   if (Object.keys(rest).length) await updateLead(ctx, id, rest as never);
   return Response.json({ data: await getLead(ctx, id) });
 });
+
+/** Soft delete – needs the delete permission; 404 outside the caller's scope. */
+export const DELETE = deleteHandler("leads");
