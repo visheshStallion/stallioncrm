@@ -9,6 +9,8 @@ import { BadRequestError } from "@/server/errors";
 import { getDeal } from "@/server/modules/deals/queries";
 import { overlappingDefaults } from "./pricing";
 import { getPriceBook } from "./queries";
+import * as posting from "@/server/db/inventory-posting";
+import { dispatchEvent } from "@/server/integrations/events";
 import { entrySchema, priceBookSchema, productSchema, stockSchema, type PriceBookInput, type ProductInput } from "./schema";
 
 const displayName = (model: string, variant: string | null) => [model, variant].filter(Boolean).join(" ");
@@ -193,47 +195,48 @@ export async function exportPriceBook(ctx: AccessContext, priceBookId: string) {
 
 // ───────────────────────────── stock references & VIN reservation ─────────────────────────────
 
+/**
+ * Quick stock reference without cost (prompt 05). Costed stock comes in through a goods receipt
+ * (Inventory → Receive); a unit added here has no warehouse and no stock value.
+ */
 export async function addStock(ctx: AccessContext, input: unknown) {
   const data = stockSchema.parse(input);
   const db = scopedDb(ctx);
-  const product = await db.product.findUnique({ where: { id: data.productId }, select: { brandId: true } });
+  const product = await db.product.findUnique({ where: { id: data.productId }, select: { brandId: true, modelYear: true } });
   if (!product) throw new NotFoundError();
   assertCanManageBrandData(ctx, "products", "edit", product.brandId);
-  if (await db.vehicleStockRef.findFirst({ where: { brandId: product.brandId, vin: data.vin }, select: { id: true } })) {
+  if (await db.vehicleUnit.findFirst({ where: { brandId: product.brandId, vin: data.vin }, select: { id: true } })) {
     throw new BadRequestError("This VIN already exists for the brand");
   }
-  const stock = await db.vehicleStockRef.create({ data: { ...data, brandId: product.brandId } });
-  await audit({ ctx, action: "CREATE", entity: "VehicleStockRef", entityId: stock.id, brandId: product.brandId, after: stock });
+  const status = data.status === "IN_TRANSIT" ? "IN_TRANSIT" : data.status === "RESERVED" ? "RESERVED" : data.status === "SOLD" ? "DELIVERED" : "AVAILABLE";
+  const stock = await db.vehicleUnit.create({ data: { brandId: product.brandId, productId: data.productId, vin: data.vin, colour: data.colour ?? null, modelYear: product.modelYear, status, ...(status === "AVAILABLE" ? { receivedAt: new Date(), pdiPassedAt: new Date() } : {}) } });
+  await audit({ ctx, action: "CREATE", entity: "VehicleUnit", entityId: stock.id, brandId: product.brandId, after: stock });
   return { id: stock.id };
 }
 
 /**
- * Reserves a vehicle for a deal: same brand, available (in stock / in transit), and the user can edit the deal.
- * The VIN and colour are copied to the deal.
+ * Reserves a vehicle for a deal: same brand, available, and the user can edit the deal. The VIN and colour are
+ * copied to the deal. The reservation expires after the brand's reservation period (Inventory settings).
  */
 export async function reserveVin(ctx: AccessContext, dealId: string, stockId: string) {
   const deal = await getDeal(ctx, dealId);
   assertCan(ctx, "deals", "edit", deal);
   if (deal.stageType !== "OPEN") throw new ForbiddenError("Only open deals can reserve a vehicle");
   const db = scopedDb(ctx);
-  const stock = await db.vehicleStockRef.findUnique({ where: { id: stockId } });
+  const stock = await db.vehicleUnit.findUnique({ where: { id: stockId }, select: { id: true, brandId: true, status: true } });
   assertSameBrand(deal.brandId, stock?.brandId, "The vehicle");
-  if (stock!.status !== "IN_STOCK" && stock!.status !== "IN_TRANSIT") throw new BadRequestError("This vehicle is not available");
-  // Atomic claim: only succeeds while the vehicle is still available.
-  const claimed = await db.vehicleStockRef.updateMany({ where: { id: stockId, status: { in: ["IN_STOCK", "IN_TRANSIT"] } }, data: { status: "RESERVED", dealId } });
-  if (claimed.count === 0) throw new BadRequestError("This vehicle was just reserved by someone else");
-  await releaseVins(ctx, dealId, stockId);
-  await db.deal.update({ where: { id: dealId }, data: { vinChassisNo: stock!.vin, colour: stock!.colour ?? deal.colour }, select: { id: true } });
-  await audit({ ctx, action: "UPDATE", entity: "VehicleStockRef", entityId: stockId, brandId: deal.brandId, before: { status: stock!.status }, after: { status: "RESERVED", dealId } });
+  if (stock!.status !== "AVAILABLE") throw new BadRequestError("This vehicle is not available");
+  const settings = await posting.brandSettings(deal.brandId);
+  // Atomic claim (row lock): only one of two simultaneous reservations succeeds.
+  const unit = await posting.reserveUnit(stockId, deal.brandId, dealId, new Date(Date.now() + settings.reservationDays * 86_400_000), { userId: ctx.userId || null });
+  await db.deal.update({ where: { id: dealId }, data: { vinChassisNo: unit.vin, colour: unit.colour ?? deal.colour }, select: { id: true } });
+  await audit({ ctx, action: "UPDATE", entity: "VehicleUnit", entityId: stockId, brandId: deal.brandId, before: { status: stock!.status }, after: { status: "RESERVED", dealId } });
+  await dispatchEvent("vehicle.reserved", stockId, deal.brandId);
 }
 
-/** Releases the deal's reservations (all, or all except `keepId`) back to stock. */
-export async function releaseVins(ctx: AccessContext, dealId: string, keepId?: string) {
-  const res = await scopedDb(ctx).vehicleStockRef.updateMany({
-    where: { dealId, status: "RESERVED", ...(keepId ? { id: { not: keepId } } : {}) },
-    data: { status: "IN_STOCK", dealId: null },
-  });
-  return res.count;
+/** Releases the deal's reservations back to stock. */
+export async function releaseVins(ctx: AccessContext, dealId: string) {
+  return (await posting.releaseDealUnits(dealId, { userId: ctx.userId || null })).length;
 }
 
 export async function releaseVin(ctx: AccessContext, dealId: string) {
@@ -244,13 +247,16 @@ export async function releaseVin(ctx: AccessContext, dealId: string) {
   return count;
 }
 
-/** Deal stage hook: Closed Lost releases the reservation, Closed Won marks the vehicle sold. */
+/**
+ * Deal stage hook: Closed Lost releases the reservation; Closed Won keeps the vehicle for the customer – the
+ * reservation no longer expires while the sales order, invoice and gate pass follow.
+ */
 export async function onDealStageChanged(ctx: AccessContext, dealId: string, toType: "OPEN" | "WON" | "LOST") {
   const db = scopedDb(ctx);
   if (toType === "LOST") {
-    const released = await db.vehicleStockRef.updateMany({ where: { dealId, status: "RESERVED" }, data: { status: "IN_STOCK", dealId: null } });
+    const released = await posting.releaseDealUnits(dealId, { userId: ctx.userId || null }, "Deal lost");
     // The vehicle is free again: the lost deal must not keep its VIN (VINs are unique per brand).
-    if (released.count) await db.deal.update({ where: { id: dealId }, data: { vinChassisNo: null }, select: { id: true } });
+    if (released.length) await db.deal.update({ where: { id: dealId }, data: { vinChassisNo: null }, select: { id: true } });
   }
-  if (toType === "WON") await db.vehicleStockRef.updateMany({ where: { dealId, status: "RESERVED" }, data: { status: "SOLD" } });
+  if (toType === "WON") await db.vehicleUnit.updateMany({ where: { dealId, status: "RESERVED" }, data: { reservedUntil: null } });
 }

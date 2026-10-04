@@ -18,4 +18,11 @@ export const csvOutbox: ErpAdapter = {
     await storage().put(key, new TextEncoder().encode(toCsv(header, rows)), "text/csv; charset=utf-8");
     return { externalId: key };
   },
+  async postJournal(journal) {
+    const header = ["journal", "company", "date", "memo", "account", "debit", "credit", "lineMemo"];
+    const rows = journal.lines.map((l) => [journal.number, journal.companyCode, journal.date, journal.memo, l.account, l.debit, l.credit, l.memo ?? ""]);
+    const key = `erp-outbox/${journal.companyCode.replace(/[^A-Za-z0-9_-]/g, "_")}/journals/${journal.number}.csv`;
+    await storage().put(key, new TextEncoder().encode(toCsv(header, rows)), "text/csv; charset=utf-8");
+    return { externalId: key };
+  },
 };

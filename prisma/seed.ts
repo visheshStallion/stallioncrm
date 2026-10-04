@@ -31,10 +31,11 @@ import {
   VEHICLE_TYPES,
   email,
 } from "./seed-data";
+import { seedInventory } from "./seed-inventory";
 
 export async function seed(prisma: PrismaClient): Promise<void> {
   await prisma.$executeRawUnsafe(
-    `TRUNCATE "AuditLog", "VehicleStockRef", "PriceBookEntry", "PriceBook", "Note", "Attachment", "DealStageHistory", "Pipeline", "SavedView", "AssignmentRule", "Lead", "Deal", "Contact", "Account", "Product", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region", "Job", "Holiday", "BusinessHours" CASCADE`,
+    `TRUNCATE "AuditLog", "VehicleUnit", "Warehouse", "Vendor", "StockMovement", "StockBalance", "InventoryDocument", "JournalEntry", "InventorySettings", "PriceBookEntry", "PriceBook", "Note", "Attachment", "DealStageHistory", "Pipeline", "SavedView", "AssignmentRule", "Lead", "Deal", "Contact", "Account", "Product", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region", "Job", "Holiday", "BusinessHours" CASCADE`,
   );
   // The cascade also empties the approval processes and workflow rules (they reference Brand): restore the defaults.
   await prisma.$executeRawUnsafe(`SELECT app_seed_automation()`);
@@ -258,15 +259,13 @@ export async function seed(prisma: PrismaClient): Promise<void> {
         });
         ids.push(p.id);
         await prisma.priceBookEntry.create({ data: { priceBookId: book.id, productId: p.id, price: listPrice, maxDiscountPct: v.variant === "Premium" ? 5 : 3 } });
-        for (let k = 0; k < 2; k++) {
-          await prisma.vehicleStockRef.create({
-            data: { brandId, productId: p.id, vin: `${code}${m.model.slice(0, 2).toUpperCase()}${v.variant[0]}${String(1000 + ids.length * 10 + k)}`, colour: CATALOGUE_COLOURS[(ids.length + k) % CATALOGUE_COLOURS.length], location: "Lagos yard", status: k === 0 ? "IN_STOCK" : "IN_TRANSIT" },
-          });
-        }
       }
     }
     products.set(code, ids);
   }
+
+  // Inventory (prompt 16): warehouses, vendors, vehicles by VIN, parts, one shipment with landed cost.
+  await seedInventory(prisma, { brands, regions, products, activeBrands: ACTIVE_BRANDS, baseDate });
 
   // Default assignment rule (BUSINESS_CONTEXT §10): round-robin within the Brand–Region territory.
   await prisma.assignmentRule.create({

@@ -5,12 +5,12 @@ test("HMNL exec: catalogue and product picker API show HMNL only; read-only", as
   await login(page, "exec.hmnl.1");
   await page.goto("/products");
   const cards = page.getByTestId("product-card");
-  await expect(cards).toHaveCount(6);
+  await expect(cards.first()).toBeVisible(); // 6 vehicles + 20 parts and accessories (prompt 16), paged
   expect(new Set((await cards.getByTestId("brand-badge").allInnerTexts()).map((t) => t.trim()))).toEqual(new Set(["HMNL"]));
   await expect(page.getByRole("link", { name: "Create Product" })).toHaveCount(0);
 
   const api = (await (await page.request.get("/api/v1/products?per=100")).json()) as { data: Array<{ id: string; brandId: string }>; meta: { total: number } };
-  expect(api.meta.total).toBe(6);
+  expect(api.meta.total).toBe(26);
   expect(new Set(api.data.map((p) => p.brandId)).size).toBe(1);
 
   // another brand's product: found via management, 404 for the exec (UI + API); creating is forbidden
@@ -18,7 +18,7 @@ test("HMNL exec: catalogue and product picker API show HMNL only; read-only", as
   const md = await ctx2.newPage();
   await login(md, "md");
   const all = (await (await md.request.get("/api/v1/products?per=100")).json()) as { data: Array<{ id: string; brandId: string }>; meta: { total: number } };
-  expect(all.meta.total).toBe(30);
+  expect(all.meta.total).toBe(130);
   const foreign = all.data.find((p) => p.brandId !== api.data[0]!.brandId)!;
   await ctx2.close();
   expect((await page.request.get(`/api/v1/products/${foreign.id}`)).status()).toBe(404);
@@ -26,7 +26,7 @@ test("HMNL exec: catalogue and product picker API show HMNL only; read-only", as
   expect((await page.request.post("/api/v1/products", { data: { brandId: api.data[0]!.brandId, code: "X-1", model: "X" } })).status()).toBe(403);
 
   // price resolution endpoint
-  const price = (await (await page.request.get(`/api/v1/products/price?productId=${api.data[0]!.id}&date=2026-10-04`)).json()) as { data: { source: string; price: number } };
+  const price = (await (await page.request.get(`/api/v1/products/price?productId=${(api.data as Array<{ id: string; category?: string }>).find((p) => p.category === "VEHICLE")!.id}&date=2026-10-04`)).json()) as { data: { source: string; price: number } };
   expect(price.data.source).toBe("priceBook");
 });
 

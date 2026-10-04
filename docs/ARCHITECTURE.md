@@ -581,7 +581,45 @@ Guide for integrators: [API.md](API.md). Code: `src/server/modules/api` (tokens,
 - **Idempotency & limits.** `apiHandler` replays stored responses for `Idempotency-Key` (token-scoped,
   24 h). Rate limits are per token and per process (in-memory) – see API.md for the multi-instance caveat.
 
-## 21. Local development
+## 21. Inventory: vehicles & parts per brand (prompt 16)
+
+User guide: [INVENTORY_GUIDE.md](INVENTORY_GUIDE.md). Code: `src/server/modules/inventory` (pure: `vin`,
+`status`, `costing`, `journal`; `config`, `queries`, `service`, `reports`, `pdf`, `routes`), the posting
+engine `src/server/db/inventory-posting.ts`, UI under `src/app/(crm)/inventory`, API under
+`/api/v1/inventory/*`. It replaces `VehicleStockRef` of prompt 05 (rows migrated to `VehicleUnit`).
+
+- **Brand isolation.** All inventory tables are brand-TAGGED (`brandId`, policy `brand_tag`, `scopedDb`
+  filter): another brand's warehouse, unit, vendor, document, movement, balance or journal does not exist for a
+  user – lists, ids (404), scanner lookup, reports, API, raw SQL. Triggers refuse cross-brand references even
+  for the system client (unit ↔ product / warehouse / deal / order / invoice, document ↔ vendor / warehouse).
+- **Three views.** (1) brand; (2) the *sales view* for users without stock-keeping rights – available units and
+  the units of their own deals, VIN masked to the last six characters until the unit is theirs; (3) the cost
+  tier – without `inventoryFinance.read` cost fields are absent from every result, and costs in requests are
+  replaced by the purchase order's price (`trustedCosts`).
+- **One document table.** `InventoryDocument` + `InventoryDocumentLine` with a configuration per type
+  (`config.ts`: PO, shipment, goods receipt, bill, landed cost, transfer, inter-brand transfer, adjustment, PDI,
+  delivery note, stock count, vendor credit). Numbers are gap-free per brand / type / year from the shared
+  `DocumentCounter` (trigger `app_inventory_number`).
+- **Posting engine.** A posting changes the ledger, the balances, units with their status history, the journal
+  and the document status in ONE transaction with the system client (row lock on the document; period lock
+  check). `StockMovement` is append-only for every role (trigger), `StockBalance` is maintained in the same
+  transaction, `JournalEntry` is immutable and must balance (deferred constraint trigger). Services check
+  brand + permission first; user sessions have no write grant on ledger, balances, journals or history.
+- **Valuation.** Vehicles: specific identification (purchase cost + allocated landed cost). Quantity items:
+  weighted average or FIFO per brand. `valuation as of` is a sum over the append-only ledger.
+- **Status machine.** `status.ts` is the only place that knows the transitions; `setStatus` in the posting
+  engine enforces it and writes the history. Reservation takes a row lock – one winner; expiry runs in the tick.
+- **Sales integration.** `reserveVin` → `reserveUnit`; sales order *allocate* → `allocateUnits` (own brand
+  only); invoice *issue* → `issueForInvoice` (SALE_ISSUE + COGS journal, once per unit); *deliver* →
+  `deliverUnits` (delivery note). Closed Lost releases, Closed Won removes the reservation expiry.
+- **Inter-brand transfer.** The document row belongs to the selling brand (RLS). The buying brand works through
+  `incomingInterBrand` / `patchInterBrand` (units and transfer price only) and receives a NEW unit of its own
+  at the transfer price; each side posts its own journal.
+- **Events & ERP.** `vehicle.received`, `vehicle.status_changed`, `vehicle.reserved`, `vehicle.delivered`,
+  `stock.below_reorder` (when an issue brings a part to its reorder level), `journal.posted` → webhooks (payload = the principal's
+  view, so cost only for finance principals) and, for journals, the brand's ERP adapter when it supports them.
+
+## 22. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.

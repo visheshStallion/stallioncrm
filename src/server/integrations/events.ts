@@ -12,7 +12,7 @@ import { enqueueJob } from "@/server/db/jobs";
 import { storeDomainEvent } from "@/server/db/system";
 import { logger } from "@/server/log";
 
-export const EVENTS = ["lead.created", "deal.created", "deal.stage_changed", "quote.approved", "salesorder.confirmed", "invoice.issued", "invoice.paid", "case.created", "case.resolved"] as const;
+export const EVENTS = ["lead.created", "deal.created", "deal.stage_changed", "quote.approved", "salesorder.confirmed", "invoice.issued", "invoice.paid", "case.created", "case.resolved", "vehicle.received", "vehicle.status_changed", "vehicle.reserved", "vehicle.delivered", "stock.below_reorder", "journal.posted"] as const;
 export type EventName = (typeof EVENTS)[number];
 export const EVENT_MODELS = new Set<string>(["Lead", "Deal", "Quote", "SalesOrder", "Invoice", "Case"]);
 export const EVENT_ENTITY: Record<EventName, EventEntity> = {
@@ -25,6 +25,12 @@ export const EVENT_ENTITY: Record<EventName, EventEntity> = {
   "invoice.paid": "Invoice",
   "case.created": "Case",
   "case.resolved": "Case",
+  "vehicle.received": "VehicleUnit",
+  "vehicle.status_changed": "VehicleUnit",
+  "vehicle.reserved": "VehicleUnit",
+  "vehicle.delivered": "VehicleUnit",
+  "stock.below_reorder": "Product",
+  "journal.posted": "JournalEntry",
 };
 
 type Row = Record<string, unknown> | null | undefined;
@@ -82,6 +88,13 @@ export async function dispatchEvent(event: EventName, entityId: string, brandId?
         // idempotent: a document is posted to the ERP once
         if (await enqueueJob({ type: "erp.post", payload: { entity, entityId, brandId: brand }, brandId: brand, idempotencyKey: `erp:${entity}:${entityId}`, maxAttempts: 6 })) queued++;
       }
+    }
+    if (event === "journal.posted") {
+      const { erpAdapterFor } = await import("./erp");
+      const { brandForIntegration } = await import("@/server/db/api-store");
+      const b = await brandForIntegration(brand);
+      // journals go to the brand's own ERP company when its adapter can take them
+      if (b && erpAdapterFor(b.code)?.postJournal && (await enqueueJob({ type: "erp.journal", payload: { journalId: entityId, brandId: brand }, brandId: brand, idempotencyKey: `erp:journal:${entityId}`, maxAttempts: 6 }))) queued++;
     }
     if (queued) (await import("@/server/modules/workflow/engine")).kickJobs();
   } catch (err) {

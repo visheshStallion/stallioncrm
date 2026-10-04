@@ -151,3 +151,27 @@ Head of Sales sees consolidated data; brand change creates approval + audit entr
 ## 12. Privacy
 The repository is PUBLIC. Never commit real employee or customer data. Real users are imported at
 runtime through the admin CSV import (prompt 01). Seed data must be fictitious.
+
+## 13. Inventory (prompt 16)
+
+- Inventory is **brand-owned**: every item, warehouse, vendor, vehicle, document, stock movement and journal
+  carries `brandId`. Each brand is a separate legal entity, so stock, cost and stock value belong to one brand
+  and never mix. Group management sees a consolidated view.
+- Roles and profiles (extends the permission matrix of §7; capability modules `inventory` and
+  `inventoryFinance`):
+
+| Role | Profile | Sees | Can |
+|---|---|---|---|
+| Stock Controller (per brand) | Inventory Officer | Own brand's stock and documents, no cost | Receive, transfer, adjust (up to limit), PDI, stock counts |
+| Logistics / Clearing Officer | Logistics | Own brand(s) incl. cost | Purchase orders, shipments, port clearing, landed cost entry |
+| Brand Accountant | Inventory Finance | Own brand incl. cost | Bills, landed cost, valuation, journals, approve adjustments, period lock |
+| Brand Manager | Brand Manager | Whole brand stock incl. cost | Approve purchase orders / write-offs / inter-brand transfers, extend reservations |
+| Sales Exec, RSM | Sales Exec, RSM | **Available stock of own brands, no cost** (model, colour, VIN last 6, location, status) | Request a reservation for an own deal |
+| Management / Admin | Management / Administrator | All brands, consolidated | Read all / everything |
+
+- Cost fields (purchase cost, landed cost, margin, valuation, journals, bills) are the **sensitive** tier:
+  only with `inventoryFinance.read`.
+- Moving stock **between brands** is a sale between legal entities: only through an Inter-brand Transfer approved
+  by the Brand Manager and the Brand Accountant of both brands.
+- A sales order or invoice can only take a vehicle of its own brand.
+- The stock ledger and posted journals are append-only; corrections are new documents.

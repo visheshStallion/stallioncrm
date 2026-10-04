@@ -50,6 +50,15 @@ export async function eventPayload(ctx: AccessContext, entity: string, id: strin
         const type = entity === "Quote" ? "quote" : entity === "SalesOrder" ? "salesOrder" : "invoice";
         return fieldMask(ctx, entity === "Quote" ? "quotes" : entity === "SalesOrder" ? "salesOrders" : "invoices", await (await import("@/server/modules/documents/queries")).getDocument(ctx, type, id));
       }
+      case "VehicleUnit":
+        return await (await import("@/server/modules/inventory/queries")).getUnit(ctx, id);
+      case "JournalEntry":
+        return await (await import("@/server/modules/inventory/queries")).getJournal(ctx, id);
+      case "Product": {
+        const rows = await (await import("@/server/modules/inventory/queries")).listStockBalances(ctx, { reorderOnly: true });
+        const mine = rows.filter((r) => r.productId === id);
+        return mine.length ? { productId: id, code: mine[0]!.code, name: mine[0]!.name, reorderLevel: mine[0]!.reorderLevel, onHand: mine.reduce((s, r) => s + r.qty, 0) } : null;
+      }
       default:
         return null;
     }

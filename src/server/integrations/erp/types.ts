@@ -29,6 +29,17 @@ export interface ErpAdapter {
   key: string;
   /** Posts the document to `doc.companyCode` and returns the ERP's id for it. Must throw on failure. */
   postDocument(doc: ErpDocument, settings: ErpSettings): Promise<{ externalId: string; raw?: unknown }>;
+  /** Optional: hands an inventory journal (prompt 16) to the ERP company of the brand. */
+  postJournal?(journal: ErpJournal, settings: ErpSettings): Promise<{ externalId: string }>;
+}
+
+export interface ErpJournal {
+  id: string;
+  number: string;
+  companyCode: string;
+  date: string;
+  memo: string;
+  lines: Array<{ account: string; debit: number; credit: number; memo: string | null }>;
 }
 
 export async function postJson(url: string, token: string | undefined, body: unknown, headers: Record<string, string> = {}): Promise<unknown> {

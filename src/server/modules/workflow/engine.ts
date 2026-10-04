@@ -277,6 +277,7 @@ const HANDLERS: Record<string, (job: Job) => Promise<unknown>> = {
   "export.run": async (job) => (await import("@/server/modules/exports/service")).runExport(job),
   "webhook.deliver": async (job) => (await import("@/server/integrations/webhooks")).deliverWebhook(job),
   "erp.post": async (job) => (await import("@/server/integrations/erp")).postDocumentJob(job),
+  "erp.journal": async (job) => (await import("@/server/integrations/erp")).postJournalJob(job),
   "email.users": async (job) => {
     const p = job.payload as { userIds: string[]; subject: string; text: string; brandId?: string | null };
     return { sent: await (await import("@/server/modules/messaging/service")).emailUsers(p.userIds, p.subject, p.text, p.brandId) };
@@ -327,5 +328,6 @@ export async function tick(now = new Date()) {
   const autoApproved = (await autoApproveDue(now)).length;
   const expiredExports = await (await import("@/server/modules/exports/service")).purgeExpiredExports();
   await (await import("@/server/db/api-store")).purgeApiLeftovers(now);
-  return { scheduled, ...jobs, reminders, autoApproved, expiredExports };
+  const expiredReservations = await (await import("@/server/modules/inventory/service")).expireReservations(now);
+  return { scheduled, ...jobs, reminders, autoApproved, expiredExports, expiredReservations };
 }

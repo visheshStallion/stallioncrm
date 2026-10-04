@@ -1,9 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { login, signOut } from "./helpers";
 
 const stamp = Date.now();
 
-async function newSecrets(page: Page): Promise<string[]> {
+async function newSecrets(page: Page | Locator): Promise<string[]> {
   const box = page.getByTestId("new-secret");
   await expect(box).toBeVisible();
   return box.locator("input").evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));

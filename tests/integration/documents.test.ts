@@ -195,7 +195,7 @@ describe("quote → sales order → invoice", () => {
     expect(event.payload).toMatchObject({ documentType: "salesOrder", number: so.number, brandCode: "HMNL", erpCompanyCode: "ERP-HMNL" });
 
     await expect(svc.allocateOrder(exec, order.id)).rejects.toThrow(/Reserve a vehicle/);
-    const stock = await unsafeDb.vehicleStockRef.findFirstOrThrow({ where: { brandId: I.brand("HMNL"), productId: model.id, status: "IN_STOCK" } });
+    const stock = await unsafeDb.vehicleUnit.findFirstOrThrow({ where: { brandId: I.brand("HMNL"), productId: model.id, status: "AVAILABLE" } });
     await reserveVin(exec, dealId, stock.id);
     await svc.allocateOrder(exec, order.id);
     expect((await getDocument(exec, "salesOrder", order.id)).lines[0]!.vin).toBe(stock.vin);

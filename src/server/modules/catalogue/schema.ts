@@ -1,9 +1,10 @@
 import { z } from "zod";
 
-export const CATEGORIES = ["VEHICLE", "ACCESSORY", "EXTENDED_WARRANTY", "SERVICE_PACKAGE", "INSURANCE"] as const;
+export const CATEGORIES = ["VEHICLE", "ACCESSORY", "PART", "EXTENDED_WARRANTY", "SERVICE_PACKAGE", "INSURANCE"] as const;
 export const CATEGORY_LABELS: Record<(typeof CATEGORIES)[number], string> = {
   VEHICLE: "Vehicle",
   ACCESSORY: "Accessory",
+  PART: "Spare part",
   EXTENDED_WARRANTY: "Extended Warranty",
   SERVICE_PACKAGE: "Service Package",
   INSURANCE: "Insurance",

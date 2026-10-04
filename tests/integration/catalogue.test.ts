@@ -28,7 +28,7 @@ beforeAll(async () => {
 describe("seed catalogue", () => {
   it("3 models × 2 variants per active brand, one default price book each", async () => {
     for (const code of ["HMNL", "SNMNL", "SMGL", "THPL", "ZANL"]) {
-      expect(await unsafeDb.product.count({ where: { brandId: I.brand(code) } })).toBe(6);
+      expect(await unsafeDb.product.count({ where: { brandId: I.brand(code), category: "VEHICLE" } })).toBe(6);
       const books = await unsafeDb.priceBook.findMany({ where: { brandId: I.brand(code), isDefault: true }, include: { _count: { select: { entries: true } } } });
       expect(books).toHaveLength(1);
       expect(books[0]!._count.entries).toBe(6);
@@ -39,7 +39,7 @@ describe("seed catalogue", () => {
 describe("isolation: products and price books are limited to the user's brands", () => {
   it("the HMNL exec's product picker never returns SNMNL products", async () => {
     const { rows, total } = await listProducts(exec, { take: 500 });
-    expect(total).toBe(6);
+    expect(total).toBe(26); // 6 vehicles + 20 parts and accessories
     expect(new Set(rows.map((r) => I.brandCode(r.brandId)))).toEqual(new Set(["HMNL"]));
     // asking for another brand cannot widen
     expect((await listProducts(exec, { brandId: I.brand("SNMNL") })).rows).toEqual([]);
@@ -49,18 +49,18 @@ describe("isolation: products and price books are limited to the user's brands",
 
   it("scopedDb filters brand-tagged models even without an explicit where; RLS filters raw SQL", async () => {
     const db = scopedDb(exec);
-    expect(await db.product.count()).toBe(6);
+    expect(await db.product.count()).toBe(26);
     expect(await db.product.findUnique({ where: { id: snmnlProduct.id } })).toBeNull();
     expect((await db.priceBook.findMany()).every((b) => b.brandId === I.brand("HMNL"))).toBe(true);
-    expect((await db.vehicleStockRef.findMany()).every((s) => s.brandId === I.brand("HMNL"))).toBe(true);
+    expect((await db.vehicleUnit.findMany()).every((s) => s.brandId === I.brand("HMNL"))).toBe(true);
     const raw = await rawAsUser<{ brandId: string }>(exec, `SELECT "brandId" FROM "Product"`);
-    expect(raw).toHaveLength(6);
+    expect(raw).toHaveLength(26);
     expect(await rawAsUser(exec, `SELECT e.id FROM "PriceBookEntry" e JOIN "PriceBook" b ON b.id = e."priceBookId" WHERE b."brandId" <> '${I.brand("HMNL")}'`)).toEqual([]);
     expect((await rawAsUser(exec, `SELECT id FROM "PriceBookEntry"`)).length).toBe(6);
     // management sees all brands
-    expect((await listProducts(await ctxFor("md"), { take: 500 })).total).toBe(30);
+    expect((await listProducts(await ctxFor("md"), { take: 500 })).total).toBe(130);
     // regional exec selling all brands in Abuja sees all active brands' products
-    expect((await listProducts(await ctxFor("exec.abuja"), { take: 500 })).total).toBe(30);
+    expect((await listProducts(await ctxFor("exec.abuja"), { take: 500 })).total).toBe(130);
     expect((await listPriceBooks(exec)).map((b) => I.brandCode(b.brandId))).toEqual(["HMNL"]);
   });
 });
@@ -129,12 +129,12 @@ describe("price books", () => {
 describe("VIN reservation", () => {
   it("reserve from a deal (same brand only), release on Closed Lost, sold on Closed Won", async () => {
     const { id: dealId } = await createDeal(exec, { name: "Reservation deal", brandId: I.brand("HMNL"), regionId: I.region("Lagos") } as never);
-    const [stock] = await listStock(exec, { status: "IN_STOCK" });
-    const foreign = await unsafeDb.vehicleStockRef.findFirstOrThrow({ where: { brandId: I.brand("SNMNL") } });
+    const [stock] = await listStock(exec, { status: "AVAILABLE" });
+    const foreign = await unsafeDb.vehicleUnit.findFirstOrThrow({ where: { brandId: I.brand("SNMNL") } });
     await expect(svc.reserveVin(exec, dealId, foreign.id)).rejects.toThrow(/record's brand/);
 
     await svc.reserveVin(exec, dealId, stock!.id);
-    expect(await unsafeDb.vehicleStockRef.findUniqueOrThrow({ where: { id: stock!.id } })).toMatchObject({ status: "RESERVED", dealId });
+    expect(await unsafeDb.vehicleUnit.findUniqueOrThrow({ where: { id: stock!.id } })).toMatchObject({ status: "RESERVED", dealId });
     expect((await getDeal(exec, dealId)).vinChassisNo).toBe(stock!.vin);
     // someone else cannot reserve the same vehicle
     const other = await createDeal(exec, { name: "Second deal", brandId: I.brand("HMNL"), regionId: I.region("Lagos") } as never);
@@ -143,13 +143,13 @@ describe("VIN reservation", () => {
     const pipeline = await unsafeDb.pipeline.findFirstOrThrow({ where: { brandId: I.brand("HMNL") }, include: { stages: true } });
     const lost = pipeline.stages.find((s) => s.type === "LOST")!;
     await moveDealStage(exec, dealId, lost.id, { lossReason: "Changed mind" } as never);
-    expect(await unsafeDb.vehicleStockRef.findUniqueOrThrow({ where: { id: stock!.id } })).toMatchObject({ status: "IN_STOCK", dealId: null });
+    expect(await unsafeDb.vehicleUnit.findUniqueOrThrow({ where: { id: stock!.id } })).toMatchObject({ status: "AVAILABLE", dealId: null });
 
-    // Closed Won marks the vehicle sold (brand manager may jump stages)
+    // Closed Won keeps the vehicle for the customer: the reservation no longer expires (brand manager may jump stages)
     await svc.reserveVin(exec, other.id, stock!.id);
     const won = pipeline.stages.find((s) => s.type === "WON")!;
     await moveDealStage(bm, other.id, won.id);
-    expect((await unsafeDb.vehicleStockRef.findUniqueOrThrow({ where: { id: stock!.id } })).status).toBe("SOLD");
+    expect(await unsafeDb.vehicleUnit.findUniqueOrThrow({ where: { id: stock!.id } })).toMatchObject({ status: "RESERVED", dealId: other.id, reservedUntil: null });
   });
 
   it("only the brand's manager adds stock; VIN unique per brand", async () => {

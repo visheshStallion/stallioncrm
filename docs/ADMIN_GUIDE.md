@@ -303,3 +303,17 @@ See [API.md](API.md) for the integrator's view.
 - **ERP**: set each brand's ERP company code (Setup → Brands) before switching the adapter on. Failed postings
   are in the automation run log (job type `erp.post`) and can be retried there.
 - **Payments**: keys are per brand (`PAYSTACK_SECRET_KEY_<BRAND>`); a brand without a key has no payment-link button.
+
+## Inventory
+
+See [INVENTORY_GUIDE.md](INVENTORY_GUIDE.md). For administrators:
+
+- **Users**: inventory staff get the profile *Inventory Officer*, *Logistics* or *Inventory Finance* and the brand
+  territory (e.g. `HMNL`). The roles Stock Controller, Logistics Officer and Brand Accountant are seeded; create
+  them under Setup → Roles on an existing installation if they are missing (the profiles are added by the
+  migration).
+- **Per brand** (Inventory → Settings): warehouses, vendors, reservation period, approval limits, valuation of
+  parts, PDI checklist, account mapping and the period lock date. A shared yard is one warehouse per brand.
+- **Scheduler**: reservation expiry runs on the tick (`/api/public/cron/tick`).
+- **Existing data**: the stock references of earlier versions became vehicle units without cost or warehouse;
+  receive real stock through goods receipts.

@@ -175,7 +175,7 @@ export function brandForIntegration(brandId: string) {
   return unsafeDb.brand.findUnique({ where: { id: brandId }, select: { id: true, code: true, name: true, erpCompanyCode: true } });
 }
 
-const EVENT_DELEGATES = { Lead: "lead", Deal: "deal", Quote: "quote", SalesOrder: "salesOrder", Invoice: "invoice", Case: "case" } as const;
+const EVENT_DELEGATES = { Lead: "lead", Deal: "deal", Quote: "quote", SalesOrder: "salesOrder", Invoice: "invoice", Case: "case", VehicleUnit: "vehicleUnit", Product: "product", JournalEntry: "journalEntry" } as const;
 export type EventEntity = keyof typeof EVENT_DELEGATES;
 
 /** Brand of a record, for events raised by the system client (e.g. the approval engine). */

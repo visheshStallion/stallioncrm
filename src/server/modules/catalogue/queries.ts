@@ -212,13 +212,13 @@ export interface StockRow {
   dealId: string | null;
 }
 
-export async function listStock(ctx: AccessContext, where: Prisma.VehicleStockRefWhereInput = {}): Promise<StockRow[]> {
+export async function listStock(ctx: AccessContext, where: Prisma.VehicleUnitWhereInput = {}): Promise<StockRow[]> {
   assertCan(ctx, "products", "read");
-  const rows = await scopedDb(ctx).vehicleStockRef.findMany({
+  const rows = await scopedDb(ctx).vehicleUnit.findMany({
     where: { AND: [brandTagWhere(ctx), where] },
-    include: { product: { select: { name: true } } },
+    include: { product: { select: { name: true } }, warehouse: { select: { name: true } } },
     orderBy: [{ status: "asc" }, { vin: "asc" }],
     take: 500,
   });
-  return rows.map((s) => ({ id: s.id, brandId: s.brandId, productId: s.productId, productName: s.product.name, vin: s.vin, colour: s.colour, location: s.location, status: s.status, dealId: s.dealId }));
+  return rows.map((s) => ({ id: s.id, brandId: s.brandId, productId: s.productId, productName: s.product.name, vin: s.vin, colour: s.colour, location: s.warehouse?.name ?? null, status: s.status, dealId: s.dealId }));
 }

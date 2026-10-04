@@ -6,7 +6,9 @@ import type { AccessContext } from "@/server/access/types";
 import { audit, scopedDb } from "@/server/db";
 import { cancelPendingApprovals } from "@/server/db/approval-engine";
 import { BadRequestError } from "@/server/errors";
+import * as posting from "@/server/db/inventory-posting";
 import { emitEvent } from "@/server/events";
+import { dispatchEvent } from "@/server/integrations/events";
 import { getPrice } from "@/server/modules/catalogue/queries";
 import { defaultBookFor } from "@/server/modules/catalogue/pricing";
 import { getDeal } from "@/server/modules/deals/queries";
@@ -318,7 +320,8 @@ export async function allocateOrder(ctx: AccessContext, id: string) {
   const doc = await load(ctx, "salesOrder", id);
   if (doc.status !== "CONFIRMED") throw new BadRequestError("Only confirmed orders can be allocated");
   const db = scopedDb(ctx);
-  const reserved = await db.vehicleStockRef.findMany({ where: { dealId: doc.dealId, status: "RESERVED" }, orderBy: { vin: "asc" } });
+  // Only units of the order's own brand reserved for its deal (the DB trigger refuses any other brand as well).
+  const reserved = await posting.allocateUnits(doc.dealId, id, doc.brandId, { userId: ctx.userId || null });
   if (reserved.length === 0) throw new BadRequestError("Reserve a vehicle (VIN) on the deal before allocating the order");
   const lines = doc.lines.filter((l) => !l.vin);
   for (const [i, stock] of reserved.entries()) {
@@ -328,6 +331,7 @@ export async function allocateOrder(ctx: AccessContext, id: string) {
       lines.splice(lines.indexOf(line), 1);
     }
   }
+  for (const u of reserved) await dispatchEvent("vehicle.status_changed", u.id, doc.brandId);
   await setStatus(ctx, "salesOrder", id, "ALLOCATED");
 }
 
@@ -347,12 +351,20 @@ export async function deliverOrder(ctx: AccessContext, id: string, deliveryDate?
     await scopedDb(ctx).deal.update({ where: { id: doc.dealId }, data: { vinChassisNo: values.vinChassisNo, deliveryDate: date }, select: { id: true } });
   }
   await setStatus(ctx, "salesOrder", id, "DELIVERED");
+  // Gate pass: the units leave stock (cost of sale is posted once, here or when the invoice was issued).
+  const out = await posting.deliverUnits(id, doc.brandId, doc.number, date, { userId: ctx.userId || null });
+  for (const u of out.units) await dispatchEvent("vehicle.delivered", u.id, doc.brandId);
+  for (const j of out.journalIds) await dispatchEvent("journal.posted", j, doc.brandId);
 }
 
 export async function cancelOrder(ctx: AccessContext, id: string) {
   const doc = await load(ctx, "salesOrder", id);
   if (!["DRAFT", "CONFIRMED", "ALLOCATED"].includes(doc.status)) throw new BadRequestError("This order can no longer be cancelled");
   await setStatus(ctx, "salesOrder", id, "CANCELLED");
+  if (doc.status === "ALLOCATED") {
+    const settings = await posting.brandSettings(doc.brandId);
+    await posting.deallocateUnits(id, doc.brandId, new Date(Date.now() + settings.reservationDays * 86_400_000), { userId: ctx.userId || null });
+  }
 }
 
 // ───────────────────────────── invoices & payments ─────────────────────────────
@@ -362,6 +374,12 @@ export async function issueInvoice(ctx: AccessContext, id: string) {
   if (doc.status !== "DRAFT") throw new BadRequestError("Only draft invoices can be issued");
   if (doc.lines.length === 0) throw new BadRequestError("Add at least one line before issuing");
   await setStatus(ctx, "invoice", id, "ISSUED", { issueDate: new Date() });
+  if (doc.sourceDocumentId) {
+    // Sale issue: the order's allocated units leave stock at their own landed cost (Dr COGS / Cr Inventory).
+    const out = await posting.issueForInvoice(id, doc.sourceDocumentId, doc.brandId, doc.number, { userId: ctx.userId || null });
+    for (const u of out.units) await dispatchEvent("vehicle.status_changed", u.id, doc.brandId);
+    for (const j of out.journalIds) await dispatchEvent("journal.posted", j, doc.brandId);
+  }
   await emitConfirmed(ctx, "invoice", doc);
 }
 

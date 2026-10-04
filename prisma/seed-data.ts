@@ -51,6 +51,10 @@ export const ROLES = {
   RSM: "Regional Sales Manager",
   REGIONAL_EXEC: "Regional Sales Exec",
   ADMIN: "CRM Administrator",
+  // inventory (prompt 16)
+  STOCK: "Stock Controller",
+  LOGISTICS: "Logistics Officer",
+  ACCOUNTANT: "Brand Accountant",
 } as const;
 
 /** Role → parent role (reporting line, §6). */
@@ -62,6 +66,9 @@ export const ROLE_PARENTS: Record<string, string | null> = {
   [ROLES.RSM]: ROLES.HOS,
   [ROLES.REGIONAL_EXEC]: ROLES.RSM,
   [ROLES.ADMIN]: null,
+  [ROLES.STOCK]: ROLES.BM,
+  [ROLES.LOGISTICS]: ROLES.BM,
+  [ROLES.ACCOUNTANT]: ROLES.BM,
 };
 
 export const PROFILES = {
@@ -70,6 +77,10 @@ export const PROFILES = {
   BM: "Brand Manager",
   RSM: "RSM",
   EXEC: "Sales Exec",
+  // inventory (prompt 16)
+  INVENTORY: "Inventory Officer",
+  LOGISTICS: "Logistics",
+  FINANCE: "Inventory Finance",
 } as const;
 
 const TX_MODULES = ["leads", "deals", "quotes", "salesOrders", "invoices", "activities", "cases"];
@@ -105,6 +116,8 @@ export const PROFILE_DEFS: Array<{
         ...grant(CATALOGUE_MODULES, { read: true }),
         ...grant(ANALYTICS_MODULES, { read: true }),
         reports: { read: true, create: true, edit: true },
+        // available stock of the own brands – never cost (inventoryFinance is not granted)
+        inventory: { read: true },
       },
       fieldPermissions: basicCustomerFields,
     },
@@ -124,6 +137,9 @@ export const PROFILE_DEFS: Array<{
         import: { read: true, create: true },
         // sets targets for the own brand (enforced per brand in the forecasts service)
         forecasts: { read: true, export: true, edit: true },
+        // whole brand stock incl. cost; approves purchase orders, allocations, write-offs and inter-brand transfers
+        inventory: { read: true, create: true, edit: true, approve: true, export: true },
+        inventoryFinance: { read: true, approve: true, export: true },
       },
       fieldPermissions: basicCustomerFields,
     },
@@ -138,6 +154,7 @@ export const PROFILE_DEFS: Array<{
         reports: { read: true, create: true, edit: true, export: true },
         campaigns: { read: true, create: true, edit: true },
         ...EXPORT_ACCESS,
+        inventory: { read: true },
       },
       fieldPermissions: basicCustomerFields,
     },
@@ -153,6 +170,9 @@ export const PROFILE_DEFS: Array<{
         campaigns: { read: true, create: true, edit: true, massEmail: true },
         ...EXPORT_ACCESS,
         forecasts: { read: true, export: true, edit: true },
+        // consolidated stock of all brands incl. cost (read)
+        inventory: { read: true, approve: true, export: true },
+        inventoryFinance: { read: true, export: true },
       },
       fieldPermissions: {},
     },
@@ -164,7 +184,31 @@ export const PROFILE_DEFS: Array<{
           [...TX_MODULES, ...CUSTOMER_MODULES, ...CATALOGUE_MODULES, ...ANALYTICS_MODULES, "campaigns", "import", "export", "admin"],
           { read: true, create: true, edit: true, delete: true, export: true, massUpdate: true, massEmail: true },
         ),
+        inventory: { read: true, create: true, edit: true, delete: true, approve: true, export: true },
+        inventoryFinance: { read: true, create: true, edit: true, approve: true, export: true },
       },
+      fieldPermissions: {},
+    },
+    // ── inventory profiles (prompt 16) ──
+    {
+      // Stock Controller: receive, transfer, adjust (up to the limit), PDI, allocate – no cost
+      name: PROFILES.INVENTORY,
+      scope: "TERRITORY",
+      permissions: { inventory: { read: true, create: true, edit: true }, products: { read: true }, deals: { read: true }, salesOrders: { read: true } } as Record<string, Perm>,
+      fieldPermissions: {},
+    },
+    {
+      // Logistics / clearing: shipments, port clearing, landed cost entry
+      name: PROFILES.LOGISTICS,
+      scope: "TERRITORY",
+      permissions: { inventory: { read: true, create: true, edit: true }, inventoryFinance: { read: true, create: true }, products: { read: true } } as Record<string, Perm>,
+      fieldPermissions: {},
+    },
+    {
+      // Brand Accountant: bills, landed cost, valuation, journals; approves adjustments
+      name: PROFILES.FINANCE,
+      scope: "TERRITORY",
+      permissions: { inventory: { read: true, export: true }, inventoryFinance: { read: true, create: true, edit: true, approve: true, export: true }, products: { read: true }, invoices: { read: true }, salesOrders: { read: true } } as Record<string, Perm>,
       fieldPermissions: {},
     },
   ];
@@ -227,6 +271,13 @@ export const USERS: SeedUser[] = [
   { key: "exec.ph", name: "Tamuno Briggs", role: ROLES.REGIONAL_EXEC, profile: PROFILES.EXEC, territories: regional("Port Harcourt", ACTIVE_BRANDS), manager: "rsm" },
   { key: "exec.ibadan", name: "Lola Oyelaran", role: ROLES.REGIONAL_EXEC, profile: PROFILES.EXEC, territories: regional("Ibadan", ACTIVE_BRANDS), manager: "rsm" },
   { key: "exec.abuja.2", name: "Danladi Yakubu", role: ROLES.REGIONAL_EXEC, profile: PROFILES.EXEC, territories: regional("Abuja", ["HMNL", "SMGL"]), manager: "rsm" },
+
+  // inventory staff (prompt 16): brand-level membership = the whole brand's stock, nothing of other brands
+  { key: "stock.hmnl", name: "Gbenga Afolabi", role: ROLES.STOCK, profile: PROFILES.INVENTORY, territories: ["HMNL"], manager: "bm.hmnl" },
+  { key: "stock.snmnl", name: "Hauwa Lawan", role: ROLES.STOCK, profile: PROFILES.INVENTORY, territories: ["SNMNL"], manager: "bm.snmnl" },
+  { key: "logistics.hmnl", name: "Obinna Eze", role: ROLES.LOGISTICS, profile: PROFILES.LOGISTICS, territories: ["HMNL"], manager: "bm.hmnl" },
+  { key: "acct.hmnl", name: "Ronke Balogun", role: ROLES.ACCOUNTANT, profile: PROFILES.FINANCE, territories: ["HMNL"], manager: "bm.hmnl" },
+  { key: "acct.snmnl", name: "Sani Abubakar", role: ROLES.ACCOUNTANT, profile: PROFILES.FINANCE, territories: ["SNMNL"], manager: "bm.snmnl" },
 ];
 
 export const DEALS_PER_BRAND_REGION = 5;

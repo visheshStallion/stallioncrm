@@ -85,3 +85,20 @@ export async function reconcilePayment(input: { system?: string; externalId?: st
   const res = await addPayment(automationContext(ref.brandId), ref.entityId, { amount: input.amount, method: "TRANSFER", reference: input.reference, receivedAt: input.receivedAt });
   return { duplicate: false, invoiceId: ref.entityId, status: res.status };
 }
+
+/** Job handler "erp.journal": an inventory journal goes to the ERP company of ITS brand (adapters that support it). */
+export async function postJournalJob(job: Pick<Job, "payload">): Promise<Record<string, unknown>> {
+  const { journalId, brandId } = job.payload as { journalId: string; brandId: string };
+  const brand = await store.brandForIntegration(brandId);
+  const adapter = brand ? erpAdapterFor(brand.code) : null;
+  if (!brand || !adapter?.postJournal) return { skipped: "the brand's ERP adapter does not take journals" };
+  if (!brand.erpCompanyCode) throw new Error(`Brand ${brand.code} has no ERP company code (Setup → Brands)`);
+  const posting = await import("@/server/db/inventory-posting");
+  const j = await posting.journalForExport(journalId);
+  if (!j || j.brandId !== brandId) return { skipped: "journal not found" };
+  if (j.exportedAt) return { skipped: "already exported" };
+  const num = (d: { toString(): string }) => Number(d.toString());
+  const out = await adapter.postJournal({ id: j.id, number: j.number, companyCode: brand.erpCompanyCode, date: j.date.toISOString().slice(0, 10), memo: j.memo, lines: j.lines.map((l) => ({ account: l.account, debit: num(l.debit), credit: num(l.credit), memo: l.memo })) }, { baseUrl: brandEnv("ERP_BASE_URL", brand.code), token: brandEnv("ERP_TOKEN", brand.code) });
+  await posting.markJournalsExported([j.id]);
+  return { companyCode: brand.erpCompanyCode, externalId: out.externalId };
+}

@@ -17,6 +17,9 @@ export const MODULES = [
   { key: "activities", label: "Activities", model: "Activity", prompt: "07", nav: true },
   { key: "cases", label: "Cases", model: "Case", prompt: "11", nav: true },
   { key: "campaigns", label: "Campaigns", model: "Campaign", prompt: "10", nav: true },
+  { key: "inventory", label: "Inventory", model: "VehicleUnit", prompt: "16", nav: true },
+  // capability: cost, bills, landed cost, valuation and journals (sensitive tier)
+  { key: "inventoryFinance", label: "Inventory finance", model: null, prompt: "16", nav: false },
   { key: "reports", label: "Reports", model: null, prompt: "09", nav: true },
   { key: "dashboards", label: "Dashboards", model: null, prompt: "09", nav: true },
   { key: "forecasts", label: "Forecasts", model: null, prompt: "09", nav: true },

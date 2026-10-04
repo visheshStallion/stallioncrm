@@ -20,6 +20,7 @@ import { isManagerOf } from "@/server/access/visibility";
 import { scopedDb } from "@/server/db";
 import { releaseVinAction, reserveVinAction } from "@/server/modules/catalogue/actions";
 import { listStock } from "@/server/modules/catalogue/queries";
+import { STATUS_LABELS, type VehicleStatus } from "@/server/modules/inventory/status";
 import { changeDealOwnerAction } from "@/server/modules/deals/actions";
 import { allowedTargets } from "@/server/modules/deals/blueprint";
 import { dealFormLookups, dealStageHistory, dealTimeline, getDeal, getPipeline } from "@/server/modules/deals/queries";
@@ -57,7 +58,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
     scopedDb(ctx).user.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     // Vehicles reserved for this deal + available vehicles of the deal's brand (and model, when chosen).
     hasPermission(ctx, "products", "read")
-      ? listStock(ctx, { OR: [{ dealId: id }, { brandId: deal.brandId, status: { in: ["IN_STOCK", "IN_TRANSIT"] }, ...(deal.modelId ? { productId: deal.modelId } : {}) }] })
+      ? listStock(ctx, { OR: [{ dealId: id }, { brandId: deal.brandId, status: "AVAILABLE", ...(deal.modelId ? { productId: deal.modelId } : {}) }] })
       : Promise.resolve([]),
     dealDocuments(ctx, id),
     hasPermission(ctx, "activities", "read") ? recordActivities(ctx, "Deal", id) : { overdue: [], upcoming: [], history: [] },
@@ -229,7 +230,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
                     <li key={s.id} className="flex items-center gap-2">
                       <span className="font-mono">{s.vin}</span>
                       <span className="text-text-muted">
-                        {s.productName} · {s.colour ?? "—"} · {s.status === "SOLD" ? "Sold" : "Reserved"}
+                        {s.productName} · {s.colour ?? "—"} · {STATUS_LABELS[s.status as VehicleStatus] ?? s.status}
                       </span>
                     </li>
                   ))}

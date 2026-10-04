@@ -33,6 +33,11 @@ describe("lead visibility per role (BUSINESS_CONTEXT §6)", () => {
     const ctx = await ctxFor(key);
     const all = await unsafeDb.lead.findMany({ where: { deletedAt: null } });
     const expected = all.filter((l) => isVisible(ctx, l)).map((l) => l.id).sort();
+    if (!ctx.profile.permissions.leads?.read) {
+      // inventory staff (prompt 16) have no access to leads at all
+      await expect(listLeads(ctx, {}, { take: 1 })).rejects.toThrow(/permission/);
+      return;
+    }
     const { rows } = await listLeads(ctx, {}, { take: 5000 });
     expect(rows.map((r) => r.id).sort()).toEqual(expected);
   });

@@ -224,7 +224,9 @@ async function moveRecord(tx: Tx, req: { id: string; entity: string; entityId: s
   } else {
     if (brandChanged) {
       // Brand-specific links cannot follow: the reserved vehicle goes back to the old brand's stock.
-      await tx.vehicleStockRef.updateMany({ where: { dealId: before.id, status: "RESERVED" }, data: { status: "IN_STOCK", dealId: null } });
+      const reserved = await tx.vehicleUnit.findMany({ where: { dealId: before.id, status: "RESERVED" }, select: { id: true, brandId: true } });
+      await tx.vehicleUnit.updateMany({ where: { id: { in: reserved.map((u) => u.id) } }, data: { status: "AVAILABLE", dealId: null, reservedById: null, reservedUntil: null } });
+      if (reserved.length) await tx.vehicleStatusHistory.createMany({ data: reserved.map((u) => ({ brandId: u.brandId, unitId: u.id, from: "RESERVED" as const, to: "AVAILABLE" as const, note: "Deal moved to another brand", userId: actor.id })) });
     }
     await tx.deal.update({
       where: { id: before.id },

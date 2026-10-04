@@ -12,6 +12,7 @@ import { hasPermission } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
 import { addStockAction } from "@/server/modules/catalogue/actions";
 import { getPrice, getProduct, listStock } from "@/server/modules/catalogue/queries";
+import { STATUS_LABELS, type VehicleStatus } from "@/server/modules/inventory/status";
 import { CATEGORY_LABELS, STOCK_LABELS, STOCK_STATUSES } from "@/server/modules/catalogue/schema";
 import { getDirectory } from "@/server/modules/org/queries";
 import { requireContext } from "@/server/request";
@@ -111,7 +112,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                       <td>{s.colour ?? "—"}</td>
                       <td>{s.location ?? "—"}</td>
                       <td>
-                        <StatusPill tone={s.status === "IN_STOCK" ? "success" : s.status === "RESERVED" ? "warning" : "neutral"}>{STOCK_LABELS[s.status as keyof typeof STOCK_LABELS]}</StatusPill>
+                        <StatusPill tone={s.status === "AVAILABLE" ? "success" : s.status === "RESERVED" || s.status === "ALLOCATED" ? "warning" : "neutral"}>{STATUS_LABELS[s.status as VehicleStatus] ?? s.status}</StatusPill>
                       </td>
                       <td>{s.dealId ? <Link href={`/deals/${s.dealId}`} className="text-primary underline">open</Link> : "—"}</td>
                     </tr>

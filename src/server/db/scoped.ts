@@ -9,7 +9,7 @@
  *   • updates that move a record re-validate and re-resolve the territory; brand changes need scope ALL
  *     (everyone else goes through the brand-change approval, prompt 08);
  *   • INACTIVE brands: creates rejected, existing records read-only (bulk writes skip them);
- *   • brand-TAGGED master data (Product, PriceBook, VehicleStockRef) is filtered to the user's brands;
+ *   • brand-TAGGED master data (Product, PriceBook, inventory tables) is filtered to the user's brands;
  *   • nested writes INTO brand-owned models are rejected (they would skip validation);
  *   • create / update / delete on brand-owned models are audited.
  * Layer 2 (Postgres RLS): every operation – including $queryRaw – runs in a transaction as role
