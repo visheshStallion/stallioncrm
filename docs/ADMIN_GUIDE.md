@@ -174,3 +174,22 @@ set consent only for the brands they work in. A lead's consent is carried over f
 Per brand: rename stages, set the win probability and the “stale after N days” limit, choose which fields are required
 to enter a stage, and optionally restrict which stages can follow. Add extra open stages or remove unused ones (the
 standard stages and stages that contain deals cannot be removed).
+
+## Products & price books
+
+- **Who sees what**: users see the products, price books and stock of the brands they work in – never another brand's.
+  Management and administrators see all brands.
+- **Who can change them**: the **Brand Manager** of a brand (own brand only) and administrators. Everyone else is
+  read-only.
+- **Products** (`/products`): grid or list, filters for model, category, active and more. A product has a code (unique
+  per brand), model, variant, year, specification, colours, list price, tax (VAT 7.5 % by default), image URLs and a spec
+  sheet link. Deactivate a product to hide it from pickers; the brand of a product never changes.
+- **Price books** (`/priceBooks`): each has a validity period and may be the brand's **default**. Only one default
+  price book per brand can be valid at a time – an overlapping default is rejected. A product's current price is the
+  entry in the default book valid today, otherwise its list price. Entries carry a **max discount %** used later by
+  discount approvals.
+- **CSV import / export** on the price book page: columns `code, price, max_discount_pct, notes`. The dry run lists
+  unknown codes (codes must be products of the same brand), duplicates and invalid numbers; only valid rows are imported.
+- **Vehicle stock** (on the product page): add VINs with colour, location and status. On a deal, *Reserve a vehicle*
+  attaches an available vehicle of the deal's brand (and model); the reservation is released automatically when the deal
+  is Closed Lost and the vehicle is marked sold on Closed Won.

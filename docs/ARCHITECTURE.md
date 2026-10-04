@@ -229,7 +229,27 @@ visibility decided per viewer by **tiers** (`src/server/access/customer-tier.ts`
 - Spec names vs. columns: `expectedCloseDate` → `closeDate`, `productId` → `modelId`; the originating lead is
   `Deal.convertedFromLead` (no separate `leadId`).
 
-## 12. Local development
+## 12. Catalogue: brand-tagged master data (prompt 05)
+Products, price books and stock references are **brand-tagged**: they carry a `brandId` but no region or owner.
+- **Read**: users of the brand (any territory membership in it) and scope ALL. `scopedDb` injects
+  `brandTagWhere(ctx)` into reads and bulk writes of the models in `BRAND_TAGGED_MODELS`
+  (`src/server/access/brand-tag.ts`); RLS policy `brand_tag` (`app_enable_brand_tag_rls('"Table"')`) enforces it in
+  Postgres. A new brand-tagged model needs both: add it to the set and enable the policy in its migration.
+  `PriceBookEntry` follows its price book.
+- **Write**: `canManageBrandData(ctx, module, action, brandId)` – profile permission plus scope ALL (administrator) or a
+  brand-level manager membership (the Brand Manager of that brand).
+- **Lookup-filter enforcement**: `assertSameBrand(record.brandId, ref.brandId)` – a record of brand X may only
+  reference products, price books or stock of brand X. Used by leads, deals, price book entries and reservations; quote
+  and order lines (prompt 06) must use it too. A reference the user cannot see fails the same way. DB triggers
+  (`app_same_brand_product`) back it up for price book entries and stock.
+- **Prices** (`catalogue/pricing.ts`, pure): `getPrice(ctx, productId, date, priceBookId?)` → entry of the given valid
+  book, else the brand's default active book for the date, else the list price. Only one default active book per brand
+  may be valid at a time (overlaps are rejected on save).
+- **VIN reservation** (`reserveVin` / `releaseVin`): claims a `VehicleStockRef` atomically for a deal; Closed Lost
+  releases it (and clears the VIN from the deal), Closed Won marks it sold. This table is a lightweight reference and is
+  replaced by the inventory module (prompt 16).
+
+## 13. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.
