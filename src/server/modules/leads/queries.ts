@@ -9,7 +9,20 @@ import { canWriteTo } from "@/server/access/visibility";
 import { scopedDb } from "@/server/db";
 import { auditTrail, countHiddenLeadMatches } from "@/server/db/system";
 import { classifyDuplicates, type DuplicateReport } from "./duplicates";
-import { OPEN_STATUSES, type LeadFilters } from "./schema";
+import type { FieldDef } from "@/server/list/filters";
+import {
+  LEAD_SOURCES,
+  LEAD_STATUSES,
+  OPEN_STATUSES,
+  PAYMENT_INTENTS,
+  PAYMENT_LABELS,
+  PURCHASE_WINDOWS,
+  RATINGS,
+  SOURCE_LABELS,
+  STATUS_LABELS,
+  WINDOW_LABELS,
+  type LeadFilters,
+} from "./schema";
 
 const leadSelect = {
   id: true,
@@ -159,13 +172,12 @@ export function leadWhere(ctx: AccessContext, f: LeadFilters): Prisma.LeadWhereI
 export async function listLeads(
   ctx: AccessContext,
   filters: LeadFilters,
-  opts: { take?: number; skip?: number; ids?: string[] } = {},
+  opts: { take?: number; skip?: number; ids?: string[]; where?: Prisma.LeadWhereInput } = {},
 ): Promise<{ rows: LeadRow[]; total: number }> {
   assertCan(ctx, "leads", "read");
   const db = scopedDb(ctx);
   const where: Prisma.LeadWhereInput = {
-    ...leadWhere(ctx, filters),
-    ...(opts.ids ? { id: { in: opts.ids } } : {}),
+    AND: [leadWhere(ctx, filters), opts.where ?? {}, opts.ids ? { id: { in: opts.ids } } : {}],
   };
   const [rows, total] = await Promise.all([
     db.lead.findMany({
@@ -287,4 +299,32 @@ export async function listSavedViews(ctx: AccessContext, module = "leads") {
     where: { userId: ctx.userId, module },
     orderBy: { name: "asc" },
   });
+}
+
+/** Fields offered in the leads Filter Panel (whitelist for the generic filter engine). */
+export function leadFilterFields(opts: {
+  brands: Array<{ id: string; code: string }>;
+  regions: Array<{ id: string; name: string }>;
+  users: Array<{ id: string; name: string }>;
+}): FieldDef[] {
+  return [
+    { key: "lastName", label: "Last name", type: "text", nullable: false },
+    { key: "firstName", label: "First name", type: "text" },
+    { key: "mobile", label: "Mobile", type: "text" },
+    { key: "email", label: "Email", type: "text" },
+    { key: "city", label: "City", type: "text" },
+    { key: "status", label: "Lead status", type: "enum", nullable: false, options: LEAD_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] })) },
+    { key: "source", label: "Lead source", type: "enum", nullable: false, options: LEAD_SOURCES.map((s) => ({ value: s, label: SOURCE_LABELS[s] })) },
+    { key: "rating", label: "Rating", type: "enum", options: RATINGS.map((r) => ({ value: r, label: r.charAt(0) + r.slice(1).toLowerCase() })) },
+    { key: "paymentIntent", label: "Payment intent", type: "enum", options: PAYMENT_INTENTS.map((p) => ({ value: p, label: PAYMENT_LABELS[p] })) },
+    { key: "expectedPurchaseWindow", label: "Expected purchase", type: "enum", options: PURCHASE_WINDOWS.map((w) => ({ value: w, label: WINDOW_LABELS[w] })) },
+    { key: "budget", label: "Budget", type: "number" },
+    { key: "tradeIn", label: "Trade-in", type: "boolean", nullable: false },
+    { key: "consentMarketing", label: "Marketing consent", type: "boolean", nullable: false },
+    { key: "brandId", label: "Brand", type: "enum", nullable: false, options: opts.brands.map((b) => ({ value: b.id, label: b.code })) },
+    { key: "regionId", label: "Region", type: "enum", nullable: false, options: opts.regions.map((r) => ({ value: r.id, label: r.name })) },
+    { key: "ownerId", label: "Lead owner", type: "enum", nullable: false, options: opts.users.map((u) => ({ value: u.id, label: u.name })) },
+    { key: "createdAt", label: "Created time", type: "date", nullable: false },
+    { key: "updatedAt", label: "Modified time", type: "date", nullable: false },
+  ];
 }

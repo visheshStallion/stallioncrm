@@ -152,6 +152,7 @@ model User {
   updatedLeads       Lead[]            @relation("LeadUpdatedBy")
   savedViews         SavedView[]
   assignmentRules    AssignmentRule[]
+  userPreferences    UserPreference[]
 }
 
 model TerritoryMember {
@@ -457,4 +458,15 @@ model AssignmentRule {
   updatedAt DateTime         @updatedAt
 
   @@index([module, position])
+}
+
+/// Per-user UI preferences (prompt 17): module rail order/pins, theme, density, date format, column layouts.
+model UserPreference {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, key])
 }

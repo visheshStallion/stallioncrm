@@ -43,7 +43,7 @@ export async function createLeadAction(_p: unknown, fd: FormData): Promise<Actio
       { autoAssign: fd.get("autoAssign") === "on" },
     );
     revalidatePath("/leads");
-    return { message: "Lead created", redirect: `/leads/${lead.id}` };
+    return { message: "Lead created", redirect: fd.get("_saveAndNew") ? "/leads/new" : `/leads/${lead.id}` };
   });
 }
 
@@ -53,7 +53,7 @@ export async function updateLeadAction(_p: unknown, fd: FormData): Promise<Actio
     const id = str(fd, "id");
     await svc.updateLead(ctx, id, leadInput(fd) as UpdateLeadInput);
     revalidatePath(`/leads/${id}`);
-    return { message: "Lead saved" };
+    return { message: "Lead updated successfully", redirect: `/leads/${id}` };
   });
 }
 
@@ -119,7 +119,7 @@ export async function convertLeadAction(_p: unknown, fd: FormData): Promise<Acti
   });
 }
 
-export async function saveViewAction(input: { name: string; filters: LeadFilters; columns?: string[] | null }) {
+export async function saveViewAction(input: { name: string; filters: LeadFilters & { f?: string[]; sys?: string }; columns?: string[] | null }) {
   return safeAction(async () => {
     const view = await svc.saveView(await requireContext(), input);
     revalidatePath("/leads");
@@ -170,5 +170,17 @@ export async function moveRuleAction(_p: unknown, fd: FormData) {
     if (dir !== "up" && dir !== "down") throw new BadRequestError("Invalid direction");
     await rules.moveRule(ctx, str(fd, "id"), dir);
     return "Rule moved";
+  });
+}
+
+/** Inline cell edit from the list (double-click). Only a few safe fields; full rules apply in updateLead. */
+const INLINE_FIELDS = new Set(["status", "rating", "city", "source"]);
+export async function inlineEditLeadAction(id: string, field: string, value: string) {
+  return safeAction(async () => {
+    if (!INLINE_FIELDS.has(field)) throw new BadRequestError("This field cannot be edited inline");
+    const ctx = await requireContext();
+    await svc.updateLead(ctx, id, { [field]: value || null } as UpdateLeadInput);
+    revalidatePath("/leads");
+    return { message: "Lead updated successfully" };
   });
 }

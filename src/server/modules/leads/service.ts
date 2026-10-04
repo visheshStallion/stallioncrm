@@ -213,7 +213,10 @@ export async function convertLead(ctx: AccessContext, id: string, input: Convert
 async function onLeadConverted(_ctx: AccessContext, _leadId: string, _dealId: string): Promise<void> {}
 
 // ── Saved views ──
-export async function saveView(ctx: AccessContext, input: { name: string; filters: LeadFilters; columns?: string[] | null }) {
+export async function saveView(
+  ctx: AccessContext,
+  input: { name: string; filters: LeadFilters & { f?: string[]; sys?: string }; columns?: string[] | null },
+) {
   const name = input.name.trim();
   if (!name || name.length > 60) throw new BadRequestError("View name must be 1–60 characters");
   return scopedDb(ctx).savedView.upsert({

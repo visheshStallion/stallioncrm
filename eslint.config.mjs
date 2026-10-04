@@ -43,6 +43,7 @@ export default tseslint.config(
       "test-results/**",
       "next-env.d.ts",
       "prompt/**",
+      "storybook-static/**",
     ],
   },
   js.configs.recommended,

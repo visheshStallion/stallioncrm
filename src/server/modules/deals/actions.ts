@@ -23,3 +23,20 @@ export async function updateDealAction(id: string, input: UpdateDealInput) {
     return deal;
   });
 }
+
+/** Form variant (Quick Create drawer). */
+export async function createDealFormAction(_prev: unknown, fd: FormData) {
+  const str = (k: string) => (fd.get(k) ?? "").toString().trim();
+  return safeAction(async () => {
+    const ctx = await requireContext();
+    const deal = await createDeal(ctx, {
+      name: str("name"),
+      customerName: str("customerName") || undefined,
+      amount: str("amount") ? Number(str("amount")) : undefined,
+      brandId: str("brandId"),
+      regionId: str("regionId"),
+    });
+    revalidatePath("/deals");
+    return { message: "Deal created", redirect: `/deals/${deal.id}` };
+  });
+}

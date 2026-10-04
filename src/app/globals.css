@@ -1,32 +1,126 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
 
+/* Dark mode follows the `.dark` class on <html> (set from the user's theme preference). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ───────────────────────── Design tokens (docs/DESIGN_SYSTEM.md) ───────────────────────── */
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --border: #e2e8f0;
-  --primary: #0f3d73;
+  --primary: #1565d0; /* prompt 17 suggests #1A73E8; darkened for WCAG AA on tinted fills */
+  --primary-hover: #114fa3;
   --primary-foreground: #ffffff;
-  --ring: #3b82f6;
+  --surface: #ffffff;
+  --canvas: #f4f6f9;
+  --sidebar-bg: #1f2a3c;
+  --sidebar-fg: #c9d1dd;
+  --sidebar-active-fg: #ffffff;
+  --sidebar-active-bg: #2e3b52;
+  --border: #e3e7ed;
+  --text: #1f2937;
+  --text-muted: #5b6472;
+  --muted: #f1f4f8;
+  --success: #1e9e5a;
+  --warning: #f59e0b;
+  --danger: #e5484d;
+  --info: #0ea5e9;
+  --ring: #1565d0;
+  --radius-control: 4px;
+  --radius-card: 6px;
+  --row-height: 40px;
+  --topbar-height: 52px;
+  color-scheme: light;
+}
+
+.dark {
+  --primary: #4c95f0;
+  --primary-hover: #74adf4;
+  --primary-foreground: #0b1220;
+  --surface: #161d2b;
+  --canvas: #0e1420;
+  --sidebar-bg: #0b111c;
+  --sidebar-fg: #aab4c3;
+  --sidebar-active-fg: #ffffff;
+  --sidebar-active-bg: #23304a;
+  --border: #2a3446;
+  --text: #e5e9f0;
+  --text-muted: #9aa5b5;
+  --muted: #1d2636;
+  --success: #3ccf86;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #38bdf8;
+  --ring: #74adf4;
+  color-scheme: dark;
+}
+
+[data-density="compact"] {
+  --row-height: 32px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
+  /* new names */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-primary-hover: var(--primary-hover);
+  --color-sidebar: var(--sidebar-bg);
+  --color-sidebar-fg: var(--sidebar-fg);
+  --color-sidebar-active: var(--sidebar-active-bg);
+  --color-sidebar-active-fg: var(--sidebar-active-fg);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  /* names used by the shadcn-style primitives */
+  --color-background: var(--canvas);
+  --color-foreground: var(--text);
+  --color-card: var(--surface);
   --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
+  --color-muted-foreground: var(--text-muted);
   --color-border: var(--border);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-ring: var(--ring);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius-card);
+  --font-sans: "Inter Variable", Lato, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html {
+  font-size: 14px;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--canvas);
+  color: var(--text);
   font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+}
+
+* {
+  border-color: var(--border);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Dense CRM tables: 13px text, token-driven row height. */
+.crm-table {
+  font-size: 13px;
+}
+.crm-table tbody tr {
+  height: var(--row-height);
 }
