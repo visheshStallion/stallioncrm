@@ -7,7 +7,14 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO stallion_
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO stallion_rls;
 
 -- Never reachable from a user-scoped session.
-REVOKE ALL ON "_prisma_migrations" FROM stallion_rls;
+-- Guarded: _prisma_migrations does not exist in Prisma's shadow database (prisma migrate dev).
+DO $$
+BEGIN
+  IF to_regclass('"_prisma_migrations"') IS NOT NULL THEN
+    REVOKE ALL ON "_prisma_migrations" FROM stallion_rls;
+  END IF;
+END
+$$;
 REVOKE ALL ON "AuditLog" FROM stallion_rls;
 
 -- Password hashes are not selectable from a user-scoped session (column privileges).

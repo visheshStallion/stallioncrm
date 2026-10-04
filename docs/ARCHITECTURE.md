@@ -132,7 +132,7 @@ and anything security-relevant. Secrets (`passwordHash`, `password`, `token`, `s
 1. **Schema**: add the model to `prisma/schema.prisma`. If brand-owned, include the full mixin:
    `brandId, regionId, territoryId?, ownerId, createdById?, updatedById?, createdAt, updatedAt, deletedAt?` with
    relations, plus `@@index([brandId, regionId])`, `@@index([ownerId])`. Add back-relations on Brand/Region/Territory/User.
-2. **Migration**: `pnpm db:migrate --name <module>`; then append to that migration
+2. **Migration**: `pnpm db:new-migration <module>` (generates against a throw-away database) or `pnpm db:migrate --name <module>`; then append to that migration
    `SELECT app_enable_brand_rls('"<Model>"');` (and copy the line into a new `prisma/rls/NNN_<module>.sql` only if you
    add new functions/policies). If you add columns to `User`, `GRANT SELECT (<cols>) ON "User" TO stallion_rls`.
 3. **Access**: the module key is already in `src/server/access/modules.ts` (add one if not). Give it permissions in

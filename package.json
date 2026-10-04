@@ -24,6 +24,7 @@
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
     "db:local": "tsx scripts/local-db.ts",
+    "db:new-migration": "tsx scripts/migrate-dev.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {
