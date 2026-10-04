@@ -22,8 +22,16 @@ describe("fieldMask", () => {
     expect(maskEmail("buyer@acme.test")).toBe("b***@acme.test");
   });
 
-  it("sales exec sees basic customer fields only", () => {
-    const out = fieldMask(CTX.lagosHmnl, "accounts", customer);
+  const restricted = {
+    ...CTX.lagosHmnl,
+    profile: {
+      ...CTX.lagosHmnl.profile,
+      fieldPermissions: { accounts: { phone: "masked", email: "hidden", address: "hidden", creditLimit: "hidden" } as const },
+    },
+  };
+
+  it("profile field permissions hide / mask fields", () => {
+    const out = fieldMask(restricted, "accounts", customer);
     expect(out).toEqual({ id: "a1", name: "Acme Logistics", city: "Lagos", phone: "0803****21" });
     expect(customer.email).toBe("buyer@acme.test"); // input not mutated
   });
@@ -33,7 +41,7 @@ describe("fieldMask", () => {
   });
 
   it("unconfigured fields are editable", () => {
-    expect(fieldAccess(CTX.lagosHmnl, "accounts", "name")).toBe("edit");
-    expect(fieldAccess(CTX.lagosHmnl, "accounts", "email")).toBe("hidden");
+    expect(fieldAccess(restricted, "accounts", "name")).toBe("edit");
+    expect(fieldAccess(restricted, "accounts", "email")).toBe("hidden");
   });
 });
