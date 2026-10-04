@@ -85,3 +85,37 @@ Columns: `name, email, company_codes, role, region`.
 
 ### Audit log (`/admin/audit`)
 Filter by user, entity, brand and date; **Export CSV** downloads the filtered log (the export itself is audited).
+
+## Leads
+
+### Working with leads (`/leads`)
+- **Views**: *Open leads*, *My open leads*, *Hot leads this week*, *All leads*, plus your own saved views (filters + visible
+  columns – use **Columns** then **Save view**). Filters (status, source, rating, brand, region, owner, created date, search)
+  narrow the selected view; brand / region filters only offer values you can see. List or **Kanban by status**.
+- **Create**: brand is required (pre-filled when you sell one brand) and cannot be changed afterwards; region defaults to
+  yours; the model picker shows only the chosen brand's models. Mobile numbers are stored in E.164 (`0803…` → `+234803…`).
+- **Duplicate check** (mobile / email): matches in the same brand are shown with a link; a match in another brand (or one
+  you cannot see) only shows “Customer exists – link instead”, without details.
+- **Owner**: a lead can only be owned by an active user who works in its brand and region – other choices are rejected.
+- **Mass actions** (profiles with *mass update*): change owner (one brand at a time) and set status. **Export** is only
+  shown to profiles with the *export* permission and is audited.
+- **Convert**: creates or links the shared Account and Contact, creates a Deal with the lead's brand, region, model and
+  owner, and marks the lead *Converted* (read-only).
+- **Timeline**: field history of the lead (activities and emails arrive with later modules).
+
+### Assignment rules (`/admin/assignment-rules/leads`)
+Ordered rules – the first active rule whose criteria (brand, region, source, model; empty = any) match decides the owner:
+- *Round-robin in Brand–Region territory* – rotates over the active, non-manager members of the lead's territory; the
+  position is stored per rule.
+- *Specific user* – used only if that user is active and works in the lead's brand-region.
+- *Territory manager*.
+
+If a rule finds nobody, or no rule matches: round-robin in the territory → territory manager → Brand Manager. The seed
+ships one catch-all round-robin rule. Rules apply to web leads and to leads created with *Assign automatically*.
+
+### Web-to-Lead (`/admin/web-forms`)
+Each brand has a public endpoint `POST /api/public/leads/<BRAND>` and a copy-paste HTML snippet (region pick-list,
+consent box, UTM capture). The brand is taken from the URL only – a form for one brand can never create another brand's
+lead. Protection: hidden honeypot field, per-IP rate limit (`WEB_LEAD_RATE_LIMIT`, default 10 per 10 minutes) and
+optional reCAPTCHA (`RECAPTCHA_SECRET_KEY`; send `recaptchaToken`). WhatsApp / Facebook use the same endpoint with
+`?channel=whatsapp|facebook`; those adapters are stubs (501) until the providers are configured.

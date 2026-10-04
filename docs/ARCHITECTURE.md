@@ -76,6 +76,7 @@ A Prisma client extension over **every** operation:
 | findUnique(OrThrow), update, delete, upsert | scope appended to the unique `where` (`AND`) |
 | create / createMany / upsert.create | brandId + regionId mandatory scalars, must pass `canWriteTo`; `territoryId = resolveTerritory()`; `createdById/updatedById` stamped |
 | any write to a record of an INACTIVE brand, or create in one | rejected (bulk writes skip such records) |
+| create / update setting `ownerId` (incl. updateMany) | the owner must be an active user with territory access to the record's brand-region |
 | update moving brandId / regionId | re-validated; **brand change requires scope ALL** (others → brand-change approval, prompt 08); territory re-resolved |
 | updateMany touching brand/region | rejected |
 | include / select / `_count` of list relations to brand-owned models (any depth) | scope injected into the relation `where` |
@@ -166,7 +167,18 @@ cannot read `AuditLog`). Role → territory rules live in `src/server/access/qui
 helper and the CSV import). The access context is rebuilt on every request, so membership / profile changes apply on
 the next request. User guide: [ADMIN_GUIDE.md](ADMIN_GUIDE.md).
 
-## 9. Local development
+## 9. Leads (prompt 02) – patterns reused by later modules
+- **System context** (`ctx.system = true`, see `intakeContext` in `src/server/modules/leads/intake.ts`): for work without a
+  signed-in user (public web-to-lead). It has memberships only for the one brand in the URL, so it cannot write elsewhere;
+  createdBy/updatedBy and the audit user are null.
+- **Public endpoints** live under `/api/public/*` (no session; listed in `PUBLIC_PATHS`) and must bring their own abuse
+  controls (rate limit `src/server/rate-limit.ts`, honeypot, captcha).
+- **Duplicate checks across brands** may only learn *that* a match exists (`countHiddenLeadMatches` returns a count).
+- **Timelines** read the audit trail via `auditTrail()` only after the record passed a visibility check.
+- **Minimal shared models** added here and extended later: `Account`, `Contact` (prompt 03), `Product` (prompt 05); Deal
+  gained `accountId`, `contactId`, `modelId`.
+
+## 10. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.
