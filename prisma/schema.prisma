@@ -42,16 +42,19 @@ model Brand {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  aliases     BrandCodeAlias[]
-  territories Territory[]
-  deals       Deal[]
+  aliases         BrandCodeAlias[]
+  territories     Territory[]
+  deals           Deal[]
+  leads           Lead[]
+  products        Product[]
+  assignmentRules AssignmentRule[]
 }
 
 /// Legacy company codes (e.g. from the HR rep file) mapped to a brand. Configurable, never hard-coded.
 model BrandCodeAlias {
-  alias   String @id
+  alias   String  @id
   brandId String
-  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  brand   Brand   @relation(fields: [brandId], references: [id], onDelete: Cascade)
   note    String?
 
   @@index([brandId])
@@ -64,8 +67,10 @@ model Region {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  territories Territory[]
-  deals       Deal[]
+  territories     Territory[]
+  deals           Deal[]
+  leads           Lead[]
+  assignmentRules AssignmentRule[]
 }
 
 /// Territory tree: level 0 = Group root, level 1 = Brand, level 2 = "BRAND – Region".
@@ -87,6 +92,7 @@ model Territory {
 
   members TerritoryMember[]
   deals   Deal[]
+  leads   Lead[]
 
   @@unique([brandId, regionId])
   @@index([parentId])
@@ -134,13 +140,18 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  memberships       TerritoryMember[]
-  managedBrands     Brand[]           @relation("BrandManager")
-  managedTerritories Territory[]      @relation("TerritoryManager")
-  ownedDeals        Deal[]            @relation("DealOwner")
-  createdDeals      Deal[]            @relation("DealCreatedBy")
-  updatedDeals      Deal[]            @relation("DealUpdatedBy")
-  auditLogs         AuditLog[]
+  memberships        TerritoryMember[]
+  managedBrands      Brand[]           @relation("BrandManager")
+  managedTerritories Territory[]       @relation("TerritoryManager")
+  ownedDeals         Deal[]            @relation("DealOwner")
+  createdDeals       Deal[]            @relation("DealCreatedBy")
+  updatedDeals       Deal[]            @relation("DealUpdatedBy")
+  auditLogs          AuditLog[]
+  ownedLeads         Lead[]            @relation("LeadOwner")
+  createdLeads       Lead[]            @relation("LeadCreatedBy")
+  updatedLeads       Lead[]            @relation("LeadUpdatedBy")
+  savedViews         SavedView[]
+  assignmentRules    AssignmentRule[]
 }
 
 model TerritoryMember {
@@ -199,12 +210,20 @@ enum DealStage {
 
 /// Minimal Deal used by the foundation to demonstrate isolation. Prompt 04 extends it.
 model Deal {
-  id           String    @id @default(cuid())
-  name         String
-  customerName String?
-  amount       Decimal?  @db.Decimal(14, 2)
-  stage        DealStage @default(ENQUIRY)
-  closeDate    DateTime?
+  id                String    @id @default(cuid())
+  name              String
+  customerName      String?
+  amount            Decimal?  @db.Decimal(14, 2)
+  stage             DealStage @default(ENQUIRY)
+  closeDate         DateTime?
+  /// Shared customer (prompt 03) and model (prompt 05).
+  accountId         String?
+  account           Account?  @relation(fields: [accountId], references: [id])
+  contactId         String?
+  contact           Contact?  @relation(fields: [contactId], references: [id])
+  modelId           String?
+  model             Product?  @relation("DealModel", fields: [modelId], references: [id])
+  convertedFromLead Lead?
 
   // ── brand-owned base mixin ──
   brandId     String
@@ -225,4 +244,217 @@ model Deal {
 
   @@index([brandId, regionId])
   @@index([ownerId])
+}
+
+// ─────────────────────────── Shared customers (minimal) ───────────────────────────
+// Prompt 03 extends Account / Contact (KYC, address, dedupe, field tiers). Customers are SHARED across brands.
+
+enum AccountType {
+  INDIVIDUAL
+  COMPANY
+}
+
+model Account {
+  id          String      @id @default(cuid())
+  name        String
+  type        AccountType @default(INDIVIDUAL)
+  city        String?
+  phone       String?
+  email       String?
+  createdById String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  contacts Contact[]
+  deals    Deal[]
+
+  @@index([phone])
+  @@index([email])
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  accountId   String?
+  account     Account? @relation(fields: [accountId], references: [id])
+  firstName   String?
+  lastName    String
+  mobile      String?
+  email       String?
+  city        String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deals          Deal[]
+  convertedLeads Lead[]
+
+  @@index([mobile])
+  @@index([email])
+}
+
+// ─────────────────────────── Catalogue (minimal) ───────────────────────────
+// Prompt 05 extends Product (variants, prices, price books). Brand-tagged, not brand-owned.
+
+model Product {
+  id        String   @id @default(cuid())
+  brandId   String
+  brand     Brand    @relation(fields: [brandId], references: [id])
+  code      String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leads           Lead[]
+  deals           Deal[]           @relation("DealModel")
+  assignmentRules AssignmentRule[]
+
+  @@unique([brandId, code])
+}
+
+// ─────────────────────────────────── Leads ───────────────────────────────────
+
+enum LeadSource {
+  WALK_IN
+  WEBSITE
+  WHATSAPP
+  FACEBOOK
+  INSTAGRAM
+  REFERRAL
+  FLEET_CORPORATE
+  EVENT
+  PHONE
+}
+
+enum PaymentIntent {
+  CASH
+  BANK_FINANCE
+  LEASE
+  FLEET
+}
+
+enum PurchaseWindow {
+  M0_1
+  M1_3
+  M3_6
+  M6_PLUS
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  UNQUALIFIED
+  CONVERTED
+}
+
+enum LeadRating {
+  HOT
+  WARM
+  COLD
+}
+
+/// Brand-owned lead (prompt 02).
+model Lead {
+  id                     String          @id @default(cuid())
+  firstName              String?
+  lastName               String
+  /// E.164, Nigeria (+234) default
+  mobile                 String?
+  email                  String?
+  city                   String?
+  source                 LeadSource      @default(WALK_IN)
+  sourceDetail           String?
+  /// utm_source / utm_medium / utm_campaign / utm_term / utm_content / referrer
+  utm                    Json?
+  modelOfInterestId      String?
+  modelOfInterest        Product?        @relation(fields: [modelOfInterestId], references: [id])
+  budget                 Decimal?        @db.Decimal(14, 2)
+  paymentIntent          PaymentIntent?
+  tradeIn                Boolean         @default(false)
+  tradeInNotes           String?
+  expectedPurchaseWindow PurchaseWindow?
+  status                 LeadStatus      @default(NEW)
+  unqualifiedReason      String?
+  rating                 LeadRating?
+  consentMarketing       Boolean         @default(false)
+  consentAt              DateTime?
+  convertedDealId        String?         @unique
+  convertedDeal          Deal?           @relation(fields: [convertedDealId], references: [id])
+  convertedContactId     String?
+  convertedContact       Contact?        @relation(fields: [convertedContactId], references: [id])
+  convertedAt            DateTime?
+
+  // ── brand-owned base mixin ──
+  brandId     String
+  brand       Brand      @relation(fields: [brandId], references: [id])
+  regionId    String
+  region      Region     @relation(fields: [regionId], references: [id])
+  territoryId String?
+  territory   Territory? @relation(fields: [territoryId], references: [id])
+  ownerId     String
+  owner       User       @relation("LeadOwner", fields: [ownerId], references: [id])
+  createdById String?
+  createdBy   User?      @relation("LeadCreatedBy", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?      @relation("LeadUpdatedBy", fields: [updatedById], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
+
+  @@index([brandId, regionId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([mobile])
+  @@index([email])
+}
+
+/// Saved list views per user and module ("My open leads", …).
+model SavedView {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module    String
+  name      String
+  /// filter state (status, source, brandId, regionId, ownerId, from, to, …)
+  filters   Json     @default("{}")
+  /// visible column ids, in order
+  columns   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, module, name])
+}
+
+enum AssignmentAction {
+  ROUND_ROBIN
+  SPECIFIC_USER
+  TERRITORY_MANAGER
+}
+
+/// Ordered assignment rules (/admin/assignment-rules/leads). First active match wins.
+model AssignmentRule {
+  id        String           @id @default(cuid())
+  module    String           @default("leads")
+  name      String
+  position  Int
+  active    Boolean          @default(true)
+  // criteria (null = any)
+  brandId   String?
+  brand     Brand?           @relation(fields: [brandId], references: [id])
+  regionId  String?
+  region    Region?          @relation(fields: [regionId], references: [id])
+  source    LeadSource?
+  productId String?
+  product   Product?         @relation(fields: [productId], references: [id])
+  // action
+  action    AssignmentAction @default(ROUND_ROBIN)
+  userId    String?
+  user      User?            @relation(fields: [userId], references: [id])
+  /// persisted round-robin pointer
+  rrPointer Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([module, position])
 }

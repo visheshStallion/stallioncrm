@@ -3,7 +3,7 @@
  * Run: pnpm db:seed (also runs after `prisma migrate reset`).
  */
 import { hash } from "@node-rs/argon2";
-import { PrismaClient, type DealStage } from "@prisma/client";
+import { PrismaClient, type DealStage, type LeadSource, type LeadStatus, type LeadRating } from "@prisma/client";
 import {
   ensureBrandTerritories,
   ensureRootTerritory,
@@ -15,6 +15,11 @@ import {
   CUSTOMERS,
   DEAL_STAGES,
   DEALS_PER_BRAND_REGION,
+  LEAD_PEOPLE,
+  LEAD_SOURCES_SEED,
+  LEAD_STATUSES_SEED,
+  LEADS_PER_BRAND_REGION,
+  RATINGS_SEED,
   PROFILE_DEFS,
   REGIONS,
   ROLE_PARENTS,
@@ -26,7 +31,7 @@ import {
 
 export async function seed(prisma: PrismaClient): Promise<void> {
   await prisma.$executeRawUnsafe(
-    `TRUNCATE "AuditLog", "Deal", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region" CASCADE`,
+    `TRUNCATE "AuditLog", "SavedView", "AssignmentRule", "Lead", "Deal", "Contact", "Account", "Product", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region" CASCADE`,
   );
 
   // Regions
@@ -169,6 +174,62 @@ export async function seed(prisma: PrismaClient): Promise<void> {
           },
         });
         n++;
+      }
+    }
+  }
+
+  // Models of interest (minimal catalogue – prompt 05 replaces it with the full product master).
+  const products = new Map<string, string[]>();
+  for (const code of ACTIVE_BRANDS) {
+    const ids: string[] = [];
+    for (const vehicle of VEHICLE_TYPES) {
+      const p = await prisma.product.create({
+        data: { brandId: brands.get(code)!, code: `${code}-${vehicle.toUpperCase()}`, name: `${code} ${vehicle}` },
+      });
+      ids.push(p.id);
+    }
+    products.set(code, ids);
+  }
+
+  // Default assignment rule (BUSINESS_CONTEXT §10): round-robin within the Brand–Region territory.
+  await prisma.assignmentRule.create({
+    data: { name: "Default – round-robin in Brand–Region", position: 1000, action: "ROUND_ROBIN" },
+  });
+
+  // Leads: 3 per active brand × region, owned by members of that territory.
+  let m = 0;
+  for (const code of ACTIVE_BRANDS) {
+    for (const region of REGIONS) {
+      const key = `${code}|${region}`;
+      const owners = USERS.filter((u) => u.territories.includes(key) && u.role !== "Regional Sales Manager");
+      const ownerKeys = owners.length ? owners.map((u) => u.key) : ["rsm"];
+      for (let i = 0; i < LEADS_PER_BRAND_REGION; i++) {
+        const [first, last] = LEAD_PEOPLE[m % LEAD_PEOPLE.length]!;
+        const status = LEAD_STATUSES_SEED[m % LEAD_STATUSES_SEED.length] as LeadStatus;
+        const ownerId = users.get(ownerKeys[(m + i) % ownerKeys.length]!)!;
+        await prisma.lead.create({
+          data: {
+            firstName: first,
+            lastName: `${last} ${code}`,
+            mobile: `+234700000${String(1000 + m).padStart(4, "0")}`,
+            email: `lead${m}@example.test`,
+            city: region,
+            source: LEAD_SOURCES_SEED[m % LEAD_SOURCES_SEED.length] as LeadSource,
+            status,
+            unqualifiedReason: status === "UNQUALIFIED" ? "Budget too low" : null,
+            rating: RATINGS_SEED[m % RATINGS_SEED.length] as LeadRating,
+            modelOfInterestId: products.get(code)![m % VEHICLE_TYPES.length],
+            budget: 15_000_000 + ((m * 2_500_000) % 40_000_000),
+            brandId: brands.get(code)!,
+            regionId: regions.get(region)!,
+            territoryId: territoryFor(key),
+            ownerId,
+            createdById: ownerId,
+            updatedById: ownerId,
+            createdAt: new Date(baseDate - (m % 20) * 86_400_000),
+          },
+        });
+        m++;
       }
     }
   }

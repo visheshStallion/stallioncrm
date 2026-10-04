@@ -251,3 +251,15 @@ export const DEAL_STAGES = [
   "CLOSED_WON",
   "CLOSED_LOST",
 ] as const;
+
+export const LEADS_PER_BRAND_REGION = 3;
+
+/** Invented lead names. Mobiles use the +234 700 000 xxxx range – not real subscriber numbers. */
+export const LEAD_PEOPLE: Array<[first: string, last: string]> = [
+  ["Tola", "Adewale"], ["Ike", "Nwachukwu"], ["Sade", "Bankole"], ["Garba", "Lawal"], ["Efe", "Okoro"],
+  ["Kelechi", "Uzo"], ["Bimpe", "Ojo"], ["Sani", "Abubakar"], ["Nneka", "Eze"], ["Dayo", "Fashola"],
+  ["Hauwa", "Idris"], ["Chuka", "Obi"],
+];
+export const LEAD_SOURCES_SEED = ["WALK_IN", "WEBSITE", "WHATSAPP", "REFERRAL", "PHONE", "FACEBOOK"] as const;
+export const LEAD_STATUSES_SEED = ["NEW", "CONTACTED", "QUALIFIED", "NEW", "UNQUALIFIED"] as const;
+export const RATINGS_SEED = ["HOT", "WARM", "COLD"] as const;
