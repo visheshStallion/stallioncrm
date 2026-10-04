@@ -38,7 +38,7 @@ test("HMNL Lagos exec sees only HMNL deals; brand switcher lists only HMNL", asy
 test("HMNL exec cannot open an SNMNL deal (404) via UI or API, nor find it by search", async ({ page }) => {
   await login(page, "md");
   await page.goto("/search?q=SNMNL");
-  const href = await page.getByTestId("search-hit").first().getAttribute("href");
+  const href = await page.locator('[data-testid="search-hit"][href^="/deals/"]').first().getAttribute("href");
   expect(href).toMatch(/^\/deals\//);
   const dealId = href!.split("/").pop()!;
 

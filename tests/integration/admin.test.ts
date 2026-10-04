@@ -163,10 +163,14 @@ describe("users", () => {
   it("deactivation reassigns open records to each brand's Brand Manager (preview first)", async () => {
     const uid = await userId("exec.multi.1"); // owns HMNL + SNMNL Lagos deals
     const preview = await svc.deactivationPreview(admin, uid);
-    expect(preview.map((l) => l.brandCode).sort()).toEqual(["HMNL", "SNMNL"]);
+    const dealLines = preview.filter((l) => l.model === "Deal");
+    expect(dealLines.map((l) => l.brandCode).sort()).toEqual(["HMNL", "SNMNL"]);
     const open = await unsafeDb.deal.count({ where: { ownerId: uid, stage: { notIn: ["CLOSED_WON", "CLOSED_LOST"] } } });
     const closed = await unsafeDb.deal.count({ where: { ownerId: uid, stage: { in: ["CLOSED_WON", "CLOSED_LOST"] } } });
-    expect(preview.reduce((a, l) => a + l.count, 0)).toBe(open);
+    expect(dealLines.reduce((a, l) => a + l.count, 0)).toBe(open);
+    // open leads are reassigned too; converted / unqualified ones stay
+    const openLeads = await unsafeDb.lead.count({ where: { ownerId: uid, status: { in: ["NEW", "CONTACTED", "QUALIFIED"] } } });
+    expect(preview.filter((l) => l.model === "Lead").reduce((a, l) => a + l.count, 0)).toBe(openLeads);
 
     await svc.deactivateUser(admin, uid);
     expect(await unsafeDb.deal.count({ where: { ownerId: uid } })).toBe(closed);
