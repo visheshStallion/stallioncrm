@@ -3,7 +3,7 @@
  * Run: pnpm db:seed (also runs after `prisma migrate reset`).
  */
 import { hash } from "@node-rs/argon2";
-import { PrismaClient, type DealStage, type LeadSource, type LeadStatus, type LeadRating } from "@prisma/client";
+import { PrismaClient, type LeadSource, type LeadStatus, type LeadRating } from "@prisma/client";
 import {
   ensureBrandTerritories,
   ensureRootTerritory,
@@ -31,7 +31,7 @@ import {
 
 export async function seed(prisma: PrismaClient): Promise<void> {
   await prisma.$executeRawUnsafe(
-    `TRUNCATE "AuditLog", "SavedView", "AssignmentRule", "Lead", "Deal", "Contact", "Account", "Product", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region" CASCADE`,
+    `TRUNCATE "AuditLog", "Note", "Attachment", "DealStageHistory", "Pipeline", "SavedView", "AssignmentRule", "Lead", "Deal", "Contact", "Account", "Product", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region" CASCADE`,
   );
 
   // Regions
@@ -177,6 +177,12 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     customerIds.set(name, { accountId: account.id, contactId: contact.id });
   }
 
+  // Stage ids per brand (the default pipeline is created by a DB trigger together with the brand).
+  const stageId = new Map<string, string>();
+  for (const p of await prisma.pipeline.findMany({ where: { isDefault: true }, include: { stages: true, brand: true } })) {
+    for (const s of p.stages) stageId.set(`${p.brand.code}|${s.key}`, s.id);
+  }
+
   // Demo deals: 5 per active brand × region, owned by a member of that territory.
   let n = 0;
   const baseDate = Date.UTC(2026, 9, 1);
@@ -196,7 +202,9 @@ export async function seed(prisma: PrismaClient): Promise<void> {
             accountId: customerIds.get(customer)!.accountId,
             contactId: customerIds.get(customer)!.contactId,
             amount: 18_000_000 + ((n * 7_350_000) % 60_000_000),
-            stage: DEAL_STAGES[(n + i) % DEAL_STAGES.length] as DealStage,
+            stageId: stageId.get(`${code}|${DEAL_STAGES[(n + i) % DEAL_STAGES.length]}`)!,
+            stageEnteredAt: new Date(baseDate - ((n * 5) % 30) * 86_400_000),
+            modelId: null,
             closeDate: new Date(baseDate + ((n * 3) % 90) * 86_400_000),
             brandId: brands.get(code)!,
             regionId: regions.get(region)!,

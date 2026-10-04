@@ -49,6 +49,9 @@ model Brand {
   products        Product[]
   assignmentRules AssignmentRule[]
   customerLinks   CustomerBrandLink[]
+  pipelines       Pipeline[]
+  notes           Note[]
+  attachments     Attachment[]
   contactConsents ContactBrandConsent[]
 }
 
@@ -72,6 +75,8 @@ model Region {
   territories     Territory[]
   deals           Deal[]
   leads           Lead[]
+  notes           Note[]
+  attachments     Attachment[]
   assignmentRules AssignmentRule[]
 }
 
@@ -155,6 +160,8 @@ model User {
   savedViews         SavedView[]
   ownedAccounts      Account[]         @relation("AccountOwner")
   ownedContacts      Contact[]         @relation("ContactOwner")
+  ownedNotes         Note[]            @relation("NoteOwner")
+  ownedAttachments   Attachment[]      @relation("AttachmentOwner")
   assignmentRules    AssignmentRule[]
   userPreferences    UserPreference[]
 }
@@ -202,33 +209,91 @@ model AuditLog {
 
 // ─────────────────────────── Brand-owned records ───────────────────────────
 
-enum DealStage {
-  ENQUIRY
-  TEST_DRIVE
-  QUOTATION
-  BOOKING
-  FINANCE_PAYMENT
-  DELIVERY
-  CLOSED_WON
-  CLOSED_LOST
+enum StageType {
+  OPEN
+  WON
+  LOST
 }
 
-/// Minimal Deal used by the foundation to demonstrate isolation. Prompt 04 extends it.
+/// One sales pipeline per brand (more can be added). The default one is created by a DB trigger with the brand.
+model Pipeline {
+  id        String   @id @default(cuid())
+  brandId   String
+  brand     Brand    @relation(fields: [brandId], references: [id])
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stages PipelineStage[]
+  deals  Deal[]
+
+  @@unique([brandId, name])
+}
+
+model PipelineStage {
+  id                 String    @id @default(cuid())
+  pipelineId         String
+  pipeline           Pipeline  @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  /// stable key within the pipeline (ENQUIRY, TEST_DRIVE, …)
+  key                String
+  name               String
+  order              Int
+  /// win probability in percent
+  probability        Int       @default(0)
+  type               StageType @default(OPEN)
+  /// Blueprint: requirement keys that must be satisfied to ENTER this stage (see deals/blueprint.ts)
+  requiredFields     Json      @default("[]")
+  /// stage keys reachable from this stage; null = default rule (previous / next / lost)
+  allowedTransitions Json?
+  maxDaysInStage     Int?
+
+  deals Deal[]
+
+  @@unique([pipelineId, key])
+  @@index([pipelineId, order])
+}
+
+/// Brand-owned deal (prompt 04). pipelineId / stageId are always set – a DB trigger fills the brand's default
+/// pipeline and first stage when omitted and rejects a pipeline of another brand.
 model Deal {
-  id                String    @id @default(cuid())
-  name              String
-  customerName      String?
-  amount            Decimal?  @db.Decimal(14, 2)
-  stage             DealStage @default(ENQUIRY)
-  closeDate         DateTime?
-  /// Shared customer (prompt 03) and model (prompt 05).
-  accountId         String?
-  account           Account?  @relation(fields: [accountId], references: [id])
-  contactId         String?
-  contact           Contact?  @relation(fields: [contactId], references: [id])
-  modelId           String?
-  model             Product?  @relation("DealModel", fields: [modelId], references: [id])
-  convertedFromLead Lead?
+  id                  String         @id @default(cuid())
+  name                String
+  customerName        String?
+  amount              Decimal?       @db.Decimal(14, 2)
+  currency            String         @default("NGN")
+  /// expected close date
+  closeDate           DateTime?
+  pipelineId          String?
+  pipeline            Pipeline?      @relation(fields: [pipelineId], references: [id])
+  stageId             String?
+  stage               PipelineStage? @relation(fields: [stageId], references: [id])
+  stageEnteredAt      DateTime       @default(now())
+  /// Shared customer (prompt 03)
+  accountId           String?
+  account             Account?       @relation(fields: [accountId], references: [id])
+  contactId           String?
+  contact             Contact?       @relation(fields: [contactId], references: [id])
+  /// Model / variant of the deal's brand (prompt 05)
+  modelId             String?
+  model               Product?       @relation("DealModel", fields: [modelId], references: [id])
+  quantity            Int            @default(1)
+  colour              String?
+  paymentType         PaymentIntent?
+  financeBank         String?
+  tradeInDetails      String?
+  discountPct         Decimal?       @db.Decimal(5, 2)
+  testDriveDate       DateTime?
+  depositAmount       Decimal?       @db.Decimal(14, 2)
+  depositReceiptNo    String?
+  vinChassisNo        String?
+  engineNo            String?
+  deliveryDate        DateTime?
+  lossReason          String?
+  lossCompetitorBrand String?
+  /// Campaign (prompt 10)
+  campaignId          String?
+  convertedFromLead   Lead?
 
   // ── brand-owned base mixin ──
   brandId     String
@@ -247,8 +312,79 @@ model Deal {
   updatedAt   DateTime   @updatedAt
   deletedAt   DateTime?
 
+  stageHistory DealStageHistory[]
+
+  /// VIN / chassis number is unique per brand
+  @@unique([brandId, vinChassisNo])
   @@index([brandId, regionId])
   @@index([ownerId])
+  @@index([stageId])
+}
+
+/// Written by the DB trigger app_deal_stage_history() on every stage change. RLS: visible when the deal is.
+model DealStageHistory {
+  id            String   @id @default(cuid())
+  dealId        String
+  deal          Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  fromStageId   String?
+  toStageId     String
+  at            DateTime @default(now())
+  userId        String?
+  /// hours spent in the previous stage
+  durationHours Decimal? @db.Decimal(10, 2)
+
+  @@index([dealId, at])
+}
+
+/// Note on any brand-owned record (entity + entityId). Brand-owned: inherits the parent's brand and region.
+model Note {
+  id       String @id @default(cuid())
+  entity   String
+  entityId String
+  body     String
+
+  brandId     String
+  brand       Brand     @relation(fields: [brandId], references: [id])
+  regionId    String
+  region      Region    @relation(fields: [regionId], references: [id])
+  territoryId String?
+  ownerId     String
+  owner       User      @relation("NoteOwner", fields: [ownerId], references: [id])
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([entity, entityId])
+  @@index([brandId, regionId])
+}
+
+/// File attached to a brand-owned record. Bytes live in object storage (src/server/storage); access is brand-scoped.
+model Attachment {
+  id          String @id @default(cuid())
+  entity      String
+  entityId    String
+  fileName    String
+  contentType String
+  size        Int
+  storageKey  String @unique
+
+  brandId     String
+  brand       Brand     @relation(fields: [brandId], references: [id])
+  regionId    String
+  region      Region    @relation(fields: [regionId], references: [id])
+  territoryId String?
+  ownerId     String
+  owner       User      @relation("AttachmentOwner", fields: [ownerId], references: [id])
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([entity, entityId])
+  @@index([brandId, regionId])
 }
 
 // ─────────────────────────── Shared customers (minimal) ───────────────────────────
