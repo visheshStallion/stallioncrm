@@ -205,7 +205,31 @@ visibility decided per viewer by **tiers** (`src/server/access/customer-tier.ts`
 - **Consent** is per brand (`ContactBrandConsent`); users set it only for their own brands.
 - Filtering customer lists is limited to BASIC-tier fields – filtering on a hidden field would leak it.
 
-## 11. Local development
+## 11. Deals, pipelines & Blueprint (prompt 04)
+- **Pipelines are per brand** (`Pipeline`, `PipelineStage`). A DB trigger creates the default pipeline (8 stages,
+  BUSINESS_CONTEXT §9) with every brand. `Deal.pipelineId` / `stageId` are always set: the trigger `app_deal_pipeline()`
+  fills the brand's default pipeline and first stage, and rejects a pipeline of another brand or a stage of another
+  pipeline. Never filter deals by a hard-coded stage name – use `stage.type` (`OPEN | WON | LOST`) or `stage.key`.
+- **Blueprint** (`src/server/modules/deals/blueprint.ts`, pure): a move is allowed to the previous / next stage or a
+  lost stage (or the stage's configured `allowedTransitions`); managers of the deal's brand-region (`isManagerOf`) may
+  jump. To enter a stage every key in `requiredFields` must be satisfied – a filled deal field or a named check
+  (`quote`; enforced once the Quote model exists). `moveDealStage` is the only way to change a stage; the UI dialog asks
+  for exactly the missing fields.
+- **Stage history** (`DealStageHistory`) is written by a trigger on every stage change, whatever the code path; its RLS
+  policy shows a row only when the deal is visible.
+- **Field rules**: brand cannot be changed by editing (Brand Change approval, prompt 08); region only by managers;
+  owner must work in the deal's brand-region (scopedDb); VIN / chassis number is unique per brand; the model must
+  belong to the deal's brand.
+- **Notes and attachments** (`src/server/modules/notes`) are brand-owned models that copy brand and region from their
+  parent, so they are isolated like the parent. Files live in object storage (`src/server/storage`: local disk by
+  default, S3-compatible when `S3_*` is configured – that driver is not covered by automated tests) and are only served
+  through `/api/v1/attachments/[id]`, which looks the row up with the scoped client first.
+- **Saved views** are generic (`src/server/modules/views`); list filters can target a relation column
+  (`FieldDef.relation` / `column`).
+- Spec names vs. columns: `expectedCloseDate` → `closeDate`, `productId` → `modelId`; the originating lead is
+  `Deal.convertedFromLead` (no separate `leadId`).
+
+## 12. Local development
 See [README](../README.md). Integration tests use `TEST_DATABASE_URL` when set, otherwise start an embedded
 PostgreSQL 16 automatically (no Docker needed, always UTF-8). The seeded database is a **template**: every integration test file
 runs against its own `CREATE DATABASE … TEMPLATE` copy, so tests may change organisation data freely. E2E uses `E2E_DATABASE_URL` or an embedded database likewise.

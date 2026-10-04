@@ -147,3 +147,30 @@ brands' records. The same masking applies in the API and in exports (export need
 ### Marketing consent
 Recorded **per brand** on the contact page. Opting out of one brand does not opt the customer out of another. Users can
 set consent only for the brands they work in. A lead's consent is carried over for the lead's brand when it is converted.
+
+## Deals, pipelines & Blueprint
+
+### Working with deals (`/deals`)
+- **List or Kanban.** The pipeline picker lists only pipelines of your brands; “All my brands” shows one board per brand.
+  Column headers show the number of deals and their total; cards carry the brand stripe and a **Stale** badge when a
+  deal has been in its stage longer than the stage allows. Views, filters and saved views work as in Leads.
+- **Moving a deal** (drag a card, or the *Next step* buttons on the deal): you can move to the previous or next stage,
+  or to *Closed Lost*. Managers of the brand can jump to any stage. If the target stage needs information the deal does
+  not have yet, a dialog asks for it:
+  | Stage | Needed to enter |
+  |---|---|
+  | Test Drive | test drive date, model |
+  | Quotation | a quote exists (enforced once Quotes are live) |
+  | Booking | deposit amount, deposit receipt no. |
+  | Delivery | VIN / chassis no. (unique per brand), delivery date |
+  | Closed Lost | loss reason |
+- **Brand** is set when the deal is created and cannot be edited (brand changes go through approval). **Region** can be
+  changed by managers only. The **owner** must be someone who works in the deal's brand and region.
+- **Notes and attachments** (PDF, images, Word / Excel, text; up to 10 MB) belong to the deal's brand – users of other
+  brands cannot see or download them. The **Timeline** tab shows stage history (with time spent per stage) and field
+  changes.
+
+### Pipelines & Blueprint setup (`/admin/pipelines`)
+Per brand: rename stages, set the win probability and the “stale after N days” limit, choose which fields are required
+to enter a stage, and optionally restrict which stages can follow. Add extra open stages or remove unused ones (the
+standard stages and stages that contain deals cannot be removed).
