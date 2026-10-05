@@ -13,7 +13,7 @@ import { requireContext } from "@/server/request";
 export const metadata = { title: "New document template" };
 
 /** Step 1: choose a starter (or an empty page). Step 2 (`?starter=…` / `?module=…`): name, company and who uses it. */
-export default async function NewDocumentTemplatePage({ searchParams }: { searchParams: Promise<{ starter?: string; module?: string }> }) {
+export default async function NewDocumentTemplatePage({ searchParams }: { searchParams: Promise<{ starter?: string; module?: string; brand?: string }> }) {
   const q = await searchParams;
   const ctx = await requireContext();
   const options = await createOptions(ctx);
@@ -109,7 +109,7 @@ export default async function NewDocumentTemplatePage({ searchParams }: { search
           </fieldset>
           <div className="space-y-1">
             <Label htmlFor="doc-brand">Company (brand)</Label>
-            <select id="doc-brand" name="brandId" className="crm-select w-full" defaultValue={financial ? (options.brands.find((b) => b.shared)?.id ?? "") : ""}>
+            <select id="doc-brand" name="brandId" className="crm-select w-full" defaultValue={options.brands.some((b) => b.id === q.brand && (!financial || b.shared)) ? q.brand : financial ? (options.brands.find((b) => b.shared)?.id ?? "") : ""}>
               {financial ? null : <option value="">All my brands – the letterhead of each record&apos;s brand</option>}
               {options.brands
                 .filter((b) => !financial || b.shared)

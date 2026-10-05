@@ -51,7 +51,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       }
       actions={
         <>
-          {can(ctx, "contacts", "create") ? <CreateSplitButton label="Create Contact" href="/contacts/new" /> : null}
+          {can(ctx, "contacts", "create") ? <CreateSplitButton label="Create Contact" href="/contacts/new" templateModule="contacts" /> : null}
           {can(ctx, "contacts", "export") ? (
             <ActionsMenu>
               <MenuItem href={`/api/v1/contacts/export${q ? `?q=${encodeURIComponent(q)}` : ""}`}>Export (CSV)</MenuItem>

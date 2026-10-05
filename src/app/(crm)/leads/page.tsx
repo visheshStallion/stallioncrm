@@ -86,7 +86,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       title={<ViewSelector views={views} current={saved ? saved.id : system ? system.id : "open"} />}
       actions={
         <>
-          {can(ctx, "leads", "create") ? <CreateSplitButton label="Create Lead" href="/leads/new" /> : null}
+          {can(ctx, "leads", "create") ? <CreateSplitButton label="Create Lead" href="/leads/new" templateModule="leads" /> : null}
           <ActionsMenu>
             <ViewActions module="leads" filters={{ ...base, ...(q ? { q } : {}), f: conditions.map((c) => [c.field, c.op, c.value ?? "", c.value2 ?? ""].join("~")), ...(sys ? { sys } : {}) }} savedViewId={saved?.id ?? null} />
             {exportHref ? <MenuItem href={exportHref}>Export view (CSV)</MenuItem> : null}

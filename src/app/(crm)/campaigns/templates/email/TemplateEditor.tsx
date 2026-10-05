@@ -24,6 +24,8 @@ interface Props {
   templateId: string | null;
   /** brand of an existing template (never changes); for a new one the choices below */
   brandId: string | null;
+  /** new template: the owner preselected ("" = group) */
+  defaultBrandId?: string;
   brands: Array<{ id: string; label: string }>;
   group: boolean;
   initial: { name: string; module: string | null; folder: string | null; category: string; subject: string; doc: EmailDoc; active: boolean };
@@ -35,7 +37,7 @@ interface Props {
 /** Rich e-mail template editor: details, block document, lint (on preview and on save) and a brand-layout preview. */
 export function TemplateEditor(p: Props) {
   const router = useRouter();
-  const [brandId, setBrandId] = useState(p.templateId ? (p.brandId ?? "") : (p.brands[0]?.id ?? ""));
+  const [brandId, setBrandId] = useState(p.templateId ? (p.brandId ?? "") : (p.defaultBrandId ?? p.brands[0]?.id ?? ""));
   const [name, setName] = useState(p.initial.name);
   const [moduleKey, setModuleKey] = useState(p.initial.module ?? "");
   const [folder, setFolder] = useState(p.initial.folder ?? "");

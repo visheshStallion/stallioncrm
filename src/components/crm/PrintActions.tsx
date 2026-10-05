@@ -176,3 +176,18 @@ export function BulkSend({ module, ids }: { module: string; ids: string[] }) {
     </Button>
   );
 }
+
+const TEMPLATE_MODULES = new Set(["leads", "deals", "cases", "accounts", "contacts"]);
+
+/** "Save as template" on a record page: its reusable values become a personal record template (prompt 22). */
+export function SaveAsTemplateButton() {
+  const target = printTarget(usePathname());
+  if (!target?.id || !TEMPLATE_MODULES.has(target.module)) return null;
+  return (
+    <Button variant="ghost" asChild>
+      <Link href={`/templates/records/from?module=${target.module}&id=${target.id}`} data-testid="save-as-template" title="Save this record's values as a record template">
+        Save as template
+      </Link>
+    </Button>
+  );
+}

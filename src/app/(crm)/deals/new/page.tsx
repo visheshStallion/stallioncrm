@@ -10,11 +10,12 @@ import { dealFormLookups } from "@/server/modules/deals/queries";
 import { leadFormLookups } from "@/server/modules/leads/queries";
 import { requireContext } from "@/server/request";
 import { DealFormFields } from "../DealFormFields";
+import { TemplateSlot } from "@/components/crm/TemplateSlot";
 
 export const metadata = { title: "Create Deal" };
 
-export default async function NewDealPage({ searchParams }: { searchParams: Promise<{ accountId?: string }> }) {
-  const { accountId } = await searchParams;
+export default async function NewDealPage({ searchParams }: { searchParams: Promise<{ accountId?: string; template?: string }> }) {
+  const { accountId, template } = await searchParams;
   const ctx = await requireContext();
   if (!hasPermission(ctx, "deals", "create")) forbidden();
   const [base, extra, custom] = await Promise.all([leadFormLookups(ctx), dealFormLookups(ctx), customFormProps(ctx, "deals")]);
@@ -22,6 +23,7 @@ export default async function NewDealPage({ searchParams }: { searchParams: Prom
     <div className="mx-auto max-w-5xl">
       <PageTitleRow title="Create Deal" />
       <ActionForm action={createDealFormAction} className="space-y-4">
+        <TemplateSlot ctx={ctx} module="deals" templateId={template} clearHref="/deals/new" />
         <DealFormFields
           mode="create"
           canChangeRegion

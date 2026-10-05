@@ -55,7 +55,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
       }
       actions={
         <>
-          {can(ctx, "accounts", "create") ? <CreateSplitButton label="Create Account" href="/accounts/new" /> : null}
+          {can(ctx, "accounts", "create") ? <CreateSplitButton label="Create Account" href="/accounts/new" templateModule="accounts" /> : null}
           <ActionsMenu>
             {canMergeCustomers(ctx) ? <MenuItem href="/accounts/duplicates">Find &amp; merge duplicates</MenuItem> : null}
             {can(ctx, "accounts", "export") ? <MenuItem href={`/api/v1/accounts/export${q ? `?q=${encodeURIComponent(q)}` : ""}`}>Export (CSV)</MenuItem> : null}

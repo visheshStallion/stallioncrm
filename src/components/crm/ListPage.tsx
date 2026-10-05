@@ -110,15 +110,16 @@ export function LayoutToggle({ layout }: { layout: "list" | "kanban" }) {
 }
 
 /** Primary "Create X" split button (arrow → Import X). */
-export function CreateSplitButton({ label, href, importHref }: { label: string; href: string; importHref?: string }) {
+export function CreateSplitButton({ label, href, importHref, templateModule }: { label: string; href: string; importHref?: string; /** module key: adds "Create from template" (record templates, prompt 22) */ templateModule?: string }) {
+  const split = !!importHref || !!templateModule;
   return (
     <div className="flex">
-      <Button asChild className={cn(importHref && "crm-btn-split-main")}>
+      <Button asChild className={cn(split && "crm-btn-split-main")}>
         <Link href={href} data-shortcut="create">
           {label}
         </Link>
       </Button>
-      {importHref ? (
+      {split ? (
         <DropdownMenu
           label={`${label} options`}
           trigger={({ toggle, open, id }) => (
@@ -127,7 +128,8 @@ export function CreateSplitButton({ label, href, importHref }: { label: string; 
             </Button>
           )}
         >
-          <MenuItem href={importHref}>Import</MenuItem>
+          {templateModule ? <MenuItem href={`/templates/pick?module=${templateModule}`}>Create from template</MenuItem> : null}
+          {importHref ? <MenuItem href={importHref}>Import</MenuItem> : null}
         </DropdownMenu>
       ) : null}
     </div>

@@ -4,13 +4,13 @@ import { PageTitleRow, StatusPill } from "@/components/crm/primitives";
 import { hasPermission } from "@/server/access/can";
 import { EMAIL_STARTERS, TEMPLATE_FIELDS, starter, templateBrands } from "@/server/modules/email/templates";
 import { requireContext } from "@/server/request";
-import { TemplateEditor } from "../TemplateEditor";
+import { TEMPLATE_MODULES, TemplateEditor } from "../TemplateEditor";
 
 export const metadata = { title: "New e-mail template" };
 
 /** Starter gallery → rich editor. `?starter=<key>` opens a starter, `?starter=blank` an empty template. */
-export default async function NewEmailTemplatePage({ searchParams }: { searchParams: Promise<{ starter?: string }> }) {
-  const { starter: key } = await searchParams;
+export default async function NewEmailTemplatePage({ searchParams }: { searchParams: Promise<{ starter?: string; module?: string; brand?: string }> }) {
+  const { starter: key, module: moduleKey, brand } = await searchParams;
   const ctx = await requireContext();
   if (!hasPermission(ctx, "campaigns", "read")) forbidden();
   const { brands, group } = await templateBrands(ctx);
@@ -56,9 +56,10 @@ export default async function NewEmailTemplatePage({ searchParams }: { searchPar
       <TemplateEditor
         templateId={null}
         brandId={null}
+        defaultBrandId={brand === "group" && group ? "" : brands.some((b) => b.id === brand) ? brand! : undefined}
         brands={brands}
         group={group}
-        initial={{ name: s?.name ?? "", module: s?.module ?? null, folder: null, category: s?.category ?? "Sales", subject: s?.subject ?? "", doc: s?.doc ?? { blocks: [{ type: "text", html: "" }] }, active: true }}
+        initial={{ name: s?.name ?? "", module: moduleKey && TEMPLATE_MODULES.some((m) => m.key === moduleKey) ? moduleKey : (s?.module ?? null), folder: null, category: s?.category ?? "Sales", subject: s?.subject ?? "", doc: s?.doc ?? { blocks: [{ type: "text", html: "" }] }, active: true }}
         mergeFields={TEMPLATE_FIELDS}
         canEdit
         allowHtml={ctx.isAdmin}

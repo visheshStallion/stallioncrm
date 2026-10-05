@@ -48,10 +48,10 @@ export default async function PersonalSettingsPage() {
             – password and two-step sign-in
           </li>
           <li>
-            <Link href="/templates/documents" className="text-primary underline">
-              Document templates
+            <Link href="/templates" className="text-primary underline">
+              Templates
             </Link>{" "}
-            – your own formats for offers, receipts and other documents
+            – e-mail, document and record templates you can use; your own formats and favourites
           </li>
           <li>
             <Link href="/tokens" className="text-primary underline">

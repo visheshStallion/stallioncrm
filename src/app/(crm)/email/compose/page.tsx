@@ -16,8 +16,8 @@ const fmt = (d: Date | null) => (d ? new Intl.DateTimeFormat("en-GB", { dateStyl
  * E-mail composer for a record: /email/compose?type=Deal&id=…  (shared customers: &brand=… picks the sending brand).
  * A record the user cannot see – or of a brand they are not in – does not exist here (404).
  */
-export default async function ComposePage({ searchParams }: { searchParams: Promise<{ type?: string; id?: string; brand?: string; draft?: string; attach?: string }> }) {
-  const { type, id, brand, draft, attach } = await searchParams;
+export default async function ComposePage({ searchParams }: { searchParams: Promise<{ type?: string; id?: string; brand?: string; draft?: string; attach?: string; tpl?: string; doc?: string }> }) {
+  const { type, id, brand, draft, attach, tpl, doc } = await searchParams;
   const ctx = await requireContext();
   if (!type || !id || !(EMAIL_PARENTS as readonly string[]).includes(type)) notFound();
   const data = await composerData(ctx, type, id, brand).catch((e) => {
@@ -81,6 +81,8 @@ export default async function ComposePage({ searchParams }: { searchParams: Prom
         docTemplates={data.docTemplates}
         generated={data.generated}
         attachDocument={attach === "1"}
+        startTemplateId={tpl ?? null}
+        startDocument={doc ?? null}
         printPath={`/print/${PARENT_INFO[data.record.parentType as EmailParent].module}/${data.record.parentId}`}
         mergeFields={data.mergeFields}
         allowHtml={ctx.isAdmin}

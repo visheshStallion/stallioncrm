@@ -25,9 +25,14 @@ export default async function DocumentTemplatesPage({ searchParams }: { searchPa
       <PageTitleRow
         title="Document templates"
         actions={
-          <Link href="/templates/documents/new" className="crm-btn crm-btn-primary" data-testid="new-doc-template">
-            New document template
-          </Link>
+          <>
+            <Link href="/templates?tab=document" className="crm-btn crm-btn-secondary">
+              Templates hub
+            </Link>
+            <Link href="/templates/documents/new" className="crm-btn crm-btn-primary" data-testid="new-doc-template">
+              New document template
+            </Link>
+          </>
         }
       />
       <p className="mb-3 text-sm text-text-muted">Company-formatted documents – invoices, sales orders, quotations, offer letters, receipts – designed on a page with the brand letterhead and chosen when a record is sent, printed or downloaded.</p>

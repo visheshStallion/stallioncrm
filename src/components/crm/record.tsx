@@ -2,7 +2,7 @@ import { ArrowLeft, Check, Lock } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { BrandBadge } from "@/components/BrandBadge";
-import { PrintButton, SendEmailButton } from "./PrintActions";
+import { PrintButton, SaveAsTemplateButton, SendEmailButton } from "./PrintActions";
 import { Avatar, BrandStripe } from "./primitives";
 
 /** Record header: ← Back · brand chip · "Module: name" · owner · actions. */
@@ -51,6 +51,7 @@ export function RecordHeader({
         <SendEmailButton />
         <PrintButton />
         {actions}
+        <SaveAsTemplateButton />
         {nav}
       </div>
     </div>

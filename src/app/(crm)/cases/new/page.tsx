@@ -11,11 +11,12 @@ import { createCaseAction } from "@/server/modules/cases/actions";
 import { CASE_CHANNELS, CASE_PRIORITIES, CASE_TYPES, CHANNEL_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "@/server/modules/cases/schema";
 import { leadFormLookups } from "@/server/modules/leads/queries";
 import { requireContext } from "@/server/request";
+import { TemplateSlot } from "@/components/crm/TemplateSlot";
 
 export const metadata = { title: "Create Case" };
 
 /** New case – from scratch (choose brand and region), or from a deal / account (`?dealId=` / `?accountId=`). */
-export default async function NewCasePage({ searchParams }: { searchParams: Promise<{ dealId?: string; accountId?: string }> }) {
+export default async function NewCasePage({ searchParams }: { searchParams: Promise<{ dealId?: string; accountId?: string; template?: string }> }) {
   const sp = await searchParams;
   const ctx = await requireContext();
   if (!hasPermission(ctx, "cases", "create")) forbidden();
@@ -31,6 +32,7 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
     <div className="mx-auto max-w-4xl">
       <PageTitleRow title="Create Case" />
       <ActionForm action={createCaseAction} className="space-y-4">
+        <TemplateSlot ctx={ctx} module="cases" templateId={sp.template} clearHref="/cases/new" />
         {deal ? <input type="hidden" name="dealId" value={deal.id} /> : null}
         {account ? <input type="hidden" name="accountId" value={account.id} /> : null}
         <FormSection title="Case Information">

@@ -42,7 +42,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
           <Button asChild variant="outline">
             <Link href="/cases/sla">SLA &amp; calendar</Link>
           </Button>
-          {hasPermission(ctx, "cases", "create") ? <CreateSplitButton label="Create Case" href="/cases/new" /> : null}
+          {hasPermission(ctx, "cases", "create") ? <CreateSplitButton label="Create Case" href="/cases/new" templateModule="cases" /> : null}
         </>
       }
     >

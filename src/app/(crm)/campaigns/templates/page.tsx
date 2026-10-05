@@ -17,8 +17,8 @@ import { requireContext } from "@/server/request";
 export const metadata = { title: "Message templates" };
 
 /** Templates: group templates (management) and brand templates (the brand's manager). `?edit=<id>` edits one. */
-export default async function TemplatesPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
-  const { edit } = await searchParams;
+export default async function TemplatesPage({ searchParams }: { searchParams: Promise<{ edit?: string; channel?: string }> }) {
+  const { edit, channel } = await searchParams;
   const ctx = await requireContext();
   if (!hasPermission(ctx, "campaigns", "read")) forbidden();
   const [templates, dir] = await Promise.all([listTemplates(ctx), getDirectory(ctx)]);
@@ -38,10 +38,19 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
         }
         actions={
           canCreate ? (
-            <Link href="/campaigns/templates/email/new" className="crm-btn crm-btn-primary" data-testid="new-email-template">
+            <>
+              <Link href="/templates" className="crm-btn crm-btn-secondary">
+                Templates hub
+              </Link>
+              <Link href="/campaigns/templates/email/new" className="crm-btn crm-btn-primary" data-testid="new-email-template">
               New e-mail template
             </Link>
-          ) : null
+            </>
+          ) : (
+            <Link href="/templates" className="crm-btn crm-btn-secondary">
+              Templates hub
+            </Link>
+          )
         }
       />
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
@@ -116,7 +125,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
               </div>
               <div className="space-y-1">
                 <Label htmlFor="t-channel">Channel</Label>
-                <Select id="t-channel" name="channel" className="w-full" defaultValue={editing?.channel ?? "EMAIL"}>
+                <Select id="t-channel" name="channel" className="w-full" defaultValue={editing?.channel ?? (channel === "SMS" || channel === "WHATSAPP" ? channel : "EMAIL")}>
                   <option value="EMAIL">Email</option>
                   <option value="SMS">SMS</option>
                   <option value="WHATSAPP">WhatsApp</option>

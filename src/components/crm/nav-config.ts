@@ -52,4 +52,5 @@ export const QUICK_CREATE: QuickCreateItem[] = [
   { key: "meeting", label: "Meeting", module: "activities", mode: "link", href: "/activities/new?type=meeting" },
   { key: "call", label: "Call", module: "activities", mode: "link", href: "/activities/new?type=call" },
   { key: "quote", label: "Quote", module: "quotes", mode: "link", href: "/quotes/new" },
+  { key: "template", label: "From a template…", module: "leads", mode: "link", href: "/templates/pick" },
 ];

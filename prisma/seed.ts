@@ -2,6 +2,7 @@
  * Seed – FICTITIOUS data only. Wipes and recreates organisation data + demo deals.
  * Run: pnpm db:seed (also runs after `prisma migrate reset`).
  */
+import { RECORD_STARTERS } from "../src/server/modules/rectpl/starters";
 import { hash } from "@node-rs/argon2";
 import { PrismaClient, type LeadSource, type LeadStatus, type LeadRating } from "@prisma/client";
 import {
@@ -314,6 +315,16 @@ export async function seed(prisma: PrismaClient): Promise<void> {
         m++;
       }
     }
+  }
+
+  // Record templates (prompt 22): the fictitious starters as published public templates, owned by the administrator.
+  const owner = await prisma.user.findUniqueOrThrow({ where: { email: email("admin") }, select: { id: true } });
+  for (const s of RECORD_STARTERS) {
+    const b = s.body;
+    const t = await prisma.recordTemplate.create({
+      data: { name: b.name, description: b.description ?? null, module: s.module, brandId: null, visibility: "PUBLIC_GROUP", status: "PUBLISHED", fieldValues: b.fieldValues as object, lockedFields: b.lockedFields ?? [], hiddenFields: b.hiddenFields ?? [], lineItems: [], childRecords: (b.childRecords ?? []) as object[], createdById: owner.id },
+    });
+    await prisma.recordTemplateVersion.create({ data: { templateId: t.id, version: 1, snapshot: b as object, changedById: owner.id } });
   }
 }
 

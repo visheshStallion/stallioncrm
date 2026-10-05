@@ -481,3 +481,27 @@ export async function templateBrandOptions(ctx: AccessContext) {
 }
 
 export { RT_MODULES, type TemplateField };
+
+/** What the record template editor offers besides the fields: the brand's products, e-mail and document templates. */
+export async function editorLookups(ctx: AccessContext, moduleKey: string, brandId: string | null) {
+  const mod = rtModule(moduleKey);
+  if (!mod) throw new NotFoundError();
+  const db = scopedDb(ctx);
+  const brands = brandId ? [brandId] : ctx.brandIds;
+  const doc = await import("@/server/modules/doctpl/service");
+  const [products, emailTemplates, documentTemplates] = await Promise.all([
+    mod.hasLines && brandId && hasPermission(ctx, "products", "read") ? db.product.findMany({ where: { brandId, active: true }, select: { id: true, name: true, code: true }, orderBy: { name: "asc" }, take: 300 }) : [],
+    db.template.findMany({ where: { channel: "EMAIL", active: true, AND: [{ OR: [{ brandId: null }, { brandId: { in: brands } }] }, { OR: [{ module: null }, { module: mod.key }] }] }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    doc.listTemplates(ctx, { module: mod.key, status: "PUBLISHED" }),
+  ]);
+  return {
+    fields: (await templateFields(mod)).filter((f) => !mod.personal.includes(f.name) && f.name !== "brandId"),
+    products: products.map((p) => ({ id: p.id, label: p.code ? `${p.code} – ${p.name}` : p.name })),
+    emailTemplates,
+    documentTemplates: documentTemplates.filter((t) => t.visibility !== "PERSONAL" && (!t.brandId || !brandId || t.brandId === brandId)).map((t) => ({ id: t.id, name: t.name })),
+    hasLines: !!mod.hasLines,
+    hasChildren: !!mod.parentType,
+    label: mod.label,
+    plural: mod.plural,
+  };
+}

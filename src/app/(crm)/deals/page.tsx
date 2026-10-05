@@ -93,7 +93,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
       }
       actions={
         <>
-          {can(ctx, "deals", "create") ? <CreateSplitButton label="Create Deal" href="/deals/new" /> : null}
+          {can(ctx, "deals", "create") ? <CreateSplitButton label="Create Deal" href="/deals/new" templateModule="deals" /> : null}
           <ActionsMenu>
             <ViewActions module="deals" savedViewId={saved?.id ?? null} filters={{ base: base.id, ...(q ? { q } : {}), f: conditions.map((c) => [c.field, c.op, c.value ?? "", c.value2 ?? ""].join("~")), ...(sys ? { sys } : {}) }} />
           </ActionsMenu>

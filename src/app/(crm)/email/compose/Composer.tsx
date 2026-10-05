@@ -32,6 +32,9 @@ interface Props {
   generated: Array<{ id: string; fileName: string; templateName: string; templateVersion: number; generatedAt: Date; sentVia: string }>;
   /** open with the document attached (the "Send" of a quotation, sales order or invoice) */
   attachDocument: boolean;
+  /** opened from a record template: the e-mail template and the document to start with */
+  startTemplateId?: string | null;
+  startDocument?: string | null;
   mergeFields: string[];
   allowHtml: boolean;
   draft: ComposerDraft | null;
@@ -50,11 +53,12 @@ export function Composer(p: Props) {
   const [cc, setCc] = useState(d ? list(d.cc) : "");
   const [bcc, setBcc] = useState(d ? list(d.bcc) : "");
   const [copies, setCopies] = useState(!!d && (list(d.cc) !== "" || list(d.bcc) !== ""));
-  const [subject, setSubject] = useState(d ? String(d.subject ?? "") : "");
-  const [doc, setDoc] = useState<EmailDoc>(d?.doc ? (d.doc as EmailDoc) : EMPTY);
-  const [templateId, setTemplateId] = useState(d?.templateId ? String(d.templateId) : "");
+  const start0 = d ? undefined : p.templates.find((t) => t.id === p.startTemplateId);
+  const [subject, setSubject] = useState(d ? String(d.subject ?? "") : (start0?.subject ?? ""));
+  const [doc, setDoc] = useState<EmailDoc>(d?.doc ? (d.doc as EmailDoc) : (start0?.doc ?? EMPTY));
+  const [templateId, setTemplateId] = useState(d?.templateId ? String(d.templateId) : (start0?.id ?? ""));
   const [signature, setSignature] = useState(d ? d.includeSignature !== false : true);
-  const [attachPrint, setAttachPrint] = useState(d ? (d.attachPrint ? String(d.attachPrint) : "") : p.attachDocument ? (p.docTemplates.find((t) => t.isDefault)?.id ?? "default") : "");
+  const [attachPrint, setAttachPrint] = useState(d ? (d.attachPrint ? String(d.attachPrint) : "") : p.startDocument && p.docTemplates.some((t) => t.id === p.startDocument) ? p.startDocument : p.attachDocument ? (p.docTemplates.find((t) => t.isDefault)?.id ?? "default") : "");
   const [attachGenerated, setAttachGenerated] = useState(d?.attachGenerated ? String(d.attachGenerated) : "");
   const [attachmentIds, setAttachmentIds] = useState<string[]>(d && Array.isArray(d.attachmentIds) ? d.attachmentIds.map(String) : []);
   const [followUp, setFollowUp] = useState(d && typeof d.followUpDays === "number" ? String(d.followUpDays) : "");

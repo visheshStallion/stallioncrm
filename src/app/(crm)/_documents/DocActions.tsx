@@ -58,9 +58,16 @@ export function DocButtons({ type, id, buttons }: { type: string; id: string; bu
 export function CreateQuoteButton({ dealId }: { dealId: string }) {
   const { run, pending } = useRun();
   return (
-    <Button variant="outline" disabled={pending} onClick={() => run(() => createQuoteAction(dealId) as Promise<Result>)}>
-      Create Quote
-    </Button>
+    <>
+      <Button variant="outline" disabled={pending} onClick={() => run(() => createQuoteAction(dealId) as Promise<Result>)}>
+        Create Quote
+      </Button>
+      <Button variant="ghost" asChild>
+        <a href={`/templates/pick?module=quotes&dealId=${dealId}`} data-testid="quote-from-template">
+          Quote from template
+        </a>
+      </Button>
+    </>
   );
 }
 
