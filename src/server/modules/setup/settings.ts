@@ -71,6 +71,11 @@ const recycleBin = z.object({
   purgeAfterDays: z.coerce.number().int().min(0).max(3650).default(0),
 });
 
+const printPolicy = z.object({
+  /** profiles whose list and report printouts carry "Internal – {user} – {date}" across the page */
+  watermarkProfileIds: z.array(z.string()).max(100).default([]),
+});
+
 export const SETTINGS = {
   company: {
     entry: "company-details",
@@ -136,6 +141,13 @@ export const SETTINGS = {
     schema: sessionPolicy,
     fourEyes: true,
     fields: [{ name: "maxHours", label: "Sign in again after (hours)", type: "number", min: 1, max: 12 }] as SettingField[],
+  },
+  printPolicy: {
+    entry: "print-policy",
+    title: "Print policy",
+    schema: printPolicy,
+    fourEyes: false,
+    fields: [{ name: "watermarkProfileIds", label: "Profiles whose list printouts are watermarked", type: "multi", source: "profiles", hint: "Their list prints carry “Internal – name – date” across the page" }] as SettingField[],
   },
   recycleBin: {
     entry: "recycle-bin",

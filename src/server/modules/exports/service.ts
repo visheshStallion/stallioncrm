@@ -208,7 +208,7 @@ export async function downloadExport(ctx: AccessContext, id: string) {
     throw new NotFoundError();
   }
   await audit({ ctx, action: "EXPORT", entity: "ExportJob", entityId: id, after: { downloaded: true, rows: row.rowCount } });
-  return { fileName: row.fileName ?? "export", contentType: row.format === "xlsx" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv; charset=utf-8", body: await storage().get(row.storageKey) };
+  return { fileName: row.fileName ?? "export", contentType: row.format === "xlsx" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : row.format === "pdf" ? "application/pdf" : row.format === "zip" ? "application/zip" : "text/csv; charset=utf-8", body: await storage().get(row.storageKey) };
 }
 
 /** Scheduler: removes the files of expired exports. */

@@ -48,6 +48,18 @@ model Brand {
   brandManager          User?       @relation("BrandManager", fields: [brandManagerId], references: [id])
   brandAdmins           BrandAdmin[]
   validationRules       ValidationRule[]
+  // ── letterhead profile (prompt 20): printed on top of every printout of this brand ──
+  rcNumber              String?
+  phone                 String?
+  contactEmail          String?
+  website               String?
+  vatNumber             String?
+  /// extra line in the footer of printouts
+  footerText            String?
+  /// quotes / orders / invoices print a COPY watermark after their first print
+  copyWatermark         Boolean     @default(false)
+  printTemplates        PrintTemplate[]
+  emailSignatures       EmailSignature[]
   // ── sender identity (prompt 10): a message about this brand's record is always sent as this brand ──
   fromName              String?
   fromEmail             String?
@@ -1526,6 +1538,12 @@ model Message {
   toAddress         String
   subject           String?
   body              String
+  /// the HTML that was sent (rich emails); `body` keeps the text version
+  bodyHtml          String?
+  cc                String?
+  bcc               String?
+  /// [{ name, size }] – what was attached (the files themselves are not kept with the message)
+  attachments       Json?
   providerMessageId String?
   error             String?
   sentAt            DateTime?
@@ -1569,7 +1587,17 @@ model Template {
   createdById    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  // ── rich email templates (prompt 20) ──
+  /// module the template is offered for (leads, deals, quotes …); null = every module
+  module         String?
+  folder         String?
+  /// Sales | Service | Marketing | Transactional
+  category       String   @default("Sales")
+  /// email blocks of the editor (src/server/modules/email/blocks.ts); null = a plain-text template
+  blocks         Json?
+  version        Int      @default(1)
 
+  versions  TemplateVersion[]
   campaigns Campaign[]
 
   @@index([brandId, channel])
@@ -2442,4 +2470,94 @@ model ValidationRule {
   updatedAt  DateTime @updatedAt
 
   @@index([module, active])
+}
+
+// ─────────────────────────── Print & email editor (prompt 20) ───────────────────────────
+
+/// Print template of a module: blocks laid out on the brand's letterhead. brandId null = every brand.
+model PrintTemplate {
+  id          String   @id @default(cuid())
+  /// print module key (src/server/modules/print/modules.ts)
+  module      String
+  name        String
+  brandId     String?
+  brand       Brand?   @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  /// A4 | LETTER
+  paper       String   @default("A4")
+  /// portrait | landscape
+  orientation String   @default("portrait")
+  isDefault   Boolean  @default(false)
+  /// the published layout – what users print with
+  layout      Json
+  /// work in progress of the designer; null when nothing is pending
+  draft       Json?
+  version     Int      @default(1)
+  active      Boolean  @default(true)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  versions PrintTemplateVersion[]
+
+  @@unique([module, brandId, name])
+  @@index([module, active])
+}
+
+model PrintTemplateVersion {
+  id          String        @id @default(cuid())
+  templateId  String
+  template    PrintTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version     Int
+  layout      Json
+  createdById String?
+  createdAt   DateTime      @default(now())
+
+  @@unique([templateId, version])
+}
+
+/// Earlier versions of a message template (restore, diff).
+model TemplateVersion {
+  id          String   @id @default(cuid())
+  templateId  String
+  template    Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version     Int
+  subject     String?
+  body        String
+  blocks      Json?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@unique([templateId, version])
+}
+
+/// A user's e-mail signature for one brand (sanitised HTML).
+model EmailSignature {
+  userId    String
+  brandId   String
+  brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  html      String
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, brandId])
+}
+
+/// Saved draft or scheduled e-mail of a user on a record. Sent with the user's access at send time.
+model EmailDraft {
+  id         String    @id @default(cuid())
+  userId     String
+  parentType String
+  parentId   String
+  brandId    String
+  /// the composer's state: to, cc, bcc, subject, blocks, templateId, attachPrint …
+  payload    Json
+  /// DRAFT | SCHEDULED | SENT | FAILED | CANCELLED
+  status     String    @default("DRAFT")
+  sendAt     DateTime?
+  error      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([parentType, parentId])
 }
