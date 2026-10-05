@@ -14,8 +14,8 @@ export const metadata = { title: "Document template" };
 
 const fmt = (d: Date | null) => (d ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Lagos" }).format(d) : "");
 
-export default async function DocumentTemplatePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function DocumentTemplatePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ r?: string }> }) {
+  const [{ id }, { r }] = await Promise.all([params, searchParams]);
   const ctx = await requireContext();
   const t = await getTemplate(ctx, id).catch((e) => {
     if (isAccessError(e)) notFound(); // another brand's template, or someone's personal one, does not exist here
@@ -106,7 +106,8 @@ export default async function DocumentTemplatePage({ params }: { params: Promise
       </div>
 
       <Builder
-        key={`${t.id}:${t.updatedAt.getTime()}`}
+        // remounted when the content was replaced on the server (approval, publication, a restored version) – not on every save
+        key={`${t.id}:${t.version}:${t.status}:${r ?? ""}`}
         templateId={t.id}
         module={t.module}
         moduleLabel={t.moduleLabel}

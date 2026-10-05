@@ -91,7 +91,7 @@ export async function deleteDocTemplateAction(_p: unknown, fd: FormData): Promis
 export async function restoreDocVersionAction(_p: unknown, fd: FormData): Promise<Result> {
   return run(async (ctx) => {
     await svc.restoreVersion(ctx, str(fd, "templateId"), Number(str(fd, "version")));
-    return `Version ${str(fd, "version")} is in the editor – publish it to use it`;
+    return { message: `Version ${str(fd, "version")} is in the editor – publish it to use it`, redirect: `/templates/documents/${str(fd, "templateId")}?r=${Date.now()}` };
   });
 }
 

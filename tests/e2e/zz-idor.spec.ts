@@ -43,6 +43,7 @@ const SOURCES: Record<string, string> = {
 const INVENTORY = ["vehicle-units", "shipments", "landed-costs", "journals"];
 
 const EXEMPT: Record<string, string> = {
+  "/api/v1/generated-documents/[id]": "a stored copy is only made by sending or downloading a document with a template; reading one loads its record with the caller's access first – another brand's copy is a 404 in tests/integration/doctpl.test.ts",
   "/api/v1/accounts/[id]": "customers are shared between brands by design (BUSINESS_CONTEXT §8); masking by tier is covered by the customer tests",
   "/api/v1/contacts/[id]": "customers are shared between brands by design; masking by tier is covered by the customer tests",
   "/api/v1/brands/[id]/logo": "brand names and logos are a shared directory",
