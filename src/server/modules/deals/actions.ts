@@ -17,9 +17,11 @@ const fields = (fd: FormData) => Object.fromEntries(DEAL_FIELD_KEYS.filter((k) =
 export async function createDealFormAction(_prev: unknown, fd: FormData): Promise<ActionResult<Outcome>> {
   return safeAction(async () => {
     const ctx = await requireContext();
-    const deal = await svc.createDeal(ctx, { ...fields(fd), brandId: str(fd, "brandId"), regionId: str(fd, "regionId"), pipelineId: str(fd, "pipelineId"), customFields: customFromForm(fd) } as never);
+    const { createWithTemplate } = await import("@/server/modules/rectpl/service");
+    const made = await createWithTemplate(ctx, "deals", str(fd, "_templateId"), { ...fields(fd), brandId: str(fd, "brandId"), regionId: str(fd, "regionId"), pipelineId: str(fd, "pipelineId"), customFields: customFromForm(fd) } as Record<string, unknown>, (input) => svc.createDeal(ctx, input as never));
+    const deal = made.record;
     revalidatePath("/deals");
-    return { message: "Deal created successfully", redirect: fd.get("_saveAndNew") ? "/deals/new" : `/deals/${deal.id}` };
+    return { message: `${made.templateName ? `Deal created from “${made.templateName}”${made.tasks ? ` · ${made.tasks} task(s) added` : ""}` : "Deal created"}`, redirect: made.next ?? (fd.get("_saveAndNew") ? "/deals/new" : `/deals/${deal.id}`) };
   });
 }
 

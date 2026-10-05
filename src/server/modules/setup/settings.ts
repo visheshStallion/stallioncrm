@@ -76,6 +76,15 @@ const printPolicy = z.object({
   watermarkProfileIds: z.array(z.string()).max(100).default([]),
 });
 
+const recordTemplatePolicy = z.object({
+  /** modules whose records must be created from a record template (the blank create form and API are refused) */
+  leads: z.boolean().default(false),
+  deals: z.boolean().default(false),
+  cases: z.boolean().default(false),
+  accounts: z.boolean().default(false),
+  contacts: z.boolean().default(false),
+});
+
 export const SETTINGS = {
   company: {
     entry: "company-details",
@@ -141,6 +150,19 @@ export const SETTINGS = {
     schema: sessionPolicy,
     fourEyes: true,
     fields: [{ name: "maxHours", label: "Sign in again after (hours)", type: "number", min: 1, max: 12 }] as SettingField[],
+  },
+  recordTemplatePolicy: {
+    entry: "record-template-policy",
+    title: "Record template policy",
+    schema: recordTemplatePolicy,
+    fourEyes: false,
+    fields: [
+      { name: "leads", label: "Leads must be created from a template", type: "checkbox" },
+      { name: "deals", label: "Deals must be created from a template", type: "checkbox" },
+      { name: "cases", label: "Cases must be created from a template", type: "checkbox" },
+      { name: "accounts", label: "Accounts must be created from a template", type: "checkbox" },
+      { name: "contacts", label: "Contacts must be created from a template", type: "checkbox" },
+    ] as SettingField[],
   },
   printPolicy: {
     entry: "print-policy",

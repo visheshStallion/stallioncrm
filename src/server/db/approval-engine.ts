@@ -280,6 +280,14 @@ async function applyEffects(tx: Tx, requestId: string, approved: boolean, actor:
     await tx.quote.updateMany({ where: { id: req.entityId, status: "PENDING_APPROVAL" }, data: { status: approved ? "APPROVED" : "DRAFT" } });
     return;
   }
+  if (req.kind === "RECORD_TEMPLATE" && req.entity === "RecordTemplate") {
+    // Approved: the template can be used. Rejected / recalled: back to draft.
+    const t = await tx.recordTemplate.findUnique({ where: { id: req.entityId } });
+    if (!t || t.status !== "PENDING_APPROVAL") return;
+    await tx.recordTemplate.update({ where: { id: t.id }, data: { status: approved ? "PUBLISHED" : "DRAFT" } });
+    if (approved) pendingAudits.get(tx)?.push({ entity: "RecordTemplate", entityId: t.id, brandId: req.brandId, before: { status: "PENDING_APPROVAL" }, after: { status: "PUBLISHED", approvedBy: actor.name } });
+    return;
+  }
   if (req.kind === "DOCUMENT_TEMPLATE" && req.entity === "DocumentTemplate") {
     // Approved: the working copy becomes the published version. Rejected / recalled: back to what it was before.
     const t = await tx.documentTemplate.findUnique({ where: { id: req.entityId } });

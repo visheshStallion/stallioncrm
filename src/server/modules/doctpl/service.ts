@@ -451,3 +451,13 @@ export async function markSent(ctx: AccessContext, moduleKey: string, recordId: 
     await markQuoteSent(ctx, recordId).catch(() => undefined); // only approved quotes change state; others stay as they are
   } else await store.markDocumentSent(moduleKey, recordId);
 }
+
+/** A copy of a template the user can see. It keeps the visibility when they may write that kind, else it is personal. */
+export async function cloneTemplate(ctx: AccessContext, id: string) {
+  const t = await loadSeen(ctx, id);
+  const same = canEdit(ctx, t);
+  const brandId = t.brandId && ctx.brandIds.includes(t.brandId) ? t.brandId : null;
+  const created = await createTemplate(ctx, { name: `${t.name} (copy)`.slice(0, 100), module: t.module, brandId: same ? t.brandId : brandId, visibility: same ? (t.visibility as Visibility) : "PERSONAL", paper: (PAPERS as readonly string[]).includes(t.paper) ? (t.paper as "A4") : "A4", orientation: t.orientation === "landscape" ? "landscape" : "portrait" });
+  await store.updateDocTemplate(created.id, { content: parseContent(t.published ?? t.content) as object, margins: parseMargins(t.margins) as object, cssOverrides: t.cssOverrides });
+  return created;
+}

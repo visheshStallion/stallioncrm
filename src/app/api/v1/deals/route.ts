@@ -5,6 +5,7 @@ import { conditionsToWhere, parseConditions } from "@/server/list/filters";
 import { dealFilterFields, listDeals } from "@/server/modules/deals/queries";
 import { createDeal } from "@/server/modules/deals/service";
 import { requireApiContext } from "@/server/request";
+import { createWithTemplate } from "@/server/modules/rectpl/service";
 
 /**
  * GET /api/v1/deals?brandId=&regionId=&pipelineId=&q=&f=field~op~value&page=&per= – deals in the caller's scope
@@ -43,6 +44,7 @@ export const GET = apiHandler(async (req) => {
 /** POST /api/v1/deals – 403 when the brand/region is outside the caller's territories. */
 export const POST = apiHandler(async (req) => {
   const ctx = await requireApiContext();
-  const deal = await createDeal(ctx, await req.json());
-  return Response.json({ data: fieldMask(ctx, "deals", deal) }, { status: 201 });
+  const { templateId, ...input } = (await req.json()) as Record<string, unknown>;
+  const made = await createWithTemplate(ctx, "deals", typeof templateId === "string" ? templateId : null, input, (i) => createDeal(ctx, i as never));
+  return Response.json({ data: fieldMask(ctx, "deals", made.record) }, { status: 201 });
 });

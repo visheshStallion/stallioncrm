@@ -12,9 +12,12 @@ const obj = (fd: FormData) => Object.fromEntries([...fd.entries()].filter(([k, v
 
 export async function createCaseAction(_prev: unknown, fd: FormData): Promise<ActionResult<Outcome>> {
   return safeAction(async () => {
-    const c = await svc.createCase(await requireContext(), obj(fd) as never);
+    const ctx = await requireContext();
+    const { createWithTemplate } = await import("@/server/modules/rectpl/service");
+    const made = await createWithTemplate(ctx, "cases", str(fd, "_templateId"), obj(fd) as Record<string, unknown>, (input) => svc.createCase(ctx, input as never));
+    const c = made.record;
     revalidatePath("/cases");
-    return { message: `Case ${c.number} created`, redirect: `/cases/${c.id}` };
+    return { message: `Case ${c.number} created${made.templateName ? ` from “${made.templateName}”${made.tasks ? ` · ${made.tasks} task(s) added` : ""}` : ""}`, redirect: made.next ?? `/cases/${c.id}` };
   });
 }
 

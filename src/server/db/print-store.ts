@@ -86,3 +86,6 @@ export const templateForRender = (id: string) => unsafeDb.template.findUnique({ 
 export function unsafeUpsertTemplate(id: string | null, data: Prisma.TemplateUncheckedCreateInput) {
   return id ? unsafeDb.template.update({ where: { id }, data }) : unsafeDb.template.create({ data });
 }
+
+/** Switches a message template on or off (templates hub: archive / restore). The hub has checked who may. */
+export const unsafeSetTemplateActive = (id: string, active: boolean) => unsafeDb.template.update({ where: { id }, data: { active }, select: { id: true } });

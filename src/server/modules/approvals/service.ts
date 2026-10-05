@@ -13,10 +13,10 @@ import type { ApprovalOutcome, StartApproval } from "@/server/db/approval-engine
 import { BadRequestError } from "@/server/errors";
 import { notify } from "@/server/modules/notifications/service";
 
-export const KIND_LABELS: Record<string, string> = { DISCOUNT: "Discount approval", BRAND_CHANGE: "Brand change", OWNER_TRANSFER: "Owner transfer", DOCUMENT_TEMPLATE: "Document template" };
+export const KIND_LABELS: Record<string, string> = { DISCOUNT: "Discount approval", BRAND_CHANGE: "Brand change", OWNER_TRANSFER: "Owner transfer", DOCUMENT_TEMPLATE: "Document template", RECORD_TEMPLATE: "Record template" };
 export const STATUS_LABELS: Record<string, string> = { PENDING: "Pending", APPROVED: "Approved", REJECTED: "Rejected", CANCELLED: "Recalled" };
 const MOVABLE: Record<string, { module: ModuleKey; path: string }> = { Lead: { module: "leads", path: "/leads" }, Deal: { module: "deals", path: "/deals" } };
-const PATHS: Record<string, string> = { Lead: "/leads", Deal: "/deals", Quote: "/quotes", DocumentTemplate: "/templates/documents" };
+const PATHS: Record<string, string> = { Lead: "/leads", Deal: "/deals", Quote: "/quotes", DocumentTemplate: "/templates/documents", RecordTemplate: "/templates/records" };
 export const recordHref = (entity: string, id: string) => (PATHS[entity] ? `${PATHS[entity]}/${id}` : null);
 
 /** In-app notifications for an engine outcome: new approvers get a task, the requester learns the decision. */

@@ -21,9 +21,11 @@ const CONTACT_KEYS = Object.keys(contactSchema.shape);
 export async function createAccountAction(_p: unknown, fd: FormData): Promise<ActionResult<Outcome>> {
   return safeAction(async () => {
     const ctx = await requireContext();
-    const acc = await svc.createAccount(ctx, fromForm(fd, ACCOUNT_KEYS) as never);
+    const { createWithTemplate } = await import("@/server/modules/rectpl/service");
+    const made = await createWithTemplate(ctx, "accounts", str(fd, "_templateId"), fromForm(fd, ACCOUNT_KEYS) as Record<string, unknown>, (input) => svc.createAccount(ctx, input as never));
+    const acc = made.record;
     revalidatePath("/accounts");
-    return { message: "Account created successfully", redirect: fd.get("_saveAndNew") ? "/accounts/new" : `/accounts/${acc.id}` };
+    return { message: `${made.templateName ? `Account created from “${made.templateName}”${made.tasks ? ` · ${made.tasks} task(s) added` : ""}` : "Account created"}`, redirect: made.next ?? (fd.get("_saveAndNew") ? "/accounts/new" : `/accounts/${acc.id}`) };
   });
 }
 
@@ -40,9 +42,11 @@ export async function updateAccountAction(_p: unknown, fd: FormData): Promise<Ac
 export async function createContactAction(_p: unknown, fd: FormData): Promise<ActionResult<Outcome>> {
   return safeAction(async () => {
     const ctx = await requireContext();
-    const c = await svc.createContact(ctx, fromForm(fd, CONTACT_KEYS) as never);
+    const { createWithTemplate } = await import("@/server/modules/rectpl/service");
+    const made = await createWithTemplate(ctx, "contacts", str(fd, "_templateId"), fromForm(fd, CONTACT_KEYS) as Record<string, unknown>, (input) => svc.createContact(ctx, input as never));
+    const c = made.record;
     revalidatePath("/contacts");
-    return { message: "Contact created successfully", redirect: fd.get("_saveAndNew") ? "/contacts/new" : `/contacts/${c.id}` };
+    return { message: `${made.templateName ? `Contact created from “${made.templateName}”${made.tasks ? ` · ${made.tasks} task(s) added` : ""}` : "Contact created"}`, redirect: made.next ?? (fd.get("_saveAndNew") ? "/contacts/new" : `/contacts/${c.id}`) };
   });
 }
 

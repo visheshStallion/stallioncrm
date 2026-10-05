@@ -4,6 +4,7 @@ import { listLeads } from "@/server/modules/leads/queries";
 import { parseLeadFilters } from "@/server/modules/leads/schema";
 import { createLead } from "@/server/modules/leads/service";
 import { requireApiContext } from "@/server/request";
+import { createWithTemplate } from "@/server/modules/rectpl/service";
 
 /** GET /api/v1/leads?status=&source=&brandId=&regionId=&ownerId=&mine=&from=&to=&q=&take=&skip= (scoped) */
 export const GET = apiHandler(async (req) => {
@@ -24,6 +25,7 @@ export const GET = apiHandler(async (req) => {
 export const POST = apiHandler(async (req) => {
   const ctx = await requireApiContext();
   const body = (await req.json()) as Record<string, unknown>;
-  const lead = await createLead(ctx, body as never, { autoAssign: body.autoAssign === true });
-  return Response.json({ data: lead }, { status: 201 });
+  const { templateId, ...input } = body;
+  const made = await createWithTemplate(ctx, "leads", typeof templateId === "string" ? templateId : null, input, (i) => createLead(ctx, i as never, { autoAssign: body.autoAssign === true }));
+  return Response.json({ data: made.record }, { status: 201 });
 });

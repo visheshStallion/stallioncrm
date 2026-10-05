@@ -61,6 +61,8 @@ model Brand {
   printTemplates        PrintTemplate[]
   documentTemplates     DocumentTemplate[]
   generatedDocuments    GeneratedDocument[]
+  recordTemplates       RecordTemplate[]
+  templateFolders       TemplateFolder[]
   emailSignatures       EmailSignature[]
   // ── sender identity (prompt 10): a message about this brand's record is always sent as this brand ──
   fromName              String?
@@ -2653,4 +2655,112 @@ model GeneratedDocument {
 
   @@index([module, recordId])
   @@index([brandId])
+}
+
+/// Record template (prompt 22): pre-filled field values for creating a record of a module in one click.
+/// System table: reached through the record-template service only.
+model RecordTemplate {
+  id                 String    @id @default(cuid())
+  name               String
+  description        String?
+  /// module key: leads | deals | cases | accounts | contacts | activities | quotes
+  module             String
+  /// NULL = every brand the user of the template can access
+  brandId            String?
+  brand              Brand?    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  /// PERSONAL | SHARED_BRAND | PUBLIC_GROUP
+  visibility         String    @default("PERSONAL")
+  /// DRAFT | PENDING_APPROVAL | PUBLISHED | ARCHIVED
+  status             String    @default("DRAFT")
+  isDefault          Boolean   @default(false)
+  /// field name → value, or a formula { "$": "today+30d" | "currentUser" | "userRegion" }
+  fieldValues        Json      @default("{}")
+  /// fields the user cannot change when creating from the template
+  lockedFields       Json      @default("[]")
+  /// fields applied silently (not shown as changeable)
+  hiddenFields       Json      @default("[]")
+  /// quotes: [{ productId, qty, discountPct }] – prices are resolved from the current price book at create time
+  lineItems          Json      @default("[]")
+  /// tasks created with the record: [{ subject, type, dueInHours, priority }]
+  childRecords       Json      @default("[]")
+  emailTemplateId    String?
+  documentTemplateId String?
+  version            Int       @default(1)
+  createdById        String
+  usageCount         Int       @default(0)
+  lastUsedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  versions RecordTemplateVersion[]
+  uses     RecordTemplateUse[]
+
+  @@index([module, status])
+  @@index([createdById])
+}
+
+model RecordTemplateVersion {
+  id          String         @id @default(cuid())
+  templateId  String
+  template    RecordTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version     Int
+  snapshot    Json
+  changedById String?
+  changedAt   DateTime       @default(now())
+
+  @@unique([templateId, version])
+}
+
+/// Which record was created from which template (and version) – for reporting.
+model RecordTemplateUse {
+  id              String         @id @default(cuid())
+  templateId      String
+  template        RecordTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  templateVersion Int
+  module          String
+  recordId        String
+  brandId         String?
+  userId          String
+  createdAt       DateTime       @default(now())
+
+  @@unique([module, recordId])
+  @@index([templateId, createdAt])
+}
+
+/// Folder of the templates hub. Personal (its owner only) or shared (a brand's, or the group's when brandId is NULL).
+model TemplateFolder {
+  id        String   @id @default(cuid())
+  name      String
+  brandId   String?
+  brand     Brand?   @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  ownerId   String
+  shared    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  placements TemplatePlacement[]
+
+  @@index([ownerId])
+}
+
+/// A template (of any kind) in a folder. scope = "" for shared folders, the user's id for personal folders.
+model TemplatePlacement {
+  /// email | sms | whatsapp | document | print | record
+  kind       String
+  templateId String
+  scope      String         @default("")
+  folderId   String
+  folder     TemplateFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@id([kind, templateId, scope])
+  @@index([folderId])
+}
+
+/// A user's starred templates.
+model TemplateFavorite {
+  userId     String
+  kind       String
+  templateId String
+  createdAt  DateTime @default(now())
+
+  @@id([userId, kind, templateId])
 }

@@ -38,13 +38,13 @@ const leadInput = (fd: FormData) => ({
 export async function createLeadAction(_p: unknown, fd: FormData): Promise<ActionResult<Outcome>> {
   return safeAction(async () => {
     const ctx = await requireContext();
-    const lead = await svc.createLead(
-      ctx,
-      { ...leadInput(fd), brandId: str(fd, "brandId"), ownerId: str(fd, "ownerId") || undefined, customFields: customFromForm(fd) } as CreateLeadInput,
-      { autoAssign: fd.get("autoAssign") === "on" },
+    const { createWithTemplate } = await import("@/server/modules/rectpl/service");
+    const made = await createWithTemplate(ctx, "leads", str(fd, "_templateId"), { ...leadInput(fd), brandId: str(fd, "brandId"), ownerId: str(fd, "ownerId") || undefined, customFields: customFromForm(fd) } as Record<string, unknown>, (input) =>
+      svc.createLead(ctx, input as CreateLeadInput, { autoAssign: fd.get("autoAssign") === "on" }),
     );
+    const lead = made.record;
     revalidatePath("/leads");
-    return { message: "Lead created", redirect: fd.get("_saveAndNew") ? "/leads/new" : `/leads/${lead.id}` };
+    return { message: `${made.templateName ? `Lead created from “${made.templateName}”${made.tasks ? ` · ${made.tasks} task(s) added` : ""}` : "Lead created"}`, redirect: made.next ?? (fd.get("_saveAndNew") ? "/leads/new" : `/leads/${lead.id}`) };
   });
 }
 
