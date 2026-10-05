@@ -1,4 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "crons": [{ "path": "/api/public/cron/tick", "schedule": "0 5 * * *" }]
+  "crons": [
+    {
+      "path": "/api/public/cron/tick",
+      "schedule": "0 5 * * *"
+    }
+  ],
+  "buildCommand": "pnpm run build:vercel"
 }

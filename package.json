@@ -32,7 +32,8 @@
     "postinstall": "prisma generate",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build -o storybook-static --quiet",
-    "e2e:visual": "playwright test --project=visual"
+    "e2e:visual": "playwright test --project=visual",
+    "build:vercel": "node scripts/vercel-build.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
