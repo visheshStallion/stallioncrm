@@ -10,6 +10,8 @@ export interface BrandInfo {
   name: string;
   color: string | null;
   status: string;
+  /** an uploaded logo exists (served by /api/v1/brands/[id]/logo) */
+  hasLogo: boolean;
 }
 export interface RegionInfo {
   id: string;
@@ -19,13 +21,14 @@ export interface RegionInfo {
 /** Brands + regions for badges and filters (request-cached). */
 export const getDirectory = cache(async (ctx: AccessContext) => {
   const db = scopedDb(ctx);
-  const [brands, regions] = await Promise.all([
+  const [brandRows, regions] = await Promise.all([
     db.brand.findMany({
-      select: { id: true, code: true, name: true, color: true, status: true },
+      select: { id: true, code: true, name: true, color: true, status: true, logoMimeType: true },
       orderBy: { code: "asc" },
     }),
     db.region.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
+  const brands = brandRows.map(({ logoMimeType, ...b }) => ({ ...b, hasLogo: !!logoMimeType }));
   const allowedRegions = visibleRegionIds(ctx);
   return {
     brands: brands as BrandInfo[],

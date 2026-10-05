@@ -60,3 +60,24 @@ test("single brand selected → its badge sits at the top of the rail", async ({
   await page.getByTestId("brand-switcher").selectOption({ label: "All my brands" });
   await expect(page.getByTestId("rail-brand")).toHaveCount(0);
 });
+
+test("the top bar shows the logos of the signed-in user's brands only", async ({ page }) => {
+  await login(page, "exec.hmnl.1");
+  const logos = page.getByTestId("brand-logos").getByTestId("brand-logo");
+  await expect(logos).toHaveCount(1);
+  await expect(logos.first()).toHaveAttribute("data-brand", "HMNL");
+  await expect(page.getByTestId("rail-brand")).toContainText("Hyundai");
+  await page.goto("/deals");
+  await expect(page.getByTestId("brand-logos").getByTestId("brand-logo")).toHaveCount(1);
+
+});
+
+test("a multi-brand user sees each of their brands' logos, narrowed by the brand switcher", async ({ page }) => {
+  await login(page, "exec.multi.1");
+  const codes = await page.getByTestId("brand-logos").getByTestId("brand-logo").evaluateAll((els) => els.map((e) => e.getAttribute("data-brand")).sort());
+  expect(codes).toEqual(["HMNL", "SNMNL"]);
+  await page.getByTestId("brand-switcher").selectOption({ label: "SNMNL – Nissan" });
+  await expect(page.getByTestId("brand-logos").getByTestId("brand-logo")).toHaveCount(1);
+  await expect(page.getByTestId("brand-logos").getByTestId("brand-logo").first()).toHaveAttribute("data-brand", "SNMNL");
+  await page.getByTestId("brand-switcher").selectOption({ label: "All my brands" });
+});

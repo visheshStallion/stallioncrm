@@ -12,6 +12,7 @@ import { getPreferences } from "@/server/modules/preferences/queries";
 import { getUiFilters } from "@/server/request";
 import { MobileNav } from "@/components/pwa/MobileNav";
 import { PwaClient } from "@/components/pwa/PwaClient";
+import { BrandLogoStrip } from "@/components/BrandLogo";
 import { BrandSwitcher } from "./BrandSwitcher";
 import { GlobalSearch } from "./GlobalSearch";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
@@ -42,9 +43,9 @@ export async function AppShell({ ctx, children }: { ctx: AccessContext; children
   const lookups = quickCreate.length ? await leadFormLookups(ctx) : null;
 
   const selectedBrand = filters.brandId ? dir.brands.find((b) => b.id === filters.brandId) : null;
-  const railBrand = selectedBrand
-    ? { id: selectedBrand.id, code: selectedBrand.code, name: selectedBrand.name, color: selectedBrand.color, hasLogo: false }
-    : null;
+  // the logo(s) of the signed-in user's brands on every page: the selected brand, else all of the user's brands
+  const logoBrands = selectedBrand ? [selectedBrand] : dir.myBrands;
+  const railBrand = logoBrands.length === 1 ? logoBrands[0]! : null;
 
   return (
     <div className="flex min-h-screen bg-canvas">
@@ -57,6 +58,7 @@ export async function AppShell({ ctx, children }: { ctx: AccessContext; children
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-[52px] items-center gap-2 border-b border-border bg-surface px-3 md:gap-3 md:px-4" data-testid="top-bar">
+          <BrandLogoStrip brands={logoBrands} />
           <BrandSwitcher
             brands={dir.myBrands.map((b) => ({ id: b.id, label: `${b.code} – ${b.name}` }))}
             regions={dir.myRegions.map((r) => ({ id: r.id, label: r.name }))}
