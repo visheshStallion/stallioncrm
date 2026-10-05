@@ -13,6 +13,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowUpDown, Columns3, GripVertical } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "@/components/Toaster";
+import { BulkPrint } from "@/components/crm/PrintActions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { setPreferenceAction } from "@/server/modules/preferences/actions";
@@ -25,6 +26,8 @@ export interface ColumnMeta {
 }
 
 const VIRTUALIZE_AFTER = 500;
+/** modules whose selected rows can be printed in bulk (src/server/modules/print/modules.ts) */
+const PRINTABLE = new Set(["leads", "contacts", "accounts", "deals", "quotes", "salesOrders", "invoices", "activities", "cases", "products", "priceBooks", "campaigns"]);
 
 /**
  * CRM data table (TanStack): sorting, column chooser (show/hide, freeze first column), columns reordered by
@@ -111,6 +114,7 @@ export function DataTable<T extends { id: string }>({
   });
 
   const selectedIds = Object.keys(rowSelection).filter((k) => rowSelection[k]);
+  const printable = !!module && PRINTABLE.has(module);
   useEffect(() => onSelectionChange?.(selectedIds), [selectedIds.join(","), onSelectionChange]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setRowSelection({}), [data]);
 
@@ -184,7 +188,7 @@ export function DataTable<T extends { id: string }>({
   return (
     <div className="crm-flush">
       <div className="crm-table-strip">
-        {selectedIds.length && bulkBar ? (
+        {selectedIds.length && (bulkBar || printable) ? (
           <div className="crm-bulkbar" data-testid="bulk-bar">
             <span>
               {selectedIds.length} {selectedIds.length === 1 ? "Record" : "Records"} Selected
@@ -192,7 +196,8 @@ export function DataTable<T extends { id: string }>({
             <button type="button" className="font-normal underline" onClick={() => setRowSelection({})}>
               Clear
             </button>
-            {bulkBar(selectedIds, () => setRowSelection({}))}
+            {bulkBar?.(selectedIds, () => setRowSelection({}))}
+            {printable ? <BulkPrint module={module!} ids={selectedIds} /> : null}
           </div>
         ) : (
           toolbar
@@ -314,7 +319,7 @@ export function DataTable<T extends { id: string }>({
               </tr>
             ) : (
               renderRows.map((row) => (
-                <tr key={row.id} data-testid="data-row" data-selected={row.getIsSelected() ? "true" : undefined}>
+                <tr key={row.id} data-testid="data-row" data-id={row.id} data-selected={row.getIsSelected() ? "true" : undefined}>
                   {row.getVisibleCells().map((cell) => {
                     const meta = cell.column.columnDef.meta as ColumnMeta | undefined;
                     const isEditing = editing?.row === row.id && editing.col === cell.column.id;

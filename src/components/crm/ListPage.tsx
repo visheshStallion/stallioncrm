@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { encodeCondition, OP_LABELS, OPS_BY_TYPE, PAGE_SIZES, type Condition, type FieldDef, type FilterOp } from "@/server/list/filters";
 import { DropdownMenu, MenuItem } from "./overlays";
+import { PrintViewItem } from "./PrintActions";
 
 function useUrl() {
   const router = useRouter();
@@ -144,6 +145,7 @@ export function ActionsMenu({ children }: { children: ReactNode }) {
       )}
     >
       {children}
+      <PrintViewItem />
     </DropdownMenu>
   );
 }

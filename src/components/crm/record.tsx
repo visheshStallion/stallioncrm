@@ -2,6 +2,7 @@ import { ArrowLeft, Check, Lock } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { BrandBadge } from "@/components/BrandBadge";
+import { PrintButton } from "./PrintActions";
 import { Avatar, BrandStripe } from "./primitives";
 
 /** Record header: ← Back · brand chip · "Module: name" · owner · actions. */
@@ -47,6 +48,7 @@ export function RecordHeader({
       ) : null}
       {meta}
       <div className="ml-auto flex flex-wrap items-center gap-2">
+        <PrintButton />
         {actions}
         {nav}
       </div>

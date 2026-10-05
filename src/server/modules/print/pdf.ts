@@ -98,7 +98,7 @@ const ansi = (s: string) =>
     .replace(/₦/g, "NGN")
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')
-    .replace(/ /g, " ")
+    .replace(/\xA0/g, " ")
     .replace(/[^\x20-\x7E\xA1-\xFF–—•]/g, "?");
 
 function hex(color: string) {

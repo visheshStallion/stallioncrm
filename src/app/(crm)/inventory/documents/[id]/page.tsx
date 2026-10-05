@@ -1,3 +1,4 @@
+import { PrintButton } from "@/components/crm/PrintActions";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
@@ -92,6 +93,7 @@ export default async function InvDocumentPage({ params, searchParams }: { params
               <Link href={`/inventory/documents/${doc.id}?edit=1`}>Edit</Link>
             </Button>
           ) : null}
+          <PrintButton />
           {doc.type === "PO" && doc.status !== "DRAFT" ? (
             <a href={`/api/v1/inventory/documents/${doc.id}/pdf`} className="text-sm text-primary underline">
               PDF

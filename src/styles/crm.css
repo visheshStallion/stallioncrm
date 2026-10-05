@@ -1291,3 +1291,112 @@
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* ───────────────────────────── printing an application page (reports, dashboards) ───────────────────────────── */
+.print-only {
+  display: none;
+}
+@media print {
+  .crm-sidebar,
+  .crm-header,
+  .crm-navtabs,
+  [data-testid="classic-nav"],
+  [data-testid="mobile-nav"],
+  .no-print,
+  [role="status"][aria-live] {
+    display: none !important;
+  }
+  .crm-main {
+    padding: 0 !important;
+  }
+  body {
+    background: #fff !important;
+  }
+  .print-only {
+    display: block;
+  }
+  button,
+  .crm-btn {
+    display: none !important;
+  }
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+}
+
+/* ───────────────────────────── rich-text editor (TipTap) ───────────────────────────── */
+.rich-editor-content {
+  min-height: inherit;
+  padding: 12px;
+  outline: none;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.rich-editor-content p {
+  margin: 0 0 8px;
+}
+.rich-editor-content h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.rich-editor-content h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.rich-editor-content h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+.rich-editor-content ul {
+  list-style: disc;
+  padding-left: 22px;
+  margin: 0 0 8px;
+}
+.rich-editor-content ol {
+  list-style: decimal;
+  padding-left: 22px;
+  margin: 0 0 8px;
+}
+.rich-editor-content a {
+  color: var(--c-link);
+  text-decoration: underline;
+}
+.rich-editor-content a[data-button] {
+  text-decoration: none;
+}
+.rich-editor-content img {
+  max-width: 100%;
+  height: auto;
+}
+.rich-editor-content hr {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--c-border-strong);
+}
+.rich-editor-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 8px;
+}
+.rich-editor-content td,
+.rich-editor-content th {
+  border: 1px solid var(--c-border-strong);
+  padding: 4px 8px;
+  vertical-align: top;
+  min-width: 40px;
+}
+.rich-editor-content th {
+  background: var(--c-surface-alt);
+  font-weight: 700;
+  text-align: left;
+}
+.rich-editor-content mark {
+  background: #fde68a;
+}
+.rich-editor-content .selectedCell {
+  background: var(--c-primary-soft);
+}

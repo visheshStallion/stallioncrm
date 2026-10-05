@@ -3,6 +3,8 @@ import { forbidden, notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { Chart } from "@/components/charts";
 import { Pagination } from "@/components/crm/ListPage";
+import { PrintPageButton } from "@/components/crm/PrintActions";
+import { PrintLetterhead } from "@/components/crm/PrintLetterhead";
 import { PageTitleRow, StatusPill } from "@/components/crm/primitives";
 import { ReportTable } from "@/components/crm/ReportTable";
 import { Button } from "@/components/ui/button";
@@ -52,6 +54,7 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
 
   return (
     <div className="mx-auto max-w-6xl">
+      <PrintLetterhead ctx={ctx} title={`Report: ${report.name}`} />
       <PageTitleRow
         title={report.name}
         left={
@@ -62,6 +65,7 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
         }
         actions={
           <>
+            <PrintPageButton />
             {canExportReports(ctx) ? (
               <>
                 <Button asChild variant="outline">

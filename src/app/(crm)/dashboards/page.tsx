@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { forbidden } from "next/navigation";
 import { Chart, TargetMeter } from "@/components/charts";
+import { PrintPageButton } from "@/components/crm/PrintActions";
+import { PrintLetterhead } from "@/components/crm/PrintLetterhead";
 import { PageTitleRow } from "@/components/crm/primitives";
 import { ReportTable } from "@/components/crm/ReportTable";
 import { formatMoney, formatMoneyCompact } from "@/lib/format";
@@ -63,7 +65,8 @@ export default async function DashboardsPage({ searchParams }: { searchParams: P
 
   return (
     <div>
-      <PageTitleRow title="Analytics" left={<span className="text-[13px] text-text-muted">{dashboard.audience} · you see the data you are allowed to see</span>} />
+      <PrintLetterhead ctx={ctx} title="Analytics dashboard" />
+      <PageTitleRow title="Analytics" left={<span className="text-[13px] text-text-muted">{dashboard.audience} · you see the data you are allowed to see</span>} actions={<PrintPageButton />} />
       <nav className="mb-4 flex flex-wrap gap-1" aria-label="Dashboards">
         {DASHBOARDS.map((x) => (
           <Link

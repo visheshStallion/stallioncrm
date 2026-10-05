@@ -34,14 +34,14 @@ export async function requestBulkPrint(ctx: AccessContext, input: { module: stri
 }
 
 /** Loads every record once with the user's access – throws 404 / 403 exactly as a single print would. */
-async function renderGuard(ctx: AccessContext, module: string, ids: string[]) {
-  const mod = printModule(module)!;
+async function renderGuard(ctx: AccessContext, moduleKey: string, ids: string[]) {
+  const mod = printModule(moduleKey)!;
   if (ids.length > 1 && mod.exportSensitive) {
     const { hasPermission } = await import("@/server/access/can");
     const { ForbiddenError } = await import("@/server/access/errors");
     if (!hasPermission(ctx, mod.permission, "export")) throw new ForbiddenError(`Printing several ${mod.plural.toLowerCase()} needs the export permission`);
   }
-  for (const id of ids) await loadPrintRecord(ctx, module, id);
+  for (const id of ids) await loadPrintRecord(ctx, moduleKey, id);
 }
 
 /** Job handler "print.bulk". */
@@ -52,8 +52,8 @@ export async function runBulkPrint(job: Pick<Job, "payload">): Promise<Record<st
   const db = scopedDb(ctx);
   const row = await db.exportJob.findUnique({ where: { id: exportId } });
   if (!row || row.status !== "QUEUED") return { skipped: "print job is not queued" };
-  const module = row.module.replace(/^print:/, "");
-  const mod = printModule(module);
+  const moduleKey = row.module.replace(/^print:/, "");
+  const mod = printModule(moduleKey);
   const params = row.params as { ids: string[]; templateId: string | null };
   await db.exportJob.update({ where: { id: exportId }, data: { status: "RUNNING" } });
   try {
@@ -62,7 +62,7 @@ export async function runBulkPrint(job: Pick<Job, "payload">): Promise<Record<st
     let pages = 0;
     // one record at a time: each PDF is rendered with the user's current access and on its own brand's letterhead
     for (const id of params.ids) {
-      const pdf = await renderPrintPdf(ctx, { module, recordIds: [id], templateId: params.templateId, via: "bulk" });
+      const pdf = await renderPrintPdf(ctx, { module: moduleKey, recordIds: [id], templateId: params.templateId, via: "bulk" });
       pages += pdf.pages;
       const name = files.some((f) => f.name === pdf.fileName) ? pdf.fileName.replace(/\.pdf$/, `-${files.length + 1}.pdf`) : pdf.fileName;
       files.push({ name, bytes: pdf.bytes });

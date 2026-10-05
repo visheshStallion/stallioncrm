@@ -21,7 +21,7 @@ import { BadRequestError } from "@/server/errors";
 import { assertSetup, assertSetupBrand, setupBrandIds } from "@/server/modules/setup/access";
 import { getSetting } from "@/server/modules/setup/service";
 import { z } from "zod";
-import { BUILTIN_TEMPLATES, builtinsFor, defaultLayout, renderListHtml, renderRecordsHtml, type Letterhead, type ListPrint, type Orientation, type Paper, type PrintBlock, type PrintLayout, type PrintOptions } from "./blocks";
+import { BUILTIN_TEMPLATES, builtinsFor, renderListHtml, renderRecordsHtml, type Letterhead, type ListPrint, type Orientation, type Paper, type PrintBlock, type PrintLayout, type PrintOptions } from "./blocks";
 import { describeRecord, type PrintRecord } from "./describe";
 import { PRINT_MODULES, printModule, type PrintModule } from "./modules";
 import { basicListPdf, basicRecordsPdf, chromiumPdf, pageCount, type PdfEngine } from "./pdf";
@@ -101,6 +101,27 @@ async function letterheadsFor(ctx: AccessContext, records: PrintRecord[], compan
       return row ? toLetterhead(row) : (chosen as Letterhead);
     },
   };
+}
+
+/**
+ * Letterhead for a page printed from the screen (reports, dashboards): the brand selected in the switcher or the
+ * user's only brand; with several brands the group letterhead for people who see every brand, else the first brand.
+ */
+export async function screenLetterhead(ctx: AccessContext, selectedBrandId?: string | null): Promise<Letterhead> {
+  const { getUiFilters } = await import("@/server/request");
+  const brandId = selectedBrandId ?? (await getUiFilters(ctx)).brandId ?? (ctx.brandIds.length === 1 ? ctx.brandIds[0]! : null);
+  if (brandId && ctx.brandIds.includes(brandId)) {
+    const row = (await store.brandLetterheadRows([brandId]))[0];
+    if (row) return toLetterhead(row);
+  }
+  if (canUseGroupLetterhead(ctx) || !ctx.brandIds[0]) return groupLetterhead();
+  const row = (await store.brandLetterheadRows([ctx.brandIds[0]]))[0];
+  return row ? toLetterhead(row) : groupLetterhead();
+}
+
+/** Audit entry for a page printed with the browser (the server cannot see the paper, only that the print view was opened). */
+export async function auditScreenPrint(ctx: AccessContext, what: string, letterhead: string): Promise<void> {
+  await audit({ ctx, action: "EXPORT", entity: "Print", entityId: what, after: { via: "screen", letterhead } });
 }
 
 // ───────────────────────────── records ─────────────────────────────

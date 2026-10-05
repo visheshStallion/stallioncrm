@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { brandColor } from "@/components/BrandBadge";
 import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { PrintViewButton } from "./PrintActions";
 
 export type Tone = "neutral" | "primary" | "success" | "warning" | "danger" | "info";
 
@@ -80,7 +81,10 @@ export function PageTitleRow({ title, left, actions }: { title: ReactNode; left?
     <div className="crm-page-title">
       <h1>{title}</h1>
       {left}
-      <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
+      <div className="ml-auto flex flex-wrap items-center gap-2">
+        <PrintViewButton />
+        {actions}
+      </div>
     </div>
   );
 }
