@@ -5,7 +5,7 @@
 Every configuration and control function of Setup (`/setup`), by category, with who may open it and how far it is
 built. The list follows the brief of prompt 19; it has **not** been checked against the live Zoho CRM account.
 
-**97 functions: 30 done, 29 in progress, 38 planned.** Of the 51 go-live (P1) functions,
+**118 functions: 30 done, 29 in progress, 59 planned.** Of the 51 go-live (P1) functions,
 26 are done, 23 are in progress and 2 are planned.
 
 - **Status** – *Done*: working. *In progress*: the core works, the note says what is missing. *Planned*: the page
@@ -19,65 +19,62 @@ built. The list follows the brief of prompt 19; it has **not** been checked agai
 | Function | What it does | Pri | Tier | Status | Page | Notes |
 |---|---|---|---|---|---|---|
 | Personal Settings | Theme, density, navigation mode, date format, notification preferences, sign-in security | P1 | All | In progress | `/setup/personal` | Photo, language, time zone, number format and e-mail signature are not editable yet |
-| Company Details | Group name, address, primary contact, default time zone, locale and date format | P1 | **SA** | In progress | `/setup/company` | The group logo upload is missing; brand logos are in Brands |
+| Company Settings | Group name, address, primary contact, default time zone, locale and date format | P1 | **SA** | In progress | `/setup/company` | The group logo upload is missing; brand logos are in Brands |
 | Fiscal Year | Start month of the financial year and its quarters | P1 | ADMIN | In progress | `/setup/fiscal-year` | Stored and shown; forecasts and reports still use calendar quarters. No override per brand. Can be delegated to other profiles (Setup permissions) |
 | Business Hours & Holidays | Working days and hours, public holidays; used by SLA and escalations | P1 | ADMIN | In progress | `/cases/sla` | One calendar for the group, not per region. Built by prompt 11. Opened by its module permission, not by the Setup tier |
 | Currencies | Home currency NGN, extra currencies with manual exchange rates, rounding | P1 | ADMIN | In progress | `/setup/currencies` | Rates are entered by hand (no daily feed) and are a reference list: documents keep the currency chosen on them. Can be delegated to other profiles (Setup permissions) |
 | Subscription & Licences | Licence count by type, assigned and free, renewal date, add-ons | P2 | **SA** | Planned | `/setup/licences` |  |
-| Calendar booking / Appointments | Public booking pages for test drives and service per brand and showroom | P2 | ADMIN, BA (planned) | Planned | `/setup/appointments` |  |
-
-## Users & Control
-
-| Function | What it does | Pri | Tier | Status | Page | Notes |
-|---|---|---|---|---|---|---|
+| Calendar Booking | Public booking pages for test drives and service per brand and showroom | P2 | ADMIN, BA (planned) | Planned | `/setup/appointments` |  |
 | Users | Create, activate and deactivate users, reassign records on exit, CSV import | P1 | ADMIN | In progress | `/admin/users` | Invitation e-mail, licence assignment and login-as (impersonation) are not built. Built by prompt 01 |
-| Groups | Named groups of users, roles and territories for sharing, assignment and notifications | P2 | ADMIN | Planned | `/setup/groups` |  |
-| Roles | Reporting hierarchy tree | P1 | ADMIN | In progress | `/admin/roles` | No "peers share data" switch: visibility follows territories, not the role tree. Built by prompt 01 |
-| Profiles | Module permissions, field-level security, clone a profile | P1 | ADMIN | Done | `/admin/profiles` | Built by prompt 01 |
-| Compare Profiles | Two profiles side by side: every permission that differs | P1 | ADMIN | Done | `/setup/profiles-compare` |  |
-| Territory Management | Territory tree, members, managers, move records | P1 | ADMIN | Done | `/admin/territories` | Built by prompt 01 |
-| Data Sharing Settings | Default access per module and sharing rules, with an impact preview | P1 | ADMIN | In progress | `/setup/data-sharing` | Rules are validated (never across brands), previewed and stored, but the access engine does not apply them yet: records stay visible by territory and ownership only |
-| Teamspaces / Workspaces | Module groupings and navigation per team | P3 | ADMIN | Planned | `/setup/teamspaces` |  |
+| Motivator | Sales contests, targets and leaderboards for the sales teams | P3 | ADMIN | Planned | `/setup/motivator` | Not built. Forecasts and dashboards show targets and results; there are no contests or badges |
 
 ## Security Control
 
 | Function | What it does | Pri | Tier | Status | Page | Notes |
 |---|---|---|---|---|---|---|
-| Password Policy | Length, complexity, expiry, history, lockout attempts | P1 | **SA** | Done | `/setup/password-policy` |  |
+| Roles and Sharing | Reporting hierarchy tree | P1 | ADMIN | In progress | `/admin/roles` | No "peers share data" switch: visibility follows territories, not the role tree. Built by prompt 01 |
+| Profiles | Module permissions, field-level security, clone a profile | P1 | ADMIN | Done | `/admin/profiles` | Built by prompt 01 |
+| Data Sharing Settings | Default access per module and sharing rules, with an impact preview | P1 | ADMIN | In progress | `/setup/data-sharing` | Rules are validated (never across brands), previewed and stored, but the access engine does not apply them yet: records stay visible by territory and ownership only |
+| Security Policies | Length, complexity, expiry, history, lockout attempts | P1 | **SA** | Done | `/setup/password-policy` |  |
 | Multi-factor authentication | Require two-step sign-in (authenticator app) by profile | P1 | **SA** | In progress | `/setup/mfa` | No trusted devices |
-| Single Sign-On | Microsoft Entra ID / SAML / OIDC, just-in-time provisioning, enforce SSO for staff | P2 | **SA** | Planned | `/setup/sso` | Microsoft Entra ID sign-in exists and is configured with environment variables (docs/SECURITY.md); there is no Setup page |
+| Single Sign-On (SAML) | Microsoft Entra ID / SAML / OIDC, just-in-time provisioning, enforce SSO for staff | P2 | **SA** | Planned | `/setup/sso` | Microsoft Entra ID sign-in exists and is configured with environment variables (docs/SECURITY.md); there is no Setup page |
 | Allowed IPs / Network restrictions | IP ranges per profile | P2 | **SA** | Planned | `/setup/allowed-ips` |  |
 | Session settings | Maximum session length, sign out all sessions of a user | P1 | **SA** | In progress | `/setup/sessions` | No limit on concurrent sessions and no idle timeout |
 | Record Locking | Lock records on a stage or approval; who can unlock | P2 | ADMIN | Planned | `/setup/record-locking` | Records are already locked while an approval is pending (prompt 08); there are no configurable locking rules |
 | Field encryption | Encrypt sensitive fields at rest (KYC, licence number, bank details) | P2 | **SA** | Planned | `/setup/field-encryption` |  |
-| Compliance (GDPR / NDPR) | Consent tracking, data subject requests, retention policies, privacy notice | P2 | **SA** | Planned | `/setup/compliance` | Marketing consent per brand is tracked on contacts (prompt 03); data subject requests and retention are not built |
+| Compliance Settings | Consent tracking, data subject requests, retention policies, privacy notice | P2 | **SA** | Planned | `/setup/compliance` | Marketing consent per brand is tracked on contacts (prompt 03); data subject requests and retention are not built |
 | Support Access | Time-boxed vendor or developer access with audit | P3 | **SA** | Planned | `/setup/support-access` |  |
 | Login History | Every sign-in, failed attempt and sign-out with address and device | P1 | ADMIN | Done | `/setup/login-history` |  |
+| Audit Log | Every data change; filter and export | P1 | ADMIN | Done | `/admin/audit` | Built by prompt 01 |
+| Trusted Domain | Web addresses that may embed or call the CRM | P3 | ADMIN | Planned | `/setup/trusted-domain` | Not built. The content security policy allows this application's own address only |
+| Active Directory Sync | Create and deactivate users from the company directory | P2 | ADMIN | Planned | `/setup/ad-sync` | Not built. Users are created by an administrator or by import; sign-in with Microsoft Entra ID is prepared under Single Sign-On |
 
 ## Channels
 
 | Function | What it does | Pri | Tier | Status | Page | Notes |
 |---|---|---|---|---|---|---|
-| Email configuration | Sender identity per brand; provider credentials | P1 | ADMIN, BA (planned) | In progress | `/admin/brands` | Sender identity is on each brand; provider credentials are environment variables. No SPF/DKIM status, sharing rules or BCC dropbox. Administrators only. Built by prompt 10 |
+| Email | Sender identity per brand; provider credentials | P1 | ADMIN, BA (planned) | In progress | `/admin/brands` | Sender identity is on each brand; provider credentials are environment variables. No SPF/DKIM status, sharing rules or BCC dropbox. Administrators only. Built by prompt 10 |
 | Email deliverability & compliance | Bounce and unsubscribe handling, suppression lists per brand | P2 | ADMIN | Planned | `/setup/email-deliverability` | Bounces and unsubscribes are already recorded per brand (prompt 10); there is no management page |
-| SMS | Provider settings, sender ID per brand, SMS templates | P2 | ADMIN, BA (planned) | In progress | `/admin/brands` | Sender ID is on each brand, templates under Templates; provider credentials are environment variables. Administrators only. Built by prompt 10 |
-| Business Messaging (WhatsApp) | WhatsApp Business numbers per brand, template approval status, inbound routing | P2 | ADMIN, BA (planned) | In progress | `/admin/brands` | Number per brand and templates exist; no approval status sync. Administrators only. Built by prompt 10 |
+| Notification SMS | Provider settings, sender ID per brand, SMS templates | P2 | ADMIN, BA (planned) | In progress | `/admin/brands` | Sender ID is on each brand, templates under Templates; provider credentials are environment variables. Administrators only. Built by prompt 10 |
+| Business Messaging | WhatsApp Business numbers per brand, template approval status, inbound routing | P2 | ADMIN, BA (planned) | In progress | `/admin/brands` | Number per brand and templates exist; no approval status sync. Administrators only. Built by prompt 10 |
 | Telephony | Click-to-call provider, call logging, recording policy | P3 | ADMIN | Planned | `/setup/telephony` |  |
 | Social | Facebook / Instagram lead ads per brand page | P3 | ADMIN, BA (planned) | Planned | `/setup/social` |  |
-| Web forms | Web-to-lead and web-to-case forms per brand, embed code, spam protection | P1 | ADMIN, BA (planned) | In progress | `/admin/web-forms` | No form builder or auto-response; one form per brand. Administrators only. Built by prompt 02 / 11 |
+| Webforms | Web-to-lead and web-to-case forms per brand, embed code, spam protection | P1 | ADMIN, BA (planned) | In progress | `/admin/web-forms` | No form builder or auto-response; one form per brand. Administrators only. Built by prompt 02 / 11 |
 | Portals | Customer portal (order status, documents) | P3 | ADMIN | Planned | `/setup/portals` |  |
 | Notification channels | In-app, e-mail digest and web push | P2 | ADMIN | In progress | `/notifications` | Each user sets their own preferences; there are no organisation defaults. Built by prompt 14. Opened by its module permission, not by the Setup tier |
+| Chat | Live chat with website visitors, routed to the brand's team | P3 | ADMIN | Planned | `/setup/chat` | Not built. Website enquiries arrive through web forms and WhatsApp |
 
 ## Customization
 
 | Function | What it does | Pri | Tier | Status | Page | Notes |
 |---|---|---|---|---|---|---|
-| Modules & Fields | Custom fields, field types, mandatory and unique, picklist values | P1 | ADMIN | In progress | `/admin/customization` | No custom modules, module renaming, lookup filters, picklist dependencies or global picklists. Built by prompt 12 |
+| Teamspace | Module groupings and navigation per team | P3 | ADMIN | Planned | `/setup/teamspaces` |  |
+| Modules and Fields | Custom fields, field types, mandatory and unique, picklist values | P1 | ADMIN | In progress | `/admin/customization` | No custom modules, module renaming, lookup filters, picklist dependencies or global picklists. Built by prompt 12 |
 | Layouts & Layout Rules | Layouts per module and brand, section order, show / hide / require rules | P1 | ADMIN, BA (planned) | In progress | `/admin/customization` | Administrators only. Built by prompt 12 |
 | Validation Rules | Refuse a save when a formula is true, with your own error message | P1 | ADMIN | Done | `/setup/validation-rules` | Can be delegated to other profiles (Setup permissions) |
 | Lead conversion mapping | Which lead fields go to the account, contact and deal | P1 | ADMIN | Planned | `/setup/lead-conversion-mapping` | Conversion works with a fixed mapping (prompt 02); it cannot be changed in Setup |
 | Quote → SO → Invoice mapping | Field mapping between documents | P2 | ADMIN | Planned | `/setup/document-mapping` | Documents are converted with a fixed mapping (prompt 06) |
-| Pipelines & Stages | Pipelines per brand, stages, probabilities | P1 | ADMIN, BA (planned) | In progress | `/admin/pipelines` | Administrators only. Built by prompt 04 |
+| Pipelines | Pipelines per brand, stages, probabilities | P1 | ADMIN, BA (planned) | In progress | `/admin/pipelines` | Administrators only. Built by prompt 04 |
 | List view & Kanban settings | Default views, columns and kanban field per module | P2 | ADMIN | Planned | `/setup/list-kanban-settings` | Each user saves their own views and columns; there are no organisation defaults |
 | E-mail, SMS & WhatsApp templates | Message templates per brand; rich e-mail templates with blocks, starter gallery and version history | P1 | ADMIN, BA (planned) | Done | `/campaigns/templates` | Open to brand managers through the Campaigns permission. Built by prompt 10 / 20. Opened by its module permission, not by the Setup tier |
 | Print templates | Design the printouts of every module from blocks, on the brand letterhead, with preview, versions and defaults | P1 | ADMIN, BA | Done | `/setup/print-templates` |  |
@@ -85,20 +82,21 @@ built. The list follows the brief of prompt 19; it has **not** been checked agai
 | Templates | One place for e-mail, document / print, record, SMS and WhatsApp templates of every module: views, folders, favourites, new template by module | P1 | ADMIN, BA | Done | `/setup/templates` | Every user reaches the hub under Templates; what they see and may change follows each template type's rules |
 | Record template policy | Modules whose records must be created from a record template | P2 | ADMIN | Done | `/setup/record-template-policy` |  |
 | Print policy | Watermark on the list printouts of chosen profiles | P2 | ADMIN | Done | `/setup/print-policy` |  |
-| Canvas / Record page designer | Drag-and-drop record detail designer | P3 | ADMIN | Planned | `/setup/canvas` |  |
+| Canvas | Drag-and-drop record detail designer | P3 | ADMIN | Planned | `/setup/canvas` |  |
 | Wizards | Multi-step guided create forms | P3 | ADMIN | Planned | `/setup/wizards` |  |
 | Customize Home page | Role-based home layouts and widgets | P2 | ADMIN | Planned | `/setup/home-customization` | The home page already differs by role (prompt 09); it cannot be designed in Setup |
 | Tags | Tag management per module | P2 | ADMIN | Planned | `/setup/tags` |  |
 | Translations & labels | Rename labels, multilingual interface | P3 | ADMIN | Planned | `/setup/translations` |  |
 | Search configuration | Searchable fields and result columns per module | P2 | ADMIN | Planned | `/setup/search-config` | Search covers a fixed set of fields (prompt 14) |
+| Kiosk Studio | Guided screens for a fixed task, for example showroom reception | P3 | ADMIN | Planned | `/setup/kiosk` | Not built. The quick create forms and the mobile quick screen cover the common tasks |
 
 ## Automation
 
 | Function | What it does | Pri | Tier | Status | Page | Notes |
 |---|---|---|---|---|---|---|
 | Workflow Rules | Trigger, criteria, instant and scheduled actions | P1 | ADMIN, BA (planned) | In progress | `/admin/workflows` | Administrators only. Built by prompt 08 |
-| Actions library | Reusable e-mail notifications, tasks, field updates and webhooks | P1 | ADMIN | Planned | `/setup/actions-library` | Actions are defined inside each workflow rule (prompt 08); they are not reusable across rules |
-| Assignment Rules | Criteria → user, round-robin or territory | P1 | ADMIN, BA (planned) | In progress | `/admin/assignment-rules/leads` | Leads only (cases are routed by the SLA settings). Administrators only. Built by prompt 02 |
+| Actions | Reusable e-mail notifications, tasks, field updates and webhooks | P1 | ADMIN | Planned | `/setup/actions-library` | Actions are defined inside each workflow rule (prompt 08); they are not reusable across rules |
+| Assignment | Criteria → user, round-robin or territory | P1 | ADMIN, BA (planned) | In progress | `/admin/assignment-rules/leads` | Leads only (cases are routed by the SLA settings). Administrators only. Built by prompt 02 |
 | Escalation Rules | Case SLA escalation | P2 | ADMIN | Done | `/cases/sla` | Built by prompt 11. Opened by its module permission, not by the Setup tier |
 | Scoring Rules | Lead and contact scoring by field values and activity | P2 | ADMIN | Planned | `/setup/scoring-rules` |  |
 | Cadences | Timed follow-up sequences | P3 | ADMIN, BA (planned) | Planned | `/setup/cadences` |  |
@@ -112,7 +110,14 @@ built. The list follows the brief of prompt 19; it has **not** been checked agai
 | Blueprint | Stage transitions with required fields per transition | P1 | ADMIN | In progress | `/admin/pipelines` | Edited as a list per pipeline; no visual designer, no owners or SLAs per transition. Built by prompt 04 |
 | Approval Processes | Multi-step approvals (discount, brand change, stock adjustments) | P1 | ADMIN | Done | `/admin/approval-processes` | Built by prompt 08 |
 | Review Process | Review new or edited records before they go live | P3 | ADMIN | Planned | `/setup/review-process` |  |
-| Journey / Command Center | Cross-module customer journeys | P3 | ADMIN | Planned | `/setup/journeys` |  |
+| Connected Workflow | One process across several modules and teams, with hand-overs | P3 | ADMIN | Planned | `/setup/connected-workflow` | Not built. Workflow rules and Blueprint work per module |
+
+## Experience Center
+
+| Function | What it does | Pri | Tier | Status | Page | Notes |
+|---|---|---|---|---|---|---|
+| Command Center | Cross-module customer journeys | P3 | ADMIN | Planned | `/setup/journeys` |  |
+| Signals | Live notices when a customer opens an e-mail, replies or visits | P2 | ADMIN | Planned | `/setup/signals` | The notification centre tells users about replies, approvals and assignments; opens and visits are not tracked |
 
 ## Data Administration
 
@@ -124,31 +129,62 @@ built. The list follows the brief of prompt 19; it has **not** been checked agai
 | Recycle Bin | Deleted records: restore, or purge for good (Super Admin, two-person approval) | P1 | ADMIN | Done | `/setup/recycle-bin` |  |
 | Duplicate management | Find and merge duplicate customers | P2 | ADMIN | In progress | `/accounts/duplicates` | Customers only; no configurable duplicate rules or scheduled scans. Built by prompt 03. Opened by its module permission, not by the Setup tier |
 | Storage | File storage usage by module and brand, limits | P2 | ADMIN | Planned | `/setup/storage` |  |
-| Audit Log | Every data change; filter and export | P1 | ADMIN | Done | `/admin/audit` | Built by prompt 01 |
 | Setup Audit Trail | Every setting change with before and after, who, when and from where; revert where safe | P1 | ADMIN | Done | `/setup/audit-trail` |  |
 | Remove sample data | Purge demo records before go-live (two-person approval) | P1 | **SA** | Done | `/setup/sample-data` |  |
 | Mass delete / mass transfer | Transfer ownership in bulk; delete by criteria (Super Admin, two-person approval) | P1 | ADMIN | Done | `/setup/mass-operations` |  |
 | Two-person approvals | Destructive operations waiting for a second Super Admin | P1 | **SA** | Done | `/setup/approvals` |  |
+| Copy Customization | The configuration as versioned JSON: export, validate, import | P2 | **SA** | In progress | `/setup/config` | Covers settings, roles, profiles, validation rules, custom fields, layouts and pipelines; not workflow rules, approval processes or templates |
 
-## Marketplace & Integrations
-
-| Function | What it does | Pri | Tier | Status | Page | Notes |
-|---|---|---|---|---|---|---|
-| Integrations | ERP, payments, WhatsApp, SMS: status and configuration | P2 | ADMIN | In progress | `/admin/api` | ERP and payment adapters are configured with environment variables and shown here; no Microsoft 365 / Google Workspace connectors, no per-integration test button. Built by prompt 13 |
-| Extensions | Install internal extensions (feature flags) | P3 | **SA** | Planned | `/setup/extensions` |  |
-
-## Developer Space
+## Marketplace
 
 | Function | What it does | Pri | Tier | Status | Page | Notes |
 |---|---|---|---|---|---|---|
-| APIs & tokens | OAuth clients, integration users, personal tokens | P1 | ADMIN | In progress | `/admin/api` | No usage and limit dashboard; organisation-wide clients are not reserved for Super Admins. Built by prompt 13 |
+| All | ERP, payments, WhatsApp, SMS: status and configuration | P2 | ADMIN | In progress | `/admin/api` | ERP and payment adapters are configured with environment variables and shown here; no Microsoft 365 / Google Workspace connectors, no per-integration test button. Built by prompt 13 |
+| Extension Builder | Install internal extensions (feature flags) | P3 | **SA** | Planned | `/setup/extensions` |  |
+| Google | Calendar, contacts and mail of Google Workspace | P3 | ADMIN | Planned | `/setup/marketplace-google` | Not built |
+| Microsoft | Calendar, contacts and mail of Microsoft 365, Teams | P2 | ADMIN | Planned | `/setup/marketplace-microsoft` | E-mail can be sent through Microsoft Graph (environment setting); calendar and contact sync are not built |
+| Facebook | Lead ads and page messages as leads | P3 | ADMIN | Planned | `/setup/marketplace-facebook` | Not built. Leads with the source Facebook are entered or imported |
+| LinkedIn | Lead forms and company pages | P3 | ADMIN | Planned | `/setup/marketplace-linkedin` | Not built |
+| TikTok | Lead forms of TikTok campaigns | P3 | ADMIN | Planned | `/setup/marketplace-tiktok` | Not built |
+
+## Developer Hub
+
+| Function | What it does | Pri | Tier | Status | Page | Notes |
+|---|---|---|---|---|---|---|
+| APIs and SDKs | OAuth clients, integration users, personal tokens | P1 | ADMIN | In progress | `/admin/api` | No usage and limit dashboard; organisation-wide clients are not reserved for Super Admins. Built by prompt 13 |
 | Webhooks | Outbound webhooks with brand filters and delivery log | P1 | ADMIN | Done | `/admin/webhooks` | Built by prompt 13 |
 | Connections | Stored credentials for external services | P2 | **SA** | Planned | `/setup/connections` | Credentials live in environment variables, never in the database |
 | Functions | Server-side custom functions callable from workflows and buttons | P3 | ADMIN | Planned | `/setup/functions` |  |
 | Custom buttons & links | Buttons on list and detail pages | P2 | ADMIN | Planned | `/setup/custom-buttons` |  |
 | Variables | Organisation-level constants for rules and functions | P2 | ADMIN | Planned | `/setup/variables` |  |
-| Configuration export / import | The configuration as versioned JSON: export, validate, import | P2 | **SA** | In progress | `/setup/config` | Covers settings, roles, profiles, validation rules, custom fields, layouts and pipelines; not workflow rules, approval processes or templates |
 | Sandbox | Copy the configuration to a sandbox; deploy changes to production with diff and rollback | P2 | **SA** | Planned | `/setup/sandbox` | Use Configuration export / import between two installations until then |
+| MCP for AI Agents | Let AI agents read and act in the CRM with a user's brand-scoped access | P3 | ADMIN | Planned | `/setup/mcp-agents` | Not built. The REST API with brand-scoped tokens is what an agent can use today |
+| Widgets | Own panels embedded in record pages and the home page | P3 | ADMIN | Planned | `/setup/widgets` | Not built |
+| Data Model | Modules, fields and relations as a diagram | P3 | ADMIN | Planned | `/setup/data-model` | Not built. Modules and Fields lists every module with its fields |
+| Queries | Saved data queries for widgets and scripts | P3 | ADMIN | Planned | `/setup/queries` | Not built. Reports and the REST API read data, always brand-scoped |
+| Client Script | Scripts that run in the browser on record pages | P3 | ADMIN | Planned | `/setup/client-script` | Not built – and not planned without a review of the security impact |
+
+## AI Assistant
+
+| Function | What it does | Pri | Tier | Status | Page | Notes |
+|---|---|---|---|---|---|---|
+| Predictions and suggestions | Deal and lead scoring, best time to contact, next best action | P3 | ADMIN | Planned | `/setup/ai-predictions` | Not built. No customer data leaves the CRM for an AI service |
+| Assistant | Ask questions about your records in plain language | P3 | ADMIN | Planned | `/setup/ai-assistant` | Not built |
+
+## CPQ
+
+| Function | What it does | Pri | Tier | Status | Page | Notes |
+|---|---|---|---|---|---|---|
+| Product Configurator | Rules for which products and accessories go together on a quotation | P2 | ADMIN | Planned | `/setup/product-configurator` | Not built. Record templates for quotations pre-fill line items |
+| Price Rules | Automatic prices and discounts by quantity, customer or campaign | P2 | ADMIN | Planned | `/setup/price-rules` | Price books and discount thresholds with approval exist per brand; there are no automatic price rules |
+
+## Users & Control
+
+| Function | What it does | Pri | Tier | Status | Page | Notes |
+|---|---|---|---|---|---|---|
+| Groups | Named groups of users, roles and territories for sharing, assignment and notifications | P2 | ADMIN | Planned | `/setup/groups` |  |
+| Compare Profiles | Two profiles side by side: every permission that differs | P1 | ADMIN | Done | `/setup/profiles-compare` |  |
+| Territory Management | Territory tree, members, managers, move records | P1 | ADMIN | Done | `/admin/territories` | Built by prompt 01 |
 
 ## Brands & Territories
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Settings2 } from "lucide-react";
+import { Bot, Building2, Calculator, Code2, Database, Gauge, Headset, MapPinned, Search, Settings2, ShieldCheck, Sparkles, Store, Users, Workflow, Zap, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -14,7 +14,11 @@ export interface SetupItem {
   /** DONE | PARTIAL | PLANNED – planned functions open a "Coming soon" page */
   status?: "DONE" | "PARTIAL" | "PLANNED";
   superAdminOnly?: boolean;
+  /** part of the standard Setup arrangement – listed first in its card */
+  standard?: boolean;
 }
+
+const CATEGORY_ICON: Record<string, LucideIcon> = { general: Building2, security: ShieldCheck, channels: Headset, customization: Settings2, automation: Zap, process: Workflow, experience: Sparkles, data: Database, marketplace: Store, developer: Code2, ai: Bot, cpq: Calculator, users: Users, brands: MapPinned, health: Gauge };
 
 export interface SetupCategory {
   key: string;
@@ -68,7 +72,10 @@ export function SetupLanding({ categories }: { categories: SetupCategory[] }) {
   const recentItems = recent.map((href) => all.find((i) => i.href === href)).filter((i): i is SetupItem => !!i);
   return (
     <div className="space-y-4" data-testid="setup-landing">
-      <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search setup" className="max-w-80" aria-label="Search setup" />
+      <div className="relative max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" aria-hidden />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search Setup" className="pl-9" aria-label="Search setup" />
+      </div>
       {recentItems.length && !needle ? (
         <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="setup-recent">
           <span className="text-text-muted">Recently visited:</span>
@@ -81,27 +88,29 @@ export function SetupLanding({ categories }: { categories: SetupCategory[] }) {
       ) : null}
       {visible.length === 0 ? <p className="text-sm text-text-muted">No setup function matches “{q}”.</p> : null}
       <div className="crm-setup-grid">
-        {visible.map((c) => (
-          <section key={c.key} className="crm-setup-card" data-testid="setup-category" data-category={c.key}>
-            <h2 className="crm-setup-card-title">
-              <span className="crm-setup-card-icon" aria-hidden="true">
-                <Settings2 className="h-4 w-4" />
-              </span>
-              {c.title}
-            </h2>
-            <p className="mb-2 mt-1 text-xs text-text-muted">{c.description}</p>
-            <ul className="space-y-1 text-sm">
-              {c.items.map((i) => (
-                <li key={i.key} className="flex items-center gap-1.5">
-                  <Link href={i.href} className="text-primary hover:underline" title={i.description} data-setup={i.key}>
-                    {i.label}
-                  </Link>
-                  <StatusTag item={i} />
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+        {visible.map((c) => {
+          const Icon = CATEGORY_ICON[c.key] ?? Settings2;
+          // the standard functions first; what is specific to this CRM follows under a thin rule
+          const firstOther = c.items.findIndex((i) => !i.standard);
+          return (
+            <section key={c.key} className="crm-setup-card" data-testid="setup-category" data-category={c.key} title={c.description}>
+              <h2 className="crm-setup-card-title">
+                <Icon className="h-5 w-5 shrink-0 text-text-muted" aria-hidden />
+                {c.title}
+              </h2>
+              <ul className="crm-setup-card-list">
+                {c.items.map((i, n) => (
+                  <li key={i.key} className={n === firstOther && n > 0 ? "crm-setup-card-more" : undefined}>
+                    <Link href={i.href} title={i.description} data-setup={i.key}>
+                      {i.label}
+                    </Link>
+                    <StatusTag item={i} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })}
       </div>
     </div>
   );

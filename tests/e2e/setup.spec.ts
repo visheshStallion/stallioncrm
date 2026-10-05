@@ -214,7 +214,7 @@ test("a sharing rule that would cross brands is refused with the reason", async 
 test("Setup home: search finds a function by its description; a planned function says Coming soon; recently visited", async ({ page }) => {
   await login(page, "crmadmin");
   await page.goto("/setup");
-  await expect(page.getByTestId("setup-category")).toHaveCount(12);
+  await expect(page.getByTestId("setup-category")).toHaveCount(15);
   await page.getByLabel("Search setup").fill("scoring by field values");
   await expect(page.getByTestId("setup-category").getByRole("link")).toHaveText(["Scoring Rules"]);
   await page.getByRole("link", { name: "Scoring Rules" }).click();
@@ -225,7 +225,7 @@ test("Setup home: search finds a function by its description; a planned function
   await page.goto("/setup");
   await expect(page.getByTestId("setup-recent").getByRole("link")).toHaveText(["Currencies", "Scoring Rules"]);
   // Super Admin functions are not on an administrator's Setup home
-  await expect(page.getByTestId("setup-landing").getByRole("link", { name: "Password Policy" })).toHaveCount(0);
+  await expect(page.getByTestId("setup-landing").getByRole("link", { name: "Security Policies" })).toHaveCount(0);
   await page.getByLabel("Search setup").fill("no such thing at all");
   await expect(page.getByTestId("setup-landing")).toContainText("No setup function matches");
 });

@@ -11,7 +11,7 @@
  */
 import { NotFoundError } from "@/server/access/errors";
 import type { AccessContext } from "@/server/access/types";
-import { SETUP_CATALOGUE, SETUP_CATEGORY_DEFS, findEntry, hrefOf, type SetupEntry, type SetupTier } from "./catalogue";
+import { SETUP_CATALOGUE, SETUP_CATEGORY_DEFS, findEntry, hrefOf, standardRank, type SetupEntry, type SetupTier } from "./catalogue";
 
 export type EffectiveTier = "SA" | "ADMIN" | "BRAND_ADMIN" | "LIMITED" | "USER";
 
@@ -73,14 +73,18 @@ export interface VisibleCategory {
   key: string;
   title: string;
   description: string;
-  items: Array<{ key: string; href: string; label: string; description: string; status: SetupEntry["status"]; priority: SetupEntry["priority"]; superAdminOnly: boolean }>;
+  items: Array<{ key: string; href: string; label: string; description: string; status: SetupEntry["status"]; priority: SetupEntry["priority"]; superAdminOnly: boolean; /** part of the standard Setup arrangement (listed first) */ standard: boolean }>;
 }
 
 /** The catalogue as this user sees it (categories without any accessible function are left out). */
 export function visibleCatalogue(ctx: AccessContext): VisibleCategory[] {
   return SETUP_CATEGORY_DEFS.map((c) => ({
     ...c,
-    items: SETUP_CATALOGUE.filter((x) => x.category === c.key && setupAccess(ctx, x)).map((x) => ({
+    items: SETUP_CATALOGUE.filter((x) => x.category === c.key && setupAccess(ctx, x))
+      .map((x, i) => ({ x, rank: standardRank(x) * 1000 + i }))
+      .sort((a, b) => a.rank - b.rank)
+      .map(({ x }) => ({
+      standard: standardRank(x) < 1000,
       key: x.key,
       href: hrefOf(x),
       label: x.label,
