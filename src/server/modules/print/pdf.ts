@@ -15,7 +15,7 @@ import { logger } from "@/server/log";
 import { renderMerge } from "@/server/modules/messaging/merge";
 import { code128Widths, qrMatrix } from "./codes";
 import type { PrintRecord, PrintTable } from "./describe";
-import type { Letterhead, ListPrint, Orientation, Paper, PrintBlock, PrintLayout, PrintOptions } from "./blocks";
+import { pickColumns, type Letterhead, type ListPrint, type Orientation, type Paper, type PrintBlock, type PrintLayout, type PrintOptions } from "./blocks";
 import { htmlToText } from "./sanitize";
 
 export type PdfEngine = "chromium" | "basic";
@@ -52,7 +52,13 @@ async function chromium(): Promise<Browser | null> {
 }
 
 /** HTML → PDF with headless Chromium; null when no Chromium is available (the caller falls back to `basicPdf`). */
-export async function chromiumPdf(html: string, o: { paper: Paper; orientation: Orientation }): Promise<Uint8Array | null> {
+/** "Page {{page}} of {{pages}}" → Chromium's footer template (text only). */
+function pageLineHtml(line: string | null | undefined): string {
+  const safe = (line ?? "Page {{page}} of {{pages}}").replace(/[<>&"]/g, "").slice(0, 120);
+  return safe.replace(/\{\{\s*page\s*\}\}/g, '<span class="pageNumber"></span>').replace(/\{\{\s*pages\s*\}\}/g, '<span class="totalPages"></span>');
+}
+
+export async function chromiumPdf(html: string, o: { paper: Paper; orientation: Orientation; pageLine?: string | null }): Promise<Uint8Array | null> {
   const b = await chromium();
   if (!b) return null;
   const page = await b.newPage();
@@ -60,13 +66,13 @@ export async function chromiumPdf(html: string, o: { paper: Paper; orientation: 
     // the document is self-contained (inline CSS, data: images): nothing is fetched while rendering
     await page.setContent(html, { waitUntil: "load" });
     return await page.pdf({
-      format: o.paper === "A4" ? "A4" : "Letter",
+      format: o.paper === "A4" ? "A4" : o.paper === "A5" ? "A5" : "Letter",
       landscape: o.orientation === "landscape",
       printBackground: true,
       preferCSSPageSize: true,
       displayHeaderFooter: true,
       headerTemplate: "<span></span>",
-      footerTemplate: `<div style="width:100%;font-size:7px;color:#6b7280;text-align:right;padding:0 14mm">Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>`,
+      footerTemplate: `<div style="width:100%;font-size:7px;color:#6b7280;text-align:right;padding:0 14mm">${pageLineHtml(o.pageLine)}</div>`,
     });
   } finally {
     await page.close().catch(() => undefined);
@@ -90,7 +96,7 @@ export async function mergePdfs(files: Uint8Array[]): Promise<Uint8Array> {
 // ───────────────────────────── basic renderer (pdf-lib) ─────────────────────────────
 
 const MM = 72 / 25.4;
-const SIZES: Record<Paper, [number, number]> = { A4: [595.28, 841.89], LETTER: [612, 792] };
+const SIZES: Record<Paper, [number, number]> = { A4: [595.28, 841.89], LETTER: [612, 792], A5: [419.53, 595.28] };
 
 /** The standard PDF fonts only cover WinAnsi – replace anything else (e.g. the Naira sign). */
 const ansi = (s: string) =>
@@ -271,6 +277,8 @@ function drawBlock(c: Canvas, b: PrintBlock, record: PrintRecord, lh: Letterhead
   switch (b.type) {
     case "letterhead":
       return drawLetterhead(c, lh, logo);
+    case "html":
+      return c.paragraph(htmlToText(b.html), { gap: 6 });
     case "title":
       c.need(30);
       return c.paragraph(renderMerge(b.text, merge), { size: 14, bold: true, gap: 6 });
@@ -307,7 +315,7 @@ function drawBlock(c: Canvas, b: PrintBlock, record: PrintRecord, lh: Letterhead
     case "richText":
       return c.paragraph(renderMerge(htmlToText(b.html), merge), { gap: 6 });
     case "lineItems":
-      return record.lines ? drawTable(c, record.lines, b.title, accent) : undefined;
+      return record.lines ? drawTable(c, pickColumns(record.lines, b.columns), b.title, accent) : undefined;
     case "related": {
       const t = record.tables.find((x) => x.key === b.list);
       return t ? drawTable(c, t, b.title ?? t.title, accent) : undefined;
@@ -422,7 +430,10 @@ export async function basicRecordsPdf(input: { records: PrintRecord[]; layoutFor
     const [w, h] = dims(input.options);
     const c = new Canvas(doc, w, h, font, bold, () => undefined);
     const layout = input.layoutFor(record);
-    const blocks = layout.blocks.some((b) => b.type === "letterhead") ? layout.blocks : [{ type: "letterhead" } as PrintBlock, ...layout.blocks];
+    // document templates: the header region is drawn once at the top, the footer text after the body
+    const paged = layout.header !== undefined || layout.footer !== undefined || layout.headerLetterhead !== undefined;
+    const head: PrintBlock[] = paged ? [...(layout.headerLetterhead ? [{ type: "letterhead" } as PrintBlock] : []), ...(layout.header ? [{ type: "richText", html: layout.header } as PrintBlock] : [])] : [];
+    const blocks = paged ? [...head, ...layout.blocks, ...(layout.footer ? [{ type: "richText", html: layout.footer } as PrintBlock] : [])] : layout.blocks.some((b) => b.type === "letterhead") ? layout.blocks : [{ type: "letterhead" } as PrintBlock, ...layout.blocks];
     for (const b of blocks) drawBlock(c, b, record, lh, logo, input.options);
     finish(c, [footerText(lh, input.options, record.number)], input.options.watermark);
     const saved = await PDFDocument.load(await doc.save());

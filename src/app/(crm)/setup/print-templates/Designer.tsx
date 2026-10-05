@@ -23,6 +23,7 @@ export interface DesignerCatalogue {
 }
 
 const LABELS: Record<PrintBlock["type"], string> = {
+  html: "Generated content",
   letterhead: "Letterhead header",
   title: "Title",
   fields: "Field grid",
@@ -149,7 +150,7 @@ export function Designer(props: {
     });
 
   const b = blocks[selected];
-  const addable = (Object.keys(LABELS) as PrintBlock["type"][]).filter((t) => (t !== "lineItems" || cat.hasLines) && (t !== "related" || cat.lists.length > 0));
+  const addable = (Object.keys(LABELS) as PrintBlock["type"][]).filter((t) => t !== "html" && (t !== "lineItems" || cat.hasLines) && (t !== "related" || cat.lists.length > 0));
 
   return (
     <div className="space-y-3" data-testid="print-designer">

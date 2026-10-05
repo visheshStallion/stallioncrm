@@ -75,6 +75,13 @@ async function approversFor(tx: Tx, step: ApprovalStep, r: { brandId: string; re
       return brandManagers(tx, r.brandId);
     case "BRAND_MANAGER_OF_NEW_BRAND":
       return typeof r.payload.newBrandId === "string" ? brandManagers(tx, r.payload.newBrandId) : [];
+    case "BRAND_ADMIN_OF_RECORD": {
+      // the delegated Brand Admins of the brand; a brand without one is decided by the administrators
+      const admins = await tx.brandAdmin.findMany({ where: { brandId: r.brandId, user: { active: true } }, select: { userId: true } });
+      if (admins.length) return admins.map((a) => a.userId);
+      const users = await tx.user.findMany({ where: { active: true, profile: { permissions: { path: ["admin", "edit"], equals: true } } }, select: { id: true }, orderBy: { createdAt: "asc" } });
+      return users.map((u) => u.id);
+    }
     case "ROLE": {
       const users = await tx.user.findMany({ where: { active: true, role: { name: step.roleName ?? "" } }, select: { id: true }, orderBy: { createdAt: "asc" } });
       return users.map((u) => u.id);
@@ -271,6 +278,20 @@ async function applyEffects(tx: Tx, requestId: string, approved: boolean, actor:
   if (req.kind === "DISCOUNT" && req.entity === "Quote") {
     // Rejected / recalled discount requests send the quote back to draft so it can be revised.
     await tx.quote.updateMany({ where: { id: req.entityId, status: "PENDING_APPROVAL" }, data: { status: approved ? "APPROVED" : "DRAFT" } });
+    return;
+  }
+  if (req.kind === "DOCUMENT_TEMPLATE" && req.entity === "DocumentTemplate") {
+    // Approved: the working copy becomes the published version. Rejected / recalled: back to what it was before.
+    const t = await tx.documentTemplate.findUnique({ where: { id: req.entityId } });
+    if (!t || t.status !== "PENDING_APPROVAL") return;
+    if (!approved) {
+      await tx.documentTemplate.update({ where: { id: t.id }, data: { status: t.published ? "PUBLISHED" : "DRAFT" } });
+      return;
+    }
+    const version = t.version + 1;
+    await tx.documentTemplate.update({ where: { id: t.id }, data: { status: "PUBLISHED", published: t.content as Prisma.InputJsonValue, dirty: false, version, approvedById: actor.id, publishedAt: new Date() } });
+    await tx.documentTemplateVersion.create({ data: { templateId: t.id, version, snapshot: { name: t.name, paper: t.paper, orientation: t.orientation, margins: t.margins, content: t.content, cssOverrides: t.cssOverrides } as Prisma.InputJsonValue, changedById: t.createdById, note: `Approved by ${actor.name}` } });
+    pendingAudits.get(tx)?.push({ entity: "DocumentTemplate", entityId: t.id, brandId: req.brandId, before: { status: "PENDING_APPROVAL", version: t.version }, after: { status: "PUBLISHED", version, approvedBy: actor.name } });
     return;
   }
   if (!approved) return;

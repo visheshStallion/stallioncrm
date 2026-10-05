@@ -28,7 +28,42 @@ export const MERGE_FIELDS: Array<{ field: string; label: string }> = [
 const FIELD = /\{\{\s*([a-zA-Z][a-zA-Z0-9]*)(?:\.([a-zA-Z][a-zA-Z0-9_]*))?\s*((?:\|\s*(?:"[^"{}]*"|[a-zA-Z]+)\s*)*)\}\}/g;
 const FILTER = /\|\s*(?:"([^"{}]*)"|([a-zA-Z]+))/g;
 
-export const MERGE_FORMATS = ["currency", "number", "date", "datetime", "upper", "lower"] as const;
+export const MERGE_FORMATS = ["currency", "usd", "number", "date", "datetime", "upper", "lower", "title", "words"] as const;
+
+const ONES = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+const TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+function below1000(n: number): string {
+  const parts: string[] = [];
+  if (n >= 100) parts.push(`${ONES[Math.floor(n / 100)]} Hundred`);
+  const rest = n % 100;
+  if (rest) parts.push((parts.length ? "and " : "") + (rest < 20 ? ONES[rest]! : TENS[Math.floor(rest / 10)]! + (rest % 10 ? `-${ONES[rest % 10]}` : "")));
+  return parts.join(" ");
+}
+/** A whole number in English words: 1250000 → "One Million, Two Hundred and Fifty Thousand". */
+export function numberWords(n: number): string {
+  if (!Number.isFinite(n) || n < 0 || n >= 1e15) return String(n);
+  let rest = Math.floor(n);
+  if (rest === 0) return "Zero";
+  const groups: string[] = [];
+  for (const unit of ["", " Thousand", " Million", " Billion", " Trillion"]) {
+    const g = rest % 1000;
+    if (g) groups.unshift(below1000(g) + unit);
+    rest = Math.floor(rest / 1000);
+  }
+  // "One Thousand and Five", not "One Thousand, Five"
+  const last = groups.at(-1)!;
+  if (groups.length > 1 && !last.includes("Hundred") && !/ (Thousand|Million|Billion|Trillion)$/.test(last)) return `${groups.slice(0, -1).join(", ")} and ${last}`;
+  return groups.join(", ");
+}
+/** An amount in words for documents: 9406250.5 → "Nine Million, … Naira and Fifty Kobo Only". */
+export function amountInWords(amount: number, major = "Naira", minor = "Kobo"): string {
+  if (!Number.isFinite(amount)) return "";
+  const cents = Math.round(Math.abs(amount) * 100);
+  const whole = Math.floor(cents / 100);
+  const part = cents % 100;
+  return `${amount < 0 ? "Minus " : ""}${numberWords(whole)} ${major}${part ? ` and ${numberWords(part)} ${minor}` : ""} Only`;
+}
+const usd = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const money = new Intl.NumberFormat("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const plainNumber = new Intl.NumberFormat("en-NG", { maximumFractionDigits: 2 });
@@ -63,6 +98,16 @@ function applyFormat(v: MergeValue, format: string): string {
       const d = toDate(v);
       return d ? `${dateFmt.format(d)} ${timeFmt.format(d)}` : String(v);
     }
+    case "usd": {
+      const n = Number(v);
+      return Number.isFinite(n) ? `$ ${usd.format(n)}` : String(v);
+    }
+    case "words": {
+      const n = Number(v);
+      return Number.isFinite(n) ? amountInWords(n) : String(v);
+    }
+    case "title":
+      return plain(v).toLowerCase().replace(/(^|[\s-])\p{L}/gu, (c) => c.toUpperCase());
     case "upper":
       return plain(v).toUpperCase();
     case "lower":

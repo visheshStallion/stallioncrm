@@ -157,7 +157,9 @@ export async function templateChoices(ctx: AccessContext, record: PrintRecord): 
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
     select: { id: true, name: true, isDefault: true, brand: { select: { code: true } } },
   });
-  return [...rows.map((t) => ({ id: t.id, name: t.name, builtin: false, brandCode: t.brand?.code ?? null, isDefault: t.isDefault })), ...builtinsFor(record).map((b) => ({ id: `builtin:${b.key}`, name: b.name, builtin: true, brandCode: null, isDefault: false }))];
+  // document templates of the template builder (prompt 21) come first; their ids start with "doc:"
+  const docs = await (await import("@/server/modules/doctpl/service")).docChoicesFor(ctx, record);
+  return [...docs, ...rows.map((t) => ({ id: t.id, name: t.name, builtin: false, brandCode: t.brand?.code ?? null, isDefault: t.isDefault && !docs.some((d) => d.isDefault) })), ...builtinsFor(record).map((b) => ({ id: `builtin:${b.key}`, name: b.name, builtin: true, brandCode: null, isDefault: false }))];
 }
 
 /** The built-in a module prints with when nothing else is chosen: the most specific one that applies. */
@@ -166,7 +168,24 @@ function defaultBuiltin(record: PrintRecord) {
   return list.find((b) => !b.modules.includes("*")) ?? list[0]!;
 }
 
-async function resolveTemplate(ctx: AccessContext, record: PrintRecord, templateId: string | null | undefined): Promise<{ id: string; name: string; layout: PrintLayout; paper: Paper | null; orientation: Orientation | null }> {
+interface Resolved {
+  id: string;
+  name: string;
+  layout: PrintLayout;
+  paper: Paper | null;
+  orientation: Orientation | null;
+  /** document templates are compiled per record (conditional sections, the record's own letterhead) */
+  compile?: (record: PrintRecord, lh: Letterhead, printedBy: string) => PrintLayout;
+  doc?: { templateId: string; version: number };
+}
+
+async function resolveTemplate(ctx: AccessContext, record: PrintRecord, templateId: string | null | undefined, preview = false): Promise<Resolved> {
+  if (templateId?.startsWith("doc:") || !templateId) {
+    // a document template the user may use for THIS record (module, brand, visibility, published) – or the default one
+    const doc = await (await import("@/server/modules/doctpl/service")).resolveDocTemplate(ctx, templateId ? templateId.slice(4) : null, record, preview);
+    if (doc) return { id: `doc:${doc.templateId}`, name: doc.name, layout: { blocks: [] }, paper: doc.paper, orientation: doc.orientation, compile: doc.compile, doc: { templateId: doc.templateId, version: doc.version } };
+    if (templateId) throw new NotFoundError();
+  }
   if (templateId?.startsWith("builtin:")) {
     const b = builtinsFor(record).find((x) => `builtin:${x.key}` === templateId);
     if (!b) throw new NotFoundError();
@@ -260,11 +279,19 @@ async function prepare(ctx: AccessContext, req: PrintRequest): Promise<Prepared>
   const records: PrintRecord[] = [];
   for (const id of ids) records.push(await loadPrintRecord(ctx, mod.key, id));
 
-  const template = await resolveTemplate(ctx, records[0]!, req.templateId);
-  // a built-in layout depends on the record (its fields); a stored one is the same for all
-  const builtin = template.id.startsWith("builtin:") ? BUILTIN_TEMPLATES.find((b) => `builtin:${b.key}` === template.id) : null;
-  const layoutFor = (r: PrintRecord) => (builtin ? builtin.layout(r) : template.layout);
+  const template = await resolveTemplate(ctx, records[0]!, req.templateId, req.via === "preview");
+  // every record of a bulk print must be one the document template may be used for (its brand, its module)
+  if (template.doc) for (const r of records.slice(1)) if (!(await (await import("@/server/modules/doctpl/service")).resolveDocTemplate(ctx, template.doc.templateId, r, req.via === "preview"))) throw new NotFoundError();
   const lh = await letterheadsFor(ctx, records, req.companyBrandId);
+  // a built-in layout depends on the record (its fields), a document template is compiled for it; a stored print template is the same for all
+  const builtin = template.id.startsWith("builtin:") ? BUILTIN_TEMPLATES.find((b) => `builtin:${b.key}` === template.id) : null;
+  const compiled = new Map<string, PrintLayout>();
+  const layoutFor = (r: PrintRecord) => {
+    if (builtin) return builtin.layout(r);
+    if (!template.compile) return template.layout;
+    if (!compiled.has(r.id)) compiled.set(r.id, template.compile(r, lh.of(r), ctx.user.name));
+    return compiled.get(r.id)!;
+  };
 
   // documents print COPY after their first print, when the brand asks for it
   let watermark: string | null = null;
@@ -280,6 +307,7 @@ async function prepare(ctx: AccessContext, req: PrintRequest): Promise<Prepared>
     printedAt: new Date(),
     appUrl: appUrl(),
     recordPath: (r) => mod.path(r.id),
+    pageLine: template.compile ? (layoutFor(records[0]!).pageLine ?? null) : null,
   };
   return { records, template, layoutFor, letterheadFor: lh.of, options, mod };
 }
@@ -288,8 +316,9 @@ async function auditPrint(ctx: AccessContext, p: Prepared, via: PrintRequest["vi
   // one entry per record, so "who printed this invoice" is a lookup by record
   for (const r of p.records.slice(0, MAX_BULK)) {
     const lh = p.letterheadFor(r);
-    await audit({ ctx, action: "EXPORT", entity: "Print", entityId: `${p.mod.key}:${r.id}`, brandId: r.brandId, after: { module: p.mod.key, via, template: p.template.name, templateId: p.template.id, letterhead: lh.code, records: p.records.length, ...extra } });
+    await audit({ ctx, action: "EXPORT", entity: "Print", entityId: `${p.mod.key}:${r.id}`, brandId: r.brandId, after: { module: p.mod.key, via, template: p.template.name, templateId: p.template.id, ...(p.template.doc ? { templateVersion: p.template.doc.version } : {}), letterhead: lh.code, records: p.records.length, ...extra } });
   }
+  if (p.template.doc && via !== "preview") await (await import("@/server/modules/doctpl/service")).recordUse(p.template.doc.templateId);
 }
 
 /** The print HTML of one or more records (browser print preview). Audited when `audited` is not false. */
@@ -302,7 +331,7 @@ export async function renderPrintHtml(ctx: AccessContext, req: PrintRequest, opt
 }
 
 function renderRecordsHtmlPerRecord(p: Prepared, toolbar?: string): string {
-  if (p.records.length === 1 || !p.template.id.startsWith("builtin:")) return renderRecordsHtml({ records: p.records, layout: p.layoutFor(p.records[0]!), letterheadFor: p.letterheadFor, options: p.options, toolbar });
+  if (p.records.length === 1 || !(p.template.id.startsWith("builtin:") || p.template.compile)) return renderRecordsHtml({ records: p.records, layout: p.layoutFor(p.records[0]!), letterheadFor: p.letterheadFor, options: p.options, toolbar });
   // built-in layouts differ per record: render each and merge the <section> elements into the first document
   const docs = p.records.map((r) => renderRecordsHtml({ records: [r], layout: p.layoutFor(r), letterheadFor: p.letterheadFor, options: p.options, toolbar: "" }));
   const sections = docs.map((d) => /<section[\s\S]*<\/section>/.exec(d)?.[0] ?? "").join("\n");
@@ -314,6 +343,8 @@ export interface PdfResult {
   fileName: string;
   pages: number;
   engine: PdfEngine;
+  /** id of the stored copy (GeneratedDocument) – set when the PDF left the system for one record of a brand */
+  generatedId: string | null;
 }
 
 const safeName = (s: string) => s.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "document";
@@ -323,7 +354,7 @@ export async function renderPrintPdf(ctx: AccessContext, req: PrintRequest): Pro
   const p = await prepare(ctx, req);
   const html = renderRecordsHtmlPerRecord(p);
   let engine: PdfEngine = "chromium";
-  let bytes = await chromiumPdf(html, p.options);
+  let bytes = await chromiumPdf(html, { ...p.options, pageLine: p.options.pageLine });
   if (!bytes) {
     engine = "basic";
     bytes = await basicRecordsPdf({ records: p.records, layoutFor: p.layoutFor, letterheadFor: p.letterheadFor, options: p.options });
@@ -332,7 +363,14 @@ export async function renderPrintPdf(ctx: AccessContext, req: PrintRequest): Pro
   await auditPrint(ctx, p, req.via, { pages, engine });
   const first = p.records[0]!;
   const fileName = p.records.length === 1 ? `${safeName(`${p.mod.label}-${first.number ?? first.title}`)}.pdf` : `${safeName(p.mod.plural)}-${p.records.length}.pdf`;
-  return { bytes, fileName, pages, engine };
+  // The exact copy that left the system is kept (prompt 21 §5): every e-mailed PDF, and every PDF made with a
+  // document template. Previews are not documents.
+  let generatedId: string | null = null;
+  const brandId = first.brandId ?? p.letterheadFor(first).brandId;
+  if (p.records.length === 1 && brandId && req.via !== "preview" && (req.via === "email" || p.template.doc)) {
+    generatedId = await (await import("@/server/modules/doctpl/service")).storeGenerated(ctx, { template: p.template.doc ?? null, templateName: p.template.name, module: p.mod.key, recordId: first.id, brandId, fileName, bytes, pages, sentVia: req.via === "email" ? "EMAIL" : "DOWNLOAD" });
+  }
+  return { bytes, fileName, pages, engine, generatedId };
 }
 
 // ───────────────────────────── list print ─────────────────────────────
@@ -398,7 +436,7 @@ export async function renderListPrint(ctx: AccessContext, req: { module: string;
       engine = "basic";
       bytes = await basicListPdf({ list, letterhead, options });
     }
-    pdf = { bytes, fileName: `${safeName(list.title)}.pdf`, pages: await pageCount(bytes), engine };
+    pdf = { bytes, fileName: `${safeName(list.title)}.pdf`, pages: await pageCount(bytes), engine, generatedId: null };
   }
   await audit({ ctx, action: "EXPORT", entity: "Print", entityId: `${mod.key}:list`, brandId: mixed ? null : (brands[0] ?? null), after: { module: mod.key, via: req.format === "pdf" ? "list-pdf" : "list-preview", letterhead: letterhead.code, records: records.length, ids: ids.slice(0, 50), pages: pdf?.pages } });
   return { html, pdf };
@@ -470,7 +508,7 @@ const templateMetaSchema = z.object({
   module: z.string().refine((m) => !!printModule(m), "Unknown module"),
   name: z.string().trim().min(2).max(80),
   brandId: z.string().min(1).nullable(),
-  paper: z.enum(["A4", "LETTER"]),
+  paper: z.enum(["A4", "LETTER", "A5"]),
   orientation: z.enum(["portrait", "landscape"]),
 });
 
@@ -611,3 +649,27 @@ export async function deleteTemplate(ctx: AccessContext, id: string) {
 }
 
 export { PRINT_MODULES };
+
+/**
+ * Preview for the document-template builder: a sample (or chosen) record the user can open, on the letterhead a real
+ * print of that record would use, with a layout compiled by the caller. Not saved; not a print.
+ */
+export async function previewCompiled(ctx: AccessContext, input: { module: string; brandId: string | null; recordId?: string | null; paper: Paper; orientation: Orientation; compile: (record: PrintRecord, lh: Letterhead) => PrintLayout }): Promise<{ html: string; record: PrintRecord | null; options: PrintOptions; layout: PrintLayout | null; letterhead: Letterhead }> {
+  const mod = moduleOrThrow(input.module);
+  const sample = await sampleRecord(ctx, input.module, input.recordId);
+  const options: PrintOptions = { paper: input.paper, orientation: input.orientation, watermark: "PREVIEW", printedBy: ctx.user.name, printedAt: new Date(), appUrl: appUrl(), recordPath: (r) => mod.path(r.id) };
+  if (!sample) {
+    const row = input.brandId && ctx.brandIds.includes(input.brandId) ? (await store.brandLetterheadRows([input.brandId]))[0] : ctx.brandIds[0] ? (await store.brandLetterheadRows([ctx.brandIds[0]]))[0] : undefined;
+    const lh = row ? toLetterhead(row) : await groupLetterhead();
+    return { html: renderListHtml({ list: { title: "No record to preview with", subtitle: "Create a record of this module, or choose one you can open.", columns: [], rows: [], totals: [] }, letterhead: lh, options }), record: null, options, layout: null, letterhead: lh };
+  }
+  const lh = await letterheadsFor(ctx, [sample], input.brandId && ctx.brandIds.includes(input.brandId) ? input.brandId : null);
+  const layout = input.compile(sample, lh.of(sample));
+  options.pageLine = layout.pageLine ?? null;
+  return { html: renderRecordsHtml({ records: [sample], layout, letterheadFor: lh.of, options }), record: sample, options, layout, letterhead: lh.of(sample) };
+}
+
+/** PDF of a preview (the builder's "Download test PDF"): same engines as a real print, watermarked PREVIEW, not stored. */
+export async function previewPdf(html: string, p: { record: PrintRecord; layout: PrintLayout; letterhead: Letterhead; options: PrintOptions }): Promise<Uint8Array> {
+  return (await chromiumPdf(html, p.options)) ?? (await basicRecordsPdf({ records: [p.record], layoutFor: () => p.layout, letterheadFor: () => p.letterhead, options: p.options }));
+}

@@ -5,23 +5,35 @@
  * Everything that comes from a record or a letterhead is escaped. The only HTML that passes through is the body of
  * "richText" / "terms" blocks, which the service sanitises when the template is saved (print/sanitize.ts).
  */
-import { escapeHtml as esc, renderMerge, renderMergeHtml, type MergeData } from "@/server/modules/messaging/merge";
+import { amountInWords, escapeHtml as esc, renderMerge, renderMergeHtml, type MergeData } from "@/server/modules/messaging/merge";
 import { barcodeSvg, qrSvg } from "./codes";
 import type { PrintRecord, PrintTable } from "./describe";
 
-export type Paper = "A4" | "LETTER";
+export type Paper = "A4" | "LETTER" | "A5";
+export interface LetterheadStyle {
+  logo?: "left" | "center" | "right";
+  details?: "beside" | "below";
+}
+export interface Margins {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
 export type Orientation = "portrait" | "landscape";
 
 export type PrintBlock =
-  | { type: "letterhead" }
+  | ({ type: "letterhead" } & LetterheadStyle)
   | { type: "title"; text: string }
   | { type: "fields"; title?: string; columns: 1 | 2 | 3; fields: string[] }
   | { type: "richText"; html: string }
-  | { type: "lineItems"; title?: string }
+  | { type: "lineItems"; title?: string; /** column keys in print order ("sn" = serial number); all columns when missing */ columns?: string[]; zebra?: boolean }
   | { type: "related"; list: string; title?: string }
-  | { type: "totals" }
+  | { type: "totals"; /** adds the grand total in words */ words?: boolean }
+  /** HTML produced by the document-template compiler (prompt 21) from the record – already escaped, not merged again */
+  | { type: "html"; html: string }
   | { type: "terms"; html?: string }
-  | { type: "signatures"; roles: string[] }
+  | { type: "signatures"; roles: string[]; /** a box for the company stamp */ stamp?: boolean }
   | { type: "qr"; value: "url" | "vin" | "number"; caption?: string }
   | { type: "barcode"; value: "vin" | "number" }
   | { type: "image"; url: string; alt: string; widthMm: number }
@@ -30,9 +42,23 @@ export type PrintBlock =
 
 export interface PrintLayout {
   blocks: PrintBlock[];
+  // ── document templates (prompt 21): regions that repeat on every page ──
+  /** sanitised rich text with merge fields, printed at the top of every page (after the letterhead, when shown) */
+  header?: string;
+  /** letterhead inside the repeating header; undefined = the layout places its own letterhead block */
+  headerLetterhead?: LetterheadStyle | null;
+  /** sanitised rich text with merge fields, printed at the bottom of every page */
+  footer?: string;
+  /** page margins in mm */
+  margins?: Margins;
+  /** allow-listed CSS declarations for the sheet (built by the service – never raw user CSS) */
+  css?: string;
+  /** the page-number line, e.g. "Page {{page}} of {{pages}}" */
+  pageLine?: string;
 }
 
 export const BLOCK_LABELS: Record<PrintBlock["type"], string> = {
+  html: "Generated content",
   letterhead: "Letterhead header",
   title: "Title",
   fields: "Field grid",
@@ -78,11 +104,15 @@ export interface PrintOptions {
   printedAt: Date;
   /** absolute base URL of the application (QR codes that point to the record) */
   appUrl: string;
+  /** the page-number line of the PDF, e.g. "Page {{page}} of {{pages}}" (document templates) */
+  pageLine?: string | null;
   /** path of the record in the application, per record id */
   recordPath?: (record: PrintRecord) => string;
 }
 
-const PAGE = { A4: "210mm 297mm", LETTER: "8.5in 11in" } as const;
+const PAGE = { A4: "210mm 297mm", LETTER: "8.5in 11in", A5: "148mm 210mm" } as const;
+const SHEET = { A4: ["210mm", "297mm"], LETTER: ["8.5in", "11in"], A5: ["148mm", "210mm"] } as const;
+const mm = (n: number, max = 60) => `${Math.min(max, Math.max(0, Number(n) || 0))}mm`;
 const safeColor = (c: string | null | undefined) => (c && /^#[0-9a-fA-F]{6}$/.test(c) ? c : "#1565d0");
 const nl2br = (s: string) => esc(s).replace(/\r?\n/g, "<br>");
 const stamp = (d: Date) =>
@@ -132,10 +162,27 @@ table.t .r { text-align: right; white-space: nowrap; }
 .wm { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 0; }
 .wm span { font-size: 64pt; font-weight: 700; color: rgba(0,0,0,0.07); transform: rotate(-32deg); white-space: nowrap; }
 .foot { position: fixed; left: 0; right: 0; bottom: -14mm; font-size: 7.5pt; color: #6b7280; display: flex; justify-content: space-between; gap: 6mm; border-top: 0.2mm solid #d1d5db; padding-top: 1.2mm; }
+.lh.lh-right { flex-direction: row-reverse; } .lh.lh-right .lh-details { text-align: left; }
+.lh.lh-center, .lh.lh-below { flex-direction: column; gap: 2mm; }
+.lh.lh-center { align-items: center; } .lh.lh-center .lh-details { text-align: center; }
+.lh.lh-below.lh-left { align-items: flex-start; } .lh.lh-below.lh-left .lh-details { text-align: left; }
+.lh.lh-below.lh-right { align-items: flex-end; } .lh.lh-below.lh-right .lh-details { text-align: right; }
+table.pg { width: 100%; border-collapse: collapse; } table.pg > thead { display: table-header-group; } table.pg > tfoot { display: table-footer-group; }
+table.pg > thead > tr > td, table.pg > tbody > tr > td, table.pg > tfoot > tr > td { padding: 0; vertical-align: top; }
+.pg-head { margin-bottom: 3mm; } .pg-foot { margin-top: 4mm; padding-top: 1.5mm; border-top: 0.2mm solid #d1d5db; font-size: 8pt; color: #4b5563; }
+table.t.zebra tbody tr:nth-child(even) td { background: #f9fafb; }
+.words { margin: 1mm 0 3mm; font-size: 9pt; break-inside: avoid; } .words strong { color: #111827; }
+.doc-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 6mm; margin-bottom: 4mm; }
+.doc-head h1 { margin: 0; font-size: 16pt; letter-spacing: 0.4pt; color: #111827; } .doc-head .no { font-size: 11pt; font-weight: 700; color: var(--c, #1565d0); }
+.doc-head dl { display: grid; grid-template-columns: auto auto; column-gap: 3mm; font-size: 9pt; text-align: right; } .doc-head dt { color: #4b5563; } .doc-head dd { margin: 0; }
+.parties { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin: 2mm 0 4mm; break-inside: avoid; }
+.party h3 { margin: 0 0 1mm; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.5pt; color: #4b5563; } .party p { margin: 0; }
+.box { border: 0.2mm solid #d1d5db; border-radius: 1.5mm; padding: 2.5mm 3mm; margin: 3mm 0; break-inside: avoid; } .box h3 { margin: 0 0 1mm; font-size: 9.5pt; color: #111827; }
+.stamp { flex: 0 0 34mm; height: 24mm; border: 0.3mm dashed #9ca3af; border-top-style: dashed; display: flex; align-items: center; justify-content: center; text-align: center; }
 .badge { display: inline-block; padding: 0 1.5mm; border: 0.2mm solid #9ca3af; border-radius: 1mm; font-size: 7.5pt; font-weight: 700; }
 @media screen {
   body { background: #e5e7eb; }
-  .sheet { background: #fff; width: ${o.orientation === "portrait" ? (o.paper === "A4" ? "210mm" : "8.5in") : o.paper === "A4" ? "297mm" : "11in"}; min-height: ${o.orientation === "portrait" ? (o.paper === "A4" ? "297mm" : "11in") : o.paper === "A4" ? "210mm" : "8.5in"}; margin: 18mm auto 10mm; padding: 14mm; box-shadow: 0 2px 12px rgba(0,0,0,.18); }
+  .sheet { background: #fff; width: ${SHEET[o.paper][o.orientation === "portrait" ? 0 : 1]}; min-height: ${SHEET[o.paper][o.orientation === "portrait" ? 1 : 0]}; margin: 18mm auto 10mm; padding: 14mm; box-shadow: 0 2px 12px rgba(0,0,0,.18); }
   .foot { position: static; margin-top: 10mm; }
   .wm { position: absolute; }
   .toolbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 14px; background: #1e2638; color: #fff; font: 13px Arial, sans-serif; }
@@ -148,55 +195,87 @@ table.t .r { text-align: right; white-space: nowrap; }
 `;
 }
 
-export function letterheadHtml(lh: Letterhead): string {
+export function letterheadHtml(lh: Letterhead, style: LetterheadStyle = {}): string {
+  const cls = [style.logo === "center" ? "lh-center" : style.logo === "right" ? "lh-right" : "lh-left", style.details === "below" && style.logo !== "center" ? "lh-below" : ""].filter(Boolean).join(" ");
   const details = [
     lh.rcNumber ? `RC ${esc(lh.rcNumber)}` : null,
     lh.address ? nl2br(lh.address) : null,
     [lh.phone ? esc(lh.phone) : null, lh.email ? esc(lh.email) : null].filter(Boolean).join(" · ") || null,
     [lh.website ? esc(lh.website) : null, lh.vatNumber ? `VAT ${esc(lh.vatNumber)}` : null].filter(Boolean).join(" · ") || null,
   ].filter(Boolean);
-  return `<header class="lh" data-letterhead="${esc(lh.code)}">
+  return `<header class="lh ${cls}" data-letterhead="${esc(lh.code)}">
   <div class="lh-logo">${lh.logo ? `<img src="${esc(lh.logo)}" alt="${esc(lh.name)} logo">` : `<div class="lh-mark">${esc(lh.name)}</div>`}</div>
   <div class="lh-details"><strong>${esc(lh.legalEntity)}</strong>${details.join("<br>")}</div>
 </header>`;
 }
 
-function tableHtml(t: PrintTable, title?: string): string {
+/** A table reduced to the chosen columns, in that order; "sn" adds a serial number. Unknown keys are ignored. */
+export function pickColumns(t: PrintTable, keys: string[] | undefined): PrintTable {
+  if (!keys?.length) return t;
+  const chosen = keys.map((k) => (k === "sn" ? -1 : t.columns.findIndex((c) => c.key === k))).filter((i, n) => i === -1 ? keys.indexOf("sn") === n : i >= 0);
+  if (!chosen.some((i) => i >= 0)) return t;
+  return { ...t, columns: chosen.map((i) => (i === -1 ? { key: "sn", label: "S/N", align: "left" as const } : t.columns[i]!)), rows: t.rows.map((r, n) => chosen.map((i) => (i === -1 ? String(n + 1) : (r[i] ?? "")))) };
+}
+
+/** The grand total of a record as a number (documents), or null. */
+export function grandTotal(record: PrintRecord): number | null {
+  const root = record.merge.record ?? {};
+  for (const k of ["total", "grandTotal", "amount"]) if (typeof root[k] === "number") return root[k];
+  return null;
+}
+
+function tableHtml(t: PrintTable, title?: string, zebra = false): string {
   if (!t.rows.length) return "";
-  return `${title ? `<h2 class="block-title">${esc(title)}</h2>` : ""}<table class="t" data-table="${esc(t.key)}"><thead><tr>${t.columns.map((c) => `<th class="${c.align === "right" ? "r" : ""}">${esc(c.label)}</th>`).join("")}</tr></thead><tbody>${t.rows
+  return `${title ? `<h2 class="block-title">${esc(title)}</h2>` : ""}<table class="t${zebra ? " zebra" : ""}" data-table="${esc(t.key)}"><thead><tr>${t.columns.map((c) => `<th class="${c.align === "right" ? "r" : ""}">${esc(c.label)}</th>`).join("")}</tr></thead><tbody>${t.rows
     .map((r) => `<tr>${r.map((v, i) => `<td class="${t.columns[i]!.align === "right" ? "r" : ""}">${esc(v)}</td>`).join("")}</tr>`)
     .join("")}</tbody></table>`;
 }
 
+/** Merge data of a record on a letterhead: the record's groups, the company (always the letterhead's) and the user. */
+export function mergeOf(record: PrintRecord, lh: Letterhead, o: Pick<PrintOptions, "printedBy">): MergeData {
+  return { ...record.merge, brand: { name: lh.name, code: lh.code, legalEntity: lh.legalEntity, address: lh.address, phone: lh.phone, email: lh.email, website: lh.website, rcNumber: lh.rcNumber, vatNumber: lh.vatNumber, bankDetails: lh.bankDetails, ...(record.merge.brand ?? {}) }, user: { name: o.printedBy } };
+}
+/** One-word merge fields: {{amountInWords}} (the server-computed total – never typed into a template). */
+export function extraOf(record: PrintRecord): Record<string, string> {
+  const total = grandTotal(record);
+  return total === null ? {} : { amountInWords: amountInWords(total) };
+}
+
 function blockHtml(b: PrintBlock, record: PrintRecord, lh: Letterhead, o: PrintOptions): string {
-  const merge: MergeData = { ...record.merge, brand: { name: lh.name, code: lh.code, legalEntity: lh.legalEntity, address: lh.address, phone: lh.phone, email: lh.email, website: lh.website, rcNumber: lh.rcNumber, vatNumber: lh.vatNumber, bankDetails: lh.bankDetails, ...(record.merge.brand ?? {}) }, user: { name: o.printedBy } };
+  const merge = mergeOf(record, lh, o);
+  const extra = extraOf(record);
   switch (b.type) {
     case "letterhead":
-      return letterheadHtml(lh);
+      return letterheadHtml(lh, b);
+    case "html":
+      return b.html;
     case "title":
-      return `<h1 class="title">${esc(renderMerge(b.text, merge))}</h1>`;
+      return `<h1 class="title">${esc(renderMerge(b.text, merge, extra))}</h1>`;
     case "fields": {
       const chosen = b.fields.map((k) => record.fields.find((f) => f.key === k)).filter((f): f is PrintRecord["fields"][number] => !!f && f.value !== "");
       if (!chosen.length) return "";
       return `${b.title ? `<h2 class="block-title">${esc(b.title)}</h2>` : ""}<dl class="grid c${b.columns}">${chosen.map((f) => `<div class="fld"><dt>${esc(f.label)}</dt><dd data-field="${esc(f.key)}">${esc(f.value)}</dd></div>`).join("")}</dl>`;
     }
     case "richText":
-      return `<div class="rich">${renderMergeHtml(b.html, merge)}</div>`;
+      return `<div class="rich">${renderMergeHtml(b.html, merge, extra)}</div>`;
     case "lineItems":
-      return record.lines ? tableHtml(record.lines, b.title) : "";
+      return record.lines ? tableHtml(pickColumns(record.lines, b.columns), b.title, b.zebra) : "";
     case "related": {
       const t = record.tables.find((x) => x.key === b.list);
       return t ? tableHtml(t, b.title ?? t.title) : "";
     }
-    case "totals":
-      return record.totals.length ? `<div class="totals">${record.totals.map((t) => `<div class="${t.strong ? "strong" : ""}"><span>${esc(t.label)}</span><span>${esc(t.value)}</span></div>`).join("")}</div>` : "";
+    case "totals": {
+      const total = b.words ? grandTotal(record) : null;
+      const words = total !== null ? `<p class="words" data-words="true"><strong>Amount in words:</strong> ${esc(amountInWords(total))}</p>` : "";
+      return record.totals.length ? `<div class="totals">${record.totals.map((t) => `<div class="${t.strong ? "strong" : ""}"><span>${esc(t.label)}</span><span>${esc(t.value)}</span></div>`).join("")}</div>${words}` : "";
+    }
     case "terms": {
       const body = b.html ? renderMergeHtml(b.html, merge) : record.terms ? nl2br(record.terms) : "";
       const bank = lh.bankDetails ? `<p><strong>Bank details</strong><br>${nl2br(lh.bankDetails)}</p>` : "";
       return body || bank ? `<div class="terms">${body ? `<p><strong>Terms &amp; conditions</strong></p><div class="rich">${body}</div>` : ""}${bank}</div>` : "";
     }
     case "signatures":
-      return b.roles.length ? `<div class="sigs">${b.roles.slice(0, 4).map((r) => `<div class="sig">${esc(r)}<br>Name / signature / date</div>`).join("")}</div>` : "";
+      return b.roles.length || b.stamp ? `<div class="sigs">${b.roles.slice(0, 4).map((r) => `<div class="sig">${esc(r)}<br>Name / signature / date</div>`).join("")}${b.stamp ? `<div class="sig stamp">Company stamp</div>` : ""}</div>` : "";
     case "qr": {
       const value = b.value === "vin" ? record.vin : b.value === "number" ? record.number : `${o.appUrl}${o.recordPath?.(record) ?? ""}`;
       return value ? `<div class="code">${qrSvg(value, 88)}${esc(b.caption ?? (b.value === "url" ? "Scan to open the record" : value))}</div>` : "";
@@ -232,14 +311,24 @@ function documentHtml(title: string, css: string, body: string, toolbar = ""): s
 export function renderRecordsHtml(input: { records: PrintRecord[]; layout: PrintLayout; letterheadFor: (r: PrintRecord) => Letterhead; options: PrintOptions; toolbar?: string; extraCss?: string }): string {
   const { records, layout, options } = input;
   const first = records[0] ? input.letterheadFor(records[0]) : null;
-  const css = printCss({ paper: options.paper, orientation: options.orientation, color: safeColor(first?.color) }) + (input.extraCss ?? "");
+  const m = layout.margins;
+  const pageCss = m ? `\n@page { margin: ${mm(m.top)} ${mm(m.right)} ${mm(Math.max(m.bottom, 12))} ${mm(m.left)}; }\n@media screen { .sheet { padding: ${mm(m.top)} ${mm(m.right)} ${mm(m.bottom)} ${mm(m.left)}; } }\n` : "";
+  const css = printCss({ paper: options.paper, orientation: options.orientation, color: safeColor(first?.color) }) + pageCss + (layout.css ? `\n.sheet { ${layout.css} }\n` : "") + (input.extraCss ?? "");
   const hasLetterhead = layout.blocks.some((b) => b.type === "letterhead");
   const sheets = records
     .map((record) => {
       const lh = input.letterheadFor(record);
-      const blocks = (hasLetterhead ? layout.blocks : [{ type: "letterhead" } as PrintBlock, ...layout.blocks]).map((b) => blockHtml(b, record, lh, options)).join("\n");
+      const paged = layout.header !== undefined || layout.footer !== undefined || layout.headerLetterhead !== undefined;
+      const blocks = (hasLetterhead || paged ? layout.blocks : [{ type: "letterhead" } as PrintBlock, ...layout.blocks]).map((b) => blockHtml(b, record, lh, options)).join("\n");
       // per-record brand colour: a bulk print can mix brands
-      return `<section class="sheet record" data-record="${esc(record.id)}" data-module="${esc(record.module)}" style="--c:${safeColor(lh.color)}">${watermarkHtml(options.watermark)}${blocks}${footerHtml(lh, options, record.number)}</section>`;
+      const open = `<section class="sheet record" data-record="${esc(record.id)}" data-module="${esc(record.module)}" style="--c:${safeColor(lh.color)}">${watermarkHtml(options.watermark)}`;
+      if (!paged) return `${open}${blocks}${footerHtml(lh, options, record.number)}</section>`;
+      // document templates: header and footer sit in the head / foot of a page table, which browsers repeat on every page
+      const merge = mergeOf(record, lh, options);
+      const extra = { ...extraOf(record), page: "", pages: "" };
+      const head = `${layout.headerLetterhead ? letterheadHtml(lh, layout.headerLetterhead) : ""}${layout.header ? `<div class="rich pg-head">${renderMergeHtml(layout.header, merge, extra)}</div>` : ""}`;
+      const foot = layout.footer ? `<div class="rich pg-foot">${renderMergeHtml(layout.footer, merge, extra)}</div>` : "";
+      return `${open}<table class="pg" role="presentation">${head ? `<thead><tr><td data-region="header">${head}</td></tr></thead>` : ""}${foot ? `<tfoot><tr><td data-region="footer">${foot}</td></tr></tfoot>` : ""}<tbody><tr><td data-region="body">${blocks}</td></tr></tbody></table></section>`;
     })
     .join("\n");
   const title = records.length === 1 ? `${records[0]!.moduleLabel} – ${records[0]!.title}` : `${records.length} ${records[0]?.moduleLabel ?? "records"}`;

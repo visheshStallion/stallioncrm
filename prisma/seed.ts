@@ -39,6 +39,7 @@ export async function seed(prisma: PrismaClient): Promise<void> {
   );
   // The cascade also empties the approval processes and workflow rules (they reference Brand): restore the defaults.
   await prisma.$executeRawUnsafe(`SELECT app_seed_automation()`);
+  await prisma.$executeRawUnsafe(`SELECT app_seed_document_templates()`);
   await prisma.$executeRawUnsafe(`SELECT app_seed_reports()`);
   await prisma.$executeRawUnsafe(`SELECT app_seed_cases()`);
   await prisma.$executeRawUnsafe(`SELECT app_seed_layouts()`);

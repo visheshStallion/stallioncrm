@@ -248,6 +248,8 @@ const sendSchema = z.object({
   includeSignature: z.boolean().default(true),
   /** attach the record as a PDF printout: a print template id, "default" for the brand's default, or null */
   attachPrint: z.string().min(1).nullish(),
+  /** re-send: a stored copy of a document generated earlier for this record (instead of generating it again) */
+  attachGenerated: z.string().min(1).nullish(),
   /** attachments of the record (documents uploaded on it) */
   attachmentIds: z.array(z.string().min(1)).max(10).default([]),
   /** create a follow-up task in this many days; null = none */
@@ -306,7 +308,7 @@ export async function previewEmail(ctx: AccessContext, input: unknown): Promise<
   return { subject: built.subject, html };
 }
 
-async function gatherAttachments(ctx: AccessContext, built: Built, uploads: Upload[]): Promise<{ files: Inline; printTemplate: string | null }> {
+async function gatherAttachments(ctx: AccessContext, built: Built, uploads: Upload[]): Promise<{ files: Inline; printTemplate: string | null; generatedId: string | null; document: boolean }> {
   const files: Inline = [];
   let size = 0;
   const add = (filename: string, contentType: string, content: Uint8Array) => {
@@ -322,20 +324,29 @@ async function gatherAttachments(ctx: AccessContext, built: Built, uploads: Uplo
     for (const r of rows) add(r.fileName, r.contentType, await storage().get(r.storageKey));
   }
   let printTemplate: string | null = null;
-  if (built.data.attachPrint) {
+  let generatedId: string | null = null;
+  const moduleOfRecord = PARENT_INFO[built.record.parentType as EmailParent].module;
+  if (built.data.attachGenerated) {
+    // the stored copy must belong to THIS record; the reader must be able to open the record (404 otherwise)
+    const { generatedFile } = await import("@/server/modules/doctpl/service");
+    const copy = await generatedFile(ctx, built.data.attachGenerated, { module: moduleOfRecord, recordId: built.record.parentId });
+    add(copy.fileName, "application/pdf", copy.bytes);
+    printTemplate = `copy:${copy.id}`;
+  } else if (built.data.attachPrint) {
     const { renderPrintPdf } = await import("@/server/modules/print/service");
     const moduleKey = PARENT_INFO[built.record.parentType as EmailParent].module;
     const pdf = await renderPrintPdf(ctx, { module: moduleKey, recordIds: [built.record.parentId], templateId: built.data.attachPrint === "default" ? null : built.data.attachPrint, companyBrandId: built.record.brandId, via: "email" });
     add(pdf.fileName, "application/pdf", pdf.bytes);
     printTemplate = built.data.attachPrint;
+    generatedId = pdf.generatedId;
   }
-  return { files, printTemplate };
+  return { files, printTemplate, generatedId, document: printTemplate !== null };
 }
 
 /** Sends the e-mail: logged on the record (Activity + Message), audited, optional follow-up task. */
 export async function sendEmail(ctx: AccessContext, input: unknown, uploads: Upload[] = []) {
   const built = await build(ctx, input);
-  const { files, printTemplate } = await gatherAttachments(ctx, built, uploads);
+  const { files, printTemplate, generatedId, document } = await gatherAttachments(ctx, built, uploads);
   const [first, ...moreTo] = built.data.to;
   const res = await deliver(ctx, {
     channel: "EMAIL",
@@ -351,6 +362,12 @@ export async function sendEmail(ctx: AccessContext, input: unknown, uploads: Upl
     templateId: built.templateId,
   });
   await audit({ ctx, action: "CREATE", entity: "Email", entityId: res.id, brandId: built.record.brandId, after: { status: res.status, from: res.from, to: built.data.to, cc: built.data.cc.length, bcc: built.data.bcc.length, record: `${built.record.parentType}:${built.record.parentId}`, templateId: built.templateId, marketing: built.marketing, attachments: files.map((f) => f.filename), printTemplate, error: res.error } });
+  if (res.status === "SENT" && document) {
+    // the stored copy points to the e-mail it went out with; the document counts as sent (quote → Sent, order / invoice → sent date)
+    const doc = await import("@/server/modules/doctpl/service");
+    if (generatedId) await doc.linkGeneratedEmail(generatedId, res.activityId);
+    await doc.markSent(ctx, PARENT_INFO[built.record.parentType as EmailParent].module, built.record.parentId);
+  }
   let taskId: string | null = null;
   if (res.status === "SENT" && built.data.followUpDays !== null && built.data.followUpDays !== undefined) {
     const due = new Date(Date.now() + built.data.followUpDays * 86_400_000);
@@ -453,13 +470,18 @@ export async function composerData(ctx: AccessContext, parentType: string, paren
   assertCan(ctx, "activities", "create", record);
   const info = PARENT_INFO[record.parentType as EmailParent];
   const db = scopedDb(ctx);
-  const [brand, templates, signature, attachments, drafts, printTemplates] = await Promise.all([
+  const doc = await import("@/server/modules/doctpl/service");
+  const [brand, templates, signature, attachments, drafts, printTemplates, docTemplates, generated] = await Promise.all([
     db.brand.findUniqueOrThrow({ where: { id: record.brandId }, select: { code: true, name: true, fromName: true, fromEmail: true } }),
     db.template.findMany({ where: { channel: "EMAIL", active: true, AND: [{ OR: [{ brandId: null }, { brandId: record.brandId }] }, { OR: [{ module: null }, { module: info.module }] }] }, orderBy: [{ category: "asc" }, { name: "asc" }], select: { id: true, name: true, subject: true, body: true, blocks: true, category: true, brandId: true } }),
     store.signatureOf(ctx.userId, record.brandId),
     db.attachment.findMany({ where: { entity: record.parentType, entityId: record.parentId }, select: { id: true, fileName: true, size: true }, orderBy: { createdAt: "desc" }, take: 30 }),
     myDrafts(ctx, record.parentType, record.parentId),
     hasPermission(ctx, "activities", "create") ? db.printTemplate.findMany({ where: { module: info.module, active: true, OR: [{ brandId: null }, { brandId: record.brandId }] }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : [],
+    // document templates the sender may use for this record (published, own brand or group, own personal ones)
+    doc.docChoicesFor(ctx, { module: info.module, brandId: record.brandId }),
+    // copies generated earlier (re-send); empty when the sender cannot open the record in its module
+    doc.generatedFor(ctx, info.module, record.parentId).catch(() => []),
   ]);
   const mergeFields = Object.entries(record.merge).flatMap(([group, values]) => Object.keys(values ?? {}).map((k) => `${group}.${k}`)).filter((f) => !f.startsWith("document.")).sort();
   return {
@@ -473,6 +495,8 @@ export async function composerData(ctx: AccessContext, parentType: string, paren
     attachments,
     drafts,
     printTemplates,
+    docTemplates: docTemplates.map((t) => ({ id: t.id, name: t.name, isDefault: t.isDefault })),
+    generated: generated.slice(0, 10).map((g) => ({ id: g.id, fileName: g.fileName, templateName: g.templateName, templateVersion: g.templateVersion, generatedAt: g.generatedAt, sentVia: g.sentVia })),
     mergeFields: [...new Set([...mergeFields, "user.name", "today"])],
   };
 }

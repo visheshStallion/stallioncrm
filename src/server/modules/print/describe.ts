@@ -211,6 +211,8 @@ export function describeRecord(input: { module: string; moduleLabel: string; mer
   merge[input.mergeName] = root;
   merge.record = root;
 
+  // the balance of an invoice is computed here, from the server-side amounts – a template cannot state one
+  if (typeof root.total === "number" && typeof root.amountPaid === "number" && root.balance === undefined && root.balanceDue === undefined) root.balance = Math.round((root.total - root.amountPaid) * 100) / 100;
   const lines = tables.find((t) => t.key === "lines") ?? null;
   const totals = TOTAL_KEYS.filter(([k]) => typeof root[k] === "number").map(([k, label, strong]) => ({ label, value: formatValue(root[k]!, "money"), strong }));
 

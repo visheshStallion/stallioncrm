@@ -24,8 +24,8 @@ enum BrandStatus {
 }
 
 model Brand {
-  id                    String      @id @default(cuid())
-  code                  String      @unique
+  id                    String              @id @default(cuid())
+  code                  String              @unique
   name                  String
   legalEntity           String?
   erpCompanyCode        String?
@@ -36,16 +36,16 @@ model Brand {
   logoMimeType          String?
   /// Hex colour used by BrandBadge (e.g. "#1d4ed8"). Falls back to a palette when null.
   color                 String?
-  status                BrandStatus @default(ACTIVE)
+  status                BrandStatus         @default(ACTIVE)
   /// Printed on quotes / orders / invoices (PDF templates per brand)
   address               String?
   bankDetails           String?
   documentTerms         String?
   /// Discount above this % needs Brand Manager approval; above the escalation % Head of Sales (BUSINESS_CONTEXT §10)
-  discountApprovalPct   Decimal     @default(3) @db.Decimal(5, 2)
-  discountEscalationPct Decimal     @default(7) @db.Decimal(5, 2)
+  discountApprovalPct   Decimal             @default(3) @db.Decimal(5, 2)
+  discountEscalationPct Decimal             @default(7) @db.Decimal(5, 2)
   brandManagerId        String?
-  brandManager          User?       @relation("BrandManager", fields: [brandManagerId], references: [id])
+  brandManager          User?               @relation("BrandManager", fields: [brandManagerId], references: [id])
   brandAdmins           BrandAdmin[]
   validationRules       ValidationRule[]
   // ── letterhead profile (prompt 20): printed on top of every printout of this brand ──
@@ -57,8 +57,10 @@ model Brand {
   /// extra line in the footer of printouts
   footerText            String?
   /// quotes / orders / invoices print a COPY watermark after their first print
-  copyWatermark         Boolean     @default(false)
+  copyWatermark         Boolean             @default(false)
   printTemplates        PrintTemplate[]
+  documentTemplates     DocumentTemplate[]
+  generatedDocuments    GeneratedDocument[]
   emailSignatures       EmailSignature[]
   // ── sender identity (prompt 10): a message about this brand's record is always sent as this brand ──
   fromName              String?
@@ -66,12 +68,12 @@ model Brand {
   /// alphanumeric SMS sender ID (max 11 characters)
   smsSenderId           String?
   /// number that receives inbound SMS for this brand (E.164 or short code)
-  smsInboundNumber      String?     @unique
+  smsInboundNumber      String?             @unique
   /// WhatsApp Business number (E.164) and its Cloud API phone-number id
-  whatsappNumber        String?     @unique
-  whatsappPhoneId       String?     @unique
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
+  whatsappNumber        String?             @unique
+  whatsappPhoneId       String?             @unique
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 
   aliases           BrandCodeAlias[]
   territories       Territory[]
@@ -191,27 +193,27 @@ model Profile {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
+  id                 String    @id @default(cuid())
+  name               String
+  email              String    @unique
   /// argon2id hash; null for SSO-only users
-  passwordHash  String?
-  roleId        String
-  role          Role      @relation(fields: [roleId], references: [id])
-  profileId     String
-  profile       Profile   @relation(fields: [profileId], references: [id])
-  active        Boolean   @default(true)
+  passwordHash       String?
+  roleId             String
+  role               Role      @relation(fields: [roleId], references: [id])
+  profileId          String
+  profile            Profile   @relation(fields: [profileId], references: [id])
+  active             Boolean   @default(true)
   // ── sign-in protection (prompt 15) ──
   /// consecutive failed password attempts; reset by a successful sign-in
-  failedLogins  Int       @default(0)
+  failedLogins       Int       @default(0)
   /// no password sign-in before this time (lockout after repeated failures)
-  lockedUntil   DateTime?
+  lockedUntil        DateTime?
   /// TOTP secret, encrypted with a key derived from AUTH_SECRET; never selectable from user sessions
-  totpSecret    String?
-  totpEnabledAt DateTime?
-  lastLoginAt   DateTime?
+  totpSecret         String?
+  totpEnabledAt      DateTime?
+  lastLoginAt        DateTime?
   /// integration principal (API / webhooks): cannot sign in interactively
-  isIntegration Boolean   @default(false)
+  isIntegration      Boolean   @default(false)
   // ── admin tiers & session control (prompt 19) ──
   /// Super Admin: only meaningful together with the Administrator profile
   isSuperAdmin       Boolean   @default(false)
@@ -220,11 +222,11 @@ model User {
   passwordChangedAt  DateTime?
   /// earlier password hashes (newest first) for the "history" rule of the password policy
   passwordHistory    Json      @default("[]")
-  managerId     String?
-  manager       User?     @relation("UserManager", fields: [managerId], references: [id])
-  reports       User[]    @relation("UserManager")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  managerId          String?
+  manager            User?     @relation("UserManager", fields: [managerId], references: [id])
+  reports            User[]    @relation("UserManager")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   memberships        TerritoryMember[]
   brandAdminOf       BrandAdmin[]
@@ -950,6 +952,8 @@ model Quote {
 
 model SalesOrder {
   id                String      @id @default(cuid())
+  /// last time the document was e-mailed to the customer (prompt 21)
+  sentAt            DateTime?
   /// {docPrefix}-{QT|SO|INV}-{YYYY}-{00001}; assigned by the DB trigger app_document_number() (gap-free per brand / type / year)
   number            String      @unique @default("")
   dealId            String
@@ -995,6 +999,8 @@ model SalesOrder {
 
 model Invoice {
   id                String        @id @default(cuid())
+  /// last time the document was e-mailed to the customer (prompt 21)
+  sentAt            DateTime?
   /// {docPrefix}-{QT|SO|INV}-{YYYY}-{00001}; assigned by the DB trigger app_document_number() (gap-free per brand / type / year)
   number            String        @unique @default("")
   dealId            String
@@ -1283,6 +1289,8 @@ enum ApproverType {
   ROLE
   USER
   RSM
+  /// the delegated Brand Admins of the record's brand; administrators when the brand has none
+  BRAND_ADMIN_OF_RECORD
 }
 
 /// Approval process: which records need approval (criteria) and who decides (steps).
@@ -2560,4 +2568,89 @@ model EmailDraft {
 
   @@index([userId, status])
   @@index([parentType, parentId])
+}
+
+/// Document template of the rich template builder (prompt 21): a page with header, body blocks and footer that
+/// prints a record in the company's format. System table: reached through the document-template service only.
+model DocumentTemplate {
+  id           String    @id @default(cuid())
+  name         String
+  /// print module key (src/server/modules/print/modules.ts)
+  module       String
+  /// NULL = every brand the user of the template can access ("all my brands" / group)
+  brandId      String?
+  brand        Brand?    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  /// PERSONAL | SHARED_BRAND | GROUP
+  visibility   String    @default("PERSONAL")
+  /// DRAFT | PENDING_APPROVAL | PUBLISHED | ARCHIVED
+  status       String    @default("DRAFT")
+  isDefault    Boolean   @default(false)
+  /// A4 | LETTER | A5
+  paper        String    @default("A4")
+  orientation  String    @default("portrait")
+  /// { top, right, bottom, left } in mm
+  margins      Json      @default("{}")
+  /// the working copy the editor shows: { letterhead, header, body, footer }
+  content      Json
+  /// what documents are generated with; NULL until the first publication
+  published    Json?
+  /// true = the working copy differs from the published one
+  dirty        Boolean   @default(false)
+  /// allow-listed CSS declarations for the page (font, size, line height, colours)
+  cssOverrides String?
+  /// number of the published version (0 = never published)
+  version      Int       @default(0)
+  createdById  String
+  approvedById String?
+  publishedAt  DateTime?
+  usageCount   Int       @default(0)
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  versions DocumentTemplateVersion[]
+
+  @@index([module, status])
+  @@index([createdById])
+}
+
+model DocumentTemplateVersion {
+  id          String           @id @default(cuid())
+  templateId  String
+  template    DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version     Int
+  /// { name, paper, orientation, margins, content, cssOverrides }
+  snapshot    Json
+  changedById String?
+  changedAt   DateTime         @default(now())
+  note        String?
+
+  @@unique([templateId, version])
+}
+
+/// The exact PDF that was sent, downloaded or printed for a record – kept for the legal record (never rewritten).
+model GeneratedDocument {
+  id              String   @id @default(cuid())
+  /// NULL for built-in layouts and print templates of prompt 20
+  templateId      String?
+  templateVersion Int      @default(0)
+  templateName    String
+  module          String
+  recordId        String
+  brandId         String
+  brand           Brand    @relation(fields: [brandId], references: [id])
+  fileKey         String
+  fileName        String
+  /// SHA-256 of the file
+  hash            String
+  pages           Int      @default(0)
+  generatedById   String
+  generatedByName String   @default("")
+  generatedAt     DateTime @default(now())
+  /// EMAIL | PRINT | DOWNLOAD | WHATSAPP
+  sentVia         String
+  emailActivityId String?
+
+  @@index([module, recordId])
+  @@index([brandId])
 }
