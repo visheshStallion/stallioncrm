@@ -34,6 +34,12 @@ export function buildAccessContext(rows: AccessRows, allBrandIds: string[]): Acc
         ? allBrandIds
         : [...new Set(memberships.map((m) => m.brandId))].sort(),
     isAdmin: permissions.admin?.edit === true,
+    isSuperAdmin: rows.isSuperAdmin === true && permissions.admin?.edit === true,
+    brandAdminOf: (rows.brandAdminOf ?? []).map((b) => b.brandId).sort(),
+    setupSections: Array.isArray(rows.profile.setupSections) ? rows.profile.setupSections.filter((s): s is string => typeof s === "string") : [],
+    sessionsValidAfter: rows.sessionsValidAfter ?? null,
+    passwordChangedAt: rows.passwordChangedAt ?? null,
+    twoStep: !!rows.totpEnabledAt,
   };
 }
 

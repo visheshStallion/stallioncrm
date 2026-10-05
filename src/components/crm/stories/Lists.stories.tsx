@@ -92,9 +92,9 @@ export const SetupLandingGrid: Story = {
   render: () => (
     <SetupLanding
       categories={[
-        { key: "u", title: "Users & Control", description: "Users, roles and profiles", items: [{ href: "#", label: "Users", available: true }, { href: "#", label: "Profiles", available: true }] },
-        { key: "b", title: "Brands & Territories", description: "Brand master and territories", items: [{ href: "#", label: "Brands", available: true }] },
-        { key: "d", title: "Developer Space", description: "API keys and webhooks", items: [{ href: "#", label: "API & webhooks", available: false }] },
+        { key: "u", title: "Users & Control", description: "Users, roles and profiles", items: [{ key: "users", href: "#users", label: "Users", status: "DONE" }, { key: "profiles", href: "#profiles", label: "Profiles", status: "DONE" }] },
+        { key: "b", title: "Brands & Territories", description: "Brand master and territories", items: [{ key: "brands", href: "#brands", label: "Brands", status: "DONE" }, { key: "tiers", href: "#tiers", label: "Administrators & Brand Admins", status: "DONE", superAdminOnly: true }] },
+        { key: "d", title: "Developer Space", description: "API keys and webhooks", items: [{ key: "api", href: "#api", label: "APIs & tokens", status: "PARTIAL" }, { key: "sandbox", href: "#sandbox", label: "Sandbox", status: "PLANNED", superAdminOnly: true }] },
       ]}
     />
   ),

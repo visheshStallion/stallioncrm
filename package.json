@@ -34,7 +34,8 @@
     "build-storybook": "storybook build -o storybook-static --quiet",
     "e2e:visual": "playwright test --project=visual",
     "build:vercel": "node scripts/vercel-build.mjs",
-    "ui:compare": "playwright test --project=compare"
+    "ui:compare": "playwright test --project=compare",
+    "setup:catalogue": "tsx scripts/setup-catalogue.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

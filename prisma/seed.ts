@@ -35,7 +35,7 @@ import { seedInventory } from "./seed-inventory";
 
 export async function seed(prisma: PrismaClient): Promise<void> {
   await prisma.$executeRawUnsafe(
-    `TRUNCATE "AuditLog", "VehicleUnit", "Warehouse", "Vendor", "StockMovement", "StockBalance", "InventoryDocument", "JournalEntry", "InventorySettings", "PriceBookEntry", "PriceBook", "Note", "Attachment", "DealStageHistory", "Pipeline", "SavedView", "AssignmentRule", "Lead", "Deal", "Contact", "Account", "Product", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region", "Job", "Holiday", "BusinessHours" CASCADE`,
+    `TRUNCATE "AuditLog", "VehicleUnit", "Warehouse", "Vendor", "StockMovement", "StockBalance", "InventoryDocument", "JournalEntry", "InventorySettings", "PriceBookEntry", "PriceBook", "Note", "Attachment", "DealStageHistory", "Pipeline", "SavedView", "AssignmentRule", "Lead", "Deal", "Contact", "Account", "Product", "TerritoryMember", "Territory", "BrandCodeAlias", "User", "Brand", "Role", "Profile", "Region", "Job", "Holiday", "BusinessHours", "OrgSetting", "SetupApproval", "SharingRule", "ValidationRule" CASCADE`,
   );
   // The cascade also empties the approval processes and workflow rules (they reference Brand): restore the defaults.
   await prisma.$executeRawUnsafe(`SELECT app_seed_automation()`);
@@ -106,9 +106,14 @@ export async function seed(prisma: PrismaClient): Promise<void> {
         passwordHash,
         roleId: roles.get(u.role)!,
         profileId: profiles.get(u.profile)!,
+        isSuperAdmin: u.superAdmin === true,
+        passwordChangedAt: new Date(),
       },
     });
     users.set(u.key, user.id);
+  }
+  for (const u of USERS) {
+    for (const code of u.brandAdminOf ?? []) await prisma.brandAdmin.create({ data: { userId: users.get(u.key)!, brandId: brands.get(code)! } });
   }
   for (const u of USERS) {
     if (u.manager) {

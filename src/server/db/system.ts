@@ -31,9 +31,14 @@ export function loadAccessRows(userId: string) {
       name: true,
       email: true,
       active: true,
+      isSuperAdmin: true,
+      sessionsValidAfter: true,
+      passwordChangedAt: true,
+      totpEnabledAt: true,
+      brandAdminOf: { select: { brandId: true } },
       role: { select: { name: true } },
       profile: {
-        select: { id: true, name: true, scope: true, permissions: true, fieldPermissions: true },
+        select: { id: true, name: true, scope: true, permissions: true, fieldPermissions: true, setupSections: true },
       },
       memberships: {
         select: {
@@ -259,4 +264,9 @@ export async function pingDatabase(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** A user's own password change (the caller has verified the current password and the password policy). */
+export async function unsafeSetOwnPassword(userId: string, passwordHash: string): Promise<void> {
+  await unsafeDb.user.update({ where: { id: userId }, data: { passwordHash, failedLogins: 0, lockedUntil: null }, select: { id: true } });
 }

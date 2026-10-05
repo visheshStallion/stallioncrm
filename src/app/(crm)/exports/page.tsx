@@ -100,7 +100,7 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
         )}
       </section>
 
-      {ctx.isAdmin ? (
+      {ctx.isSuperAdmin ? (
         <section className="rounded-lg border border-border bg-surface p-4" data-testid="backup">
           <h2 className="mb-1 text-[13px] font-semibold">Full backup (all brands)</h2>
           <p className="mb-3 text-xs text-text-muted">

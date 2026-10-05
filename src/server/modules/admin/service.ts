@@ -20,6 +20,8 @@ import type { AccessContext } from "@/server/access/types";
 import { audit, scopedDb } from "@/server/db";
 import { countBrandOwnedRecords, moveTerritoryRecords } from "@/server/db/system";
 import { BadRequestError } from "@/server/errors";
+import { countActiveSuperAdmins, credentialsOf, recordPasswordChange } from "@/server/db/setup-store";
+import { assertPasswordAllowed } from "@/server/modules/setup/service";
 import { assertAdmin } from "./guard";
 import {
   aliasSchema,
@@ -66,6 +68,8 @@ async function syncBrandManager(ctx: AccessContext, brandId: string, userId: str
 
 export async function createBrand(ctx: AccessContext, input: BrandInput) {
   assertAdmin(ctx);
+  // prompt 19 §2.11: creating a brand (and making one inactive, below) is for Super Admins
+  if (!ctx.isSuperAdmin) throw new ForbiddenError("Only a Super Admin can create a brand");
   const data = brandSchema.parse(input);
   const brand = await db(ctx).brand.create({ data });
   await ensureBrandTerritories(tx(ctx), brand.id);
@@ -80,6 +84,7 @@ export async function updateBrand(ctx: AccessContext, id: string, input: BrandIn
   const d = db(ctx);
   const before = await d.brand.findUnique({ where: { id }, omit: { logoData: true } });
   if (!before) throw new NotFoundError();
+  if (data.status === "INACTIVE" && before.status !== "INACTIVE" && !ctx.isSuperAdmin) throw new ForbiddenError("Only a Super Admin can make a brand inactive");
 
   if (data.code !== before.code) {
     const used = total(await countBrandOwnedRecords({ brandId: id }));
@@ -420,8 +425,9 @@ export async function setUserTerritories(ctx: AccessContext, userId: string, ter
 export async function createUser(ctx: AccessContext, input: UserInput, territoryIds: string[] = []) {
   assertAdmin(ctx);
   const { password, ...data } = userSchema.parse(input);
+  if (password) await assertPasswordAllowed(password);
   const user = await db(ctx).user.create({
-    data: { ...data, passwordHash: password ? await hash(password) : null },
+    data: { ...data, passwordHash: password ? await hash(password) : null, passwordChangedAt: password ? new Date() : null },
   });
   if (territoryIds.length) await setUserTerritories(ctx, user.id, territoryIds);
   await log(ctx, "CREATE", "User", user.id, undefined, user);
@@ -447,7 +453,11 @@ export async function updateUser(ctx: AccessContext, id: string, input: UserInpu
 export async function setUserPassword(ctx: AccessContext, id: string, password: string) {
   assertAdmin(ctx);
   const pw = passwordSchema.parse(password);
+  // password policy (Setup → Security Control): complexity and no reuse of recent passwords
+  const policy = await assertPasswordAllowed(pw, id);
+  const previous = (await credentialsOf(id))?.passwordHash ?? null;
   await db(ctx).user.update({ where: { id }, data: { passwordHash: await hash(pw) }, select: { id: true } });
+  await recordPasswordChange(id, previous, policy.history);
   await log(ctx, "UPDATE", "User", id, undefined, { password: "changed" });
 }
 
@@ -505,9 +515,18 @@ export async function deactivationPreview(ctx: AccessContext, userId: string): P
   return lines;
 }
 
-export async function deactivateUser(ctx: AccessContext, userId: string) {
+export async function deactivateUser(ctx: AccessContext, userId: string, opts: { fourEyesApproved?: boolean } = {}) {
   assertAdmin(ctx);
   if (userId === ctx.userId) throw new ForbiddenError("You cannot deactivate yourself");
+  // prompt 19 §1: disabling an administrator is a destructive operation – two Super Admins (Setup → Administrators)
+  if (!opts.fourEyesApproved) {
+    const target = await db(ctx).user.findUnique({ where: { id: userId }, select: { profile: { select: { permissions: true } } } });
+    if (target && isAdminPermissions(target.profile.permissions)) {
+      throw new ForbiddenError("Disabling an administrator needs the approval of a second Super Admin: Setup → Administrators & Brand Admins");
+    }
+  }
+  const tier = await db(ctx).user.findUnique({ where: { id: userId }, select: { isSuperAdmin: true } });
+  if (tier?.isSuperAdmin && (await countActiveSuperAdmins(userId)) === 0) throw new ForbiddenError("The last Super Admin cannot be disabled or demoted");
   await assertAdminsRemain(ctx, { userId, deactivate: true });
   const d = db(ctx);
   const preview = await deactivationPreview(ctx, userId);

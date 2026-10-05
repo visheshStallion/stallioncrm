@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Calendar, KeyRound, LogOut, Settings, ShieldCheck } from "lucide-react";
+import { Bell, Calendar, KeyRound, LogOut, Settings, ShieldCheck, UserCog } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
@@ -100,7 +100,7 @@ export function CalendarShortcut() {
 
 export function SetupGear() {
   return (
-    <Link href="/admin" className={iconBtn} aria-label="Setup" title="Setup" data-testid="setup-gear">
+    <Link href="/setup" className={iconBtn} aria-label="Setup" title="Setup" data-testid="setup-gear">
       <Settings />
     </Link>
   );
@@ -192,6 +192,9 @@ export function AvatarMenu({
         ])}
       </div>
       <div className="border-t border-border p-1">
+        <Link href="/setup/personal" role="menuitem" className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 hover:bg-muted">
+          <UserCog className="h-4 w-4" /> Personal settings
+        </Link>
         <Link href="/tokens" role="menuitem" className="flex w-full items-center gap-2 rounded px-2.5 py-1.5 hover:bg-muted">
           <KeyRound className="h-4 w-4" /> My API tokens
         </Link>

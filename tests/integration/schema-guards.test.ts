@@ -25,7 +25,7 @@ describe("hand-written database objects", () => {
   it("the triggers that protect the ledger, journals, audit log and brand consistency exist", async () => {
     const rows = await unsafeDb.$queryRaw<Array<{ tgname: string }>>`SELECT tgname FROM pg_trigger WHERE NOT tgisinternal`;
     const present = new Set(rows.map((r) => r.tgname));
-    for (const t of ["audit_immutable", "stock_movement_append_only", "journal_immutable", "journal_balanced", "journal_line_append_only", "unit_same_brand", "unit_sale_same_brand", "inventory_doc_same_brand", "inventory_doc_number"]) expect(present.has(t), `trigger ${t}`).toBe(true);
+    for (const t of ["audit_immutable", "stock_movement_append_only", "journal_immutable", "journal_balanced", "journal_line_append_only", "unit_same_brand", "unit_sale_same_brand", "inventory_doc_same_brand", "inventory_doc_number", "super_admin_flag_guard", "keep_one_super_admin"]) expect(present.has(t), `trigger ${t}`).toBe(true);
   });
 
   it("row-level security is enabled on every table that carries a brand", async () => {

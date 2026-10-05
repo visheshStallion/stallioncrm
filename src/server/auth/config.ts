@@ -15,10 +15,11 @@ export const authConfig = {
     jwt({ token, user }) {
       // Strip name / email / picture: the token only identifies the user.
       const sub = user?.id ?? token.sub;
-      return sub ? { sub } : {};
+      // `lat` = when the user signed in (ms): session length and "sign out all sessions" are checked against it
+      return sub ? { sub, lat: user ? Date.now() : token.lat } : {};
     },
     session({ session, token }) {
-      return { ...session, user: { id: token.sub ?? "" } } as typeof session;
+      return { ...session, user: { id: token.sub ?? "" }, loginAt: typeof token.lat === "number" ? token.lat : null } as unknown as typeof session;
     },
   },
 } satisfies NextAuthConfig;

@@ -10,6 +10,7 @@ import { leadFormLookups } from "@/server/modules/leads/queries";
 import { myNotifications } from "@/server/modules/notifications/service";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
+import { hasSetupArea } from "@/server/modules/setup/access";
 import { getUiFilters } from "@/server/request";
 import { MobileNav } from "@/components/pwa/MobileNav";
 import { PwaClient } from "@/components/pwa/PwaClient";
@@ -55,7 +56,7 @@ export async function AppShell({ ctx, children }: { ctx: AccessContext; children
 
   return (
     <div className="flex min-h-screen bg-canvas" data-nav={prefs.nav}>
-      {classic ? null : <ModuleRail items={railItems} brand={railBrand} prefs={railPrefs} isAdmin={ctx.isAdmin} />}
+      {classic ? null : <ModuleRail items={railItems} brand={railBrand} prefs={railPrefs} isAdmin={hasSetupArea(ctx)} />}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="crm-header" data-testid="top-bar">
           {classic ? (
@@ -85,7 +86,7 @@ export async function AppShell({ ctx, children }: { ctx: AccessContext; children
               <CalendarShortcut />
             </span>
             <NotificationsBell count={notifications.unread} items={notifications.rows} />
-            <span className="hidden md:contents">{ctx.isAdmin ? <SetupGear /> : null}</span>
+            <span className="hidden md:contents">{hasSetupArea(ctx) ? <SetupGear /> : null}</span>
             <AvatarMenu
               user={{ ...ctx.user, profileName: ctx.profile.name }}
               prefs={{ theme: prefs.theme, density: prefs.density, dateFormat: prefs.dateFormat, nav: prefs.nav }}

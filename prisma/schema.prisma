@@ -46,6 +46,8 @@ model Brand {
   discountEscalationPct Decimal     @default(7) @db.Decimal(5, 2)
   brandManagerId        String?
   brandManager          User?       @relation("BrandManager", fields: [brandManagerId], references: [id])
+  brandAdmins           BrandAdmin[]
+  validationRules       ValidationRule[]
   // ── sender identity (prompt 10): a message about this brand's record is always sent as this brand ──
   fromName              String?
   fromEmail             String?
@@ -171,6 +173,8 @@ model Profile {
   permissions      Json         @default("{}")
   /// module → field → "hidden" | "masked" | "read" | "edit"
   fieldPermissions Json         @default("{}")
+  /// Setup functions (catalogue keys) this profile may open without being an Administrator (prompt 19 §3.5)
+  setupSections    Json         @default("[]")
   users            User[]
 }
 
@@ -196,6 +200,14 @@ model User {
   lastLoginAt   DateTime?
   /// integration principal (API / webhooks): cannot sign in interactively
   isIntegration Boolean   @default(false)
+  // ── admin tiers & session control (prompt 19) ──
+  /// Super Admin: only meaningful together with the Administrator profile
+  isSuperAdmin       Boolean   @default(false)
+  /// sessions issued before this moment are refused ("sign out all sessions")
+  sessionsValidAfter DateTime?
+  passwordChangedAt  DateTime?
+  /// earlier password hashes (newest first) for the "history" rule of the password policy
+  passwordHistory    Json      @default("[]")
   managerId     String?
   manager       User?     @relation("UserManager", fields: [managerId], references: [id])
   reports       User[]    @relation("UserManager")
@@ -203,6 +215,7 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   memberships        TerritoryMember[]
+  brandAdminOf       BrandAdmin[]
   managedBrands      Brand[]           @relation("BrandManager")
   managedTerritories Territory[]       @relation("TerritoryManager")
   ownedDeals         Deal[]            @relation("DealOwner")
@@ -2341,4 +2354,92 @@ model PushSubscription {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// ─────────────────────────── Setup (prompt 19) ───────────────────────────
+
+/// Delegated Brand Admin: Setup limited to one brand. Granted and revoked by a Super Admin.
+model BrandAdmin {
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandId     String
+  brand       Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  grantedById String?
+  createdAt   DateTime @default(now())
+
+  @@id([userId, brandId])
+  @@index([brandId])
+}
+
+/// Organisation-wide settings (company, fiscal year, currencies, security policies, feature flags, variables).
+/// One row per key; every change is audited with before / after.
+model OrgSetting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+}
+
+enum SetupApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+/// Four-eyes request for a destructive Setup operation: requested by one Super Admin (after re-authentication),
+/// executed only when a second Super Admin approves (after re-authentication).
+model SetupApproval {
+  id            String              @id @default(cuid())
+  /// operation key (src/server/modules/setup/destructive.ts)
+  action        String
+  summary       String
+  payload       Json
+  status        SetupApprovalStatus @default(PENDING)
+  requestedById String
+  requestedAt   DateTime            @default(now())
+  decidedById   String?
+  decidedAt     DateTime?
+  expiresAt     DateTime
+  /// what the operation did (counts), or the error
+  result        Json?
+
+  @@index([status, requestedAt])
+}
+
+/// Sharing rule: records of one module in a source territory shared with a role, a territory or a user.
+/// A rule never crosses brands (validated on save). See docs/SETUP_CATALOGUE.md for the enforcement status.
+model SharingRule {
+  id                String   @id @default(cuid())
+  name              String
+  module            String
+  sourceTerritoryId String
+  /// ROLE | TERRITORY | USER
+  targetType        String
+  targetId          String
+  /// READ | READ_WRITE
+  access            String   @default("READ")
+  active            Boolean  @default(true)
+  createdById       String?
+  createdAt         DateTime @default(now())
+
+  @@index([module, active])
+}
+
+/// Validation rule: when the expression is true for the record being saved, the save is refused with the message.
+model ValidationRule {
+  id         String   @id @default(cuid())
+  module     String
+  /// null = every brand
+  brandId    String?
+  brand      Brand?   @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  name       String
+  expression String
+  message    String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([module, active])
 }

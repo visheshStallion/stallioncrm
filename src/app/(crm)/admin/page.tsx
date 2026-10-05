@@ -1,8 +1,6 @@
-import { SetupLanding } from "@/components/crm/SetupLayout";
-import { SETUP_CATEGORIES } from "./setup-categories";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Setup" };
-
-export default function SetupHome() {
-  return <SetupLanding categories={SETUP_CATEGORIES} />;
+/** The Setup home moved to /setup (prompt 19); old links keep working. */
+export default function AdminHome() {
+  redirect("/setup");
 }

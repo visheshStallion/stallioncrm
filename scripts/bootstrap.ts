@@ -50,9 +50,9 @@ async function main() {
     if (existing) console.log(`Administrator ${email} already exists – left unchanged.`);
     else {
       const rootId = await ensureRootTerritory(prisma as never);
-      const user = await prisma.user.create({ data: { name, email, passwordHash: await hash(password), roleId: roles.get(ROLES.ADMIN)!, profileId: profile.id } });
+      const user = await prisma.user.create({ data: { name, email, passwordHash: await hash(password), roleId: roles.get(ROLES.ADMIN)!, profileId: profile.id, isSuperAdmin: true, passwordChangedAt: new Date() } });
       await prisma.territoryMember.create({ data: { userId: user.id, territoryId: rootId } });
-      console.log(`Administrator ${email} created. Sign in, change the password and switch on two-step sign-in.`);
+      console.log(`Super Admin ${email} created. Sign in, change the password, switch on two-step sign-in and appoint a second Super Admin (Setup → Administrators & Brand Admins): destructive operations need two.`);
     }
     console.log("Bootstrap complete: regions, roles, profiles and defaults are in place. Next: Setup → Brands.");
   } finally {

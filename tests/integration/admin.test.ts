@@ -135,8 +135,8 @@ describe("roles & profiles", () => {
 
   it("the last Administrator cannot be deactivated or demoted", async () => {
     const adminId = admin.userId;
-    // the seed has a second Administrator (superadmin): without it, `admin` is the last one
-    await unsafeDb.user.updateMany({ where: { email: "superadmin@stallioncrm.test" }, data: { active: false } });
+    // the seed has two more Administrators (superadmin, crmadmin): without them, `admin` is the last one
+    await unsafeDb.user.updateMany({ where: { email: { in: ["superadmin@stallioncrm.test", "crmadmin@stallioncrm.test"] } }, data: { active: false } });
     const mgmt = await unsafeDb.profile.findUniqueOrThrow({ where: { name: "Management" } });
     const user = await unsafeDb.user.findUniqueOrThrow({ where: { id: adminId } });
     await expect(
@@ -155,7 +155,11 @@ describe("roles & profiles", () => {
     });
     const secondCtx = (await loadAccessContext(second.id))!;
     await expect(svc.deactivateUser(admin, adminId)).rejects.toThrow(/yourself/);
-    await svc.deactivateUser(secondCtx, adminId);
+    // prompt 19: disabling an administrator is a four-eyes operation, and the last Super Admin stays
+    await expect(svc.deactivateUser(secondCtx, adminId)).rejects.toThrow(/second Super Admin/);
+    await expect(svc.deactivateUser(secondCtx, adminId, { fourEyesApproved: true })).rejects.toThrow(/last Super Admin/);
+    await unsafeDb.user.updateMany({ where: { email: "superadmin@stallioncrm.test" }, data: { active: true } });
+    await svc.deactivateUser(secondCtx, adminId, { fourEyesApproved: true });
     await expect(svc.deactivateUser(secondCtx, second.id)).rejects.toThrow(/yourself|last remaining/);
     await svc.activateUser(secondCtx, adminId);
   });

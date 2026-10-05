@@ -311,6 +311,21 @@ async function scopeBrandOwnedArgs(
 const WORKFLOW_MODELS = new Set(["Lead", "Deal", "Quote", "SalesOrder", "Case"]);
 const EVENT_MODELS = new Set(["Lead", "Deal", "Quote", "SalesOrder", "Invoice", "Case"]);
 
+/** Models with validation rules (src/server/modules/setup/service.ts RULE_MODULES). */
+const VALIDATED_MODELS = new Set(["Lead", "Deal", "Account", "Contact", "Case", "Quote", "SalesOrder", "Invoice"]);
+
+/** The scalar values of a write's `data` ({ set } unwrapped; relation writes and atomic number operations left out). */
+function plainScalars(data: Obj): Obj {
+  const out: Obj = {};
+  for (const [key, raw] of Object.entries(data)) {
+    const v = scalar(raw);
+    if (v === undefined) continue;
+    if (isObj(v) && !(v instanceof Date) && typeof (v as { toFixed?: unknown }).toFixed !== "function") continue;
+    out[key] = v;
+  }
+  return out;
+}
+
 const AUDITED: Record<string, AuditAction> = {
   create: "CREATE",
   createMany: "CREATE",
@@ -379,6 +394,12 @@ function buildScopedDb(ctx: AccessContext) {
           }
           if (finalArgs.include) finalArgs = { ...finalArgs, include: scopeSelection(model, finalArgs.include, filter) };
           if (finalArgs.select) finalArgs = { ...finalArgs, select: scopeSelection(model, finalArgs.select, filter) };
+        }
+
+        // Validation rules (prompt 19): the record as it would be saved must not match an active rule.
+        if (model && VALIDATED_MODELS.has(model) && (operation === "create" || operation === "update") && isObj(finalArgs.data)) {
+          const { enforceValidationRules } = await import("@/server/modules/setup/service");
+          await enforceValidationRules(model, { ...(before ?? {}), ...plainScalars(finalArgs.data) });
         }
 
         const [, , result] = await unsafeDb.$transaction([

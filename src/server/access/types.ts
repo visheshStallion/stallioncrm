@@ -45,6 +45,18 @@ export interface AccessContext {
   /** Brands the user may see (all non-inactive brands for scope ALL). Drives the brand switcher. */
   brandIds: string[];
   isAdmin: boolean;
+  /** Super Admin tier (prompt 19): the flag on the user AND the Administrator profile. */
+  isSuperAdmin?: boolean;
+  /** Brands this user administers as a delegated Brand Admin (Setup limited to those brands). */
+  brandAdminOf?: string[];
+  /** Setup functions (catalogue keys) the profile may open without being an Administrator. */
+  setupSections?: string[];
+  /** When the user's sessions were last revoked ("sign out all sessions"); checked against the session's login time. */
+  sessionsValidAfter?: Date | null;
+  /** When the password was last set (null = never recorded); the password policy may expire it. */
+  passwordChangedAt?: Date | null;
+  /** Two-step sign-in is switched on for this user (the MFA policy may require it). */
+  twoStep?: boolean;
   /** Client IP of the current request, used by audit(). */
   ip?: string | null;
   /**

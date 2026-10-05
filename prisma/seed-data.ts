@@ -222,6 +222,10 @@ export interface SeedUser {
   /** Territory memberships: "ROOT", "BRAND" (brand level) or "BRAND|Region". */
   territories: string[];
   manager?: string;
+  /** Super Admin tier (prompt 19) – needs the Administrator profile. */
+  superAdmin?: boolean;
+  /** Delegated Brand Admin of these brand codes. */
+  brandAdminOf?: string[];
 }
 
 const lagos = (b: string) => `${b}|Lagos`;
@@ -231,9 +235,11 @@ const regional = (region: RegionName, brands: readonly string[]) => brands.map((
 export const USERS: SeedUser[] = [
   { key: "md", name: "Kemi Adebayo", role: ROLES.MD, profile: PROFILES.MANAGEMENT, territories: ["ROOT"] },
   { key: "hos", name: "Chidi Okonkwo", role: ROLES.HOS, profile: PROFILES.MANAGEMENT, territories: ["ROOT"], manager: "md" },
-  { key: "admin", name: "Ifeoma Nwosu", role: ROLES.ADMIN, profile: PROFILES.ADMIN, territories: ["ROOT"] },
-  // super administrator: full Administrator profile on the root territory = every brand, every setup screen
-  { key: "superadmin", name: "Super Admin", role: ROLES.ADMIN, profile: PROFILES.ADMIN, territories: ["ROOT"] },
+  // Admin tiers (prompt 19): two Super Admins (destructive operations need both), one Administrator without the
+  // Super Admin functions, and a delegated Brand Admin of HMNL (further down).
+  { key: "admin", name: "Ifeoma Nwosu", role: ROLES.ADMIN, profile: PROFILES.ADMIN, territories: ["ROOT"], superAdmin: true },
+  { key: "superadmin", name: "Super Admin", role: ROLES.ADMIN, profile: PROFILES.ADMIN, territories: ["ROOT"], superAdmin: true },
+  { key: "crmadmin", name: "Tunde Fashola", role: ROLES.ADMIN, profile: PROFILES.ADMIN, territories: ["ROOT"] },
 
   { key: "bm.hmnl", name: "Bola Hassan", role: ROLES.BM, profile: PROFILES.BM, territories: ["HMNL"], manager: "hos" },
   { key: "bm.snmnl", name: "Emeka Obi", role: ROLES.BM, profile: PROFILES.BM, territories: ["SNMNL"], manager: "hos" },
@@ -280,6 +286,9 @@ export const USERS: SeedUser[] = [
   { key: "logistics.hmnl", name: "Obinna Eze", role: ROLES.LOGISTICS, profile: PROFILES.LOGISTICS, territories: ["HMNL"], manager: "bm.hmnl" },
   { key: "acct.hmnl", name: "Ronke Balogun", role: ROLES.ACCOUNTANT, profile: PROFILES.FINANCE, territories: ["HMNL"], manager: "bm.hmnl" },
   { key: "acct.snmnl", name: "Sani Abubakar", role: ROLES.ACCOUNTANT, profile: PROFILES.FINANCE, territories: ["SNMNL"], manager: "bm.snmnl" },
+
+  // delegated Brand Admin (prompt 19): an ordinary sales profile + Setup for the HMNL brand only
+  { key: "ba.hmnl", name: "Nkem Olatunji", role: ROLES.LAGOS_EXEC, profile: PROFILES.EXEC, territories: [lagos("HMNL")], manager: "bm.hmnl", brandAdminOf: ["HMNL"] },
 ];
 
 export const DEALS_PER_BRAND_REGION = 5;

@@ -4,7 +4,7 @@
  *  - Administrators: clear a lockout, reset a user's two-step sign-in, the quarterly access review.
  */
 import "server-only";
-import { NotFoundError } from "@/server/access/errors";
+import { ForbiddenError, NotFoundError } from "@/server/access/errors";
 import type { AccessContext } from "@/server/access/types";
 import { newTotpSecret, openSecret, otpauthUri, sealSecret, verifyTotp } from "@/server/auth/protection";
 import { audit } from "@/server/db";
@@ -49,6 +49,8 @@ export async function disableTwoStep(ctx: AccessContext, code: string): Promise<
   const s = await totpState(ctx.userId);
   const secret = s?.totpSecret && s.totpEnabledAt ? openSecret(s.totpSecret) : null;
   if (!secret) throw new BadRequestError("Two-step sign-in is not on");
+  const { getSetting } = await import("@/server/modules/setup/service");
+  if ((await getSetting("mfaPolicy")).requiredProfileIds.includes(ctx.profile.id)) throw new ForbiddenError("Two-step sign-in is required for your profile and cannot be switched off");
   if (!verifyTotp(secret, code)) throw new BadRequestError("That code is not correct");
   await storeTotp(ctx.userId, null, false);
   await audit({ ctx, action: "UPDATE", entity: "User", entityId: ctx.userId, after: { twoStep: "disabled" } });

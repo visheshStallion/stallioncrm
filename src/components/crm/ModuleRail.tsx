@@ -116,7 +116,7 @@ export function ModuleRail({
       </nav>
       <div className="crm-sidebar-group">
         {isAdmin ? (
-          <Link href="/admin" className="crm-sidebar-item" title="Setup" aria-current={pathname.startsWith("/admin") ? "page" : undefined}>
+          <Link href="/setup" className="crm-sidebar-item" title="Setup" aria-current={pathname.startsWith("/admin") || pathname.startsWith("/setup") ? "page" : undefined}>
             <Settings />
             <span className="crm-sidebar-label">Setup</span>
           </Link>

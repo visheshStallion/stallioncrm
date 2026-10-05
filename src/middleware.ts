@@ -37,7 +37,12 @@ export default async function middleware(req: NextRequest) {
     secret: process.env.AUTH_SECRET,
     secureCookie: req.nextUrl.protocol === "https:",
   });
-  if (token?.sub) return NextResponse.next();
+  if (token?.sub) {
+    // the security gate (two-step sign-in required, password expired) needs to know the page – see src/server/request.ts
+    const headers = new Headers(req.headers);
+    headers.set("x-crm-path", pathname);
+    return NextResponse.next({ request: { headers } });
+  }
 
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: { code: "UNAUTHENTICATED", message: "Not signed in" } }, { status: 401 });

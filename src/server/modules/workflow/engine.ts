@@ -333,5 +333,6 @@ export async function tick(now = new Date()) {
   const notifications = await import("@/server/modules/notifications/service");
   const staleDeals = await notifications.notifyStaleDeals((brandId) => automationContext(brandId), now);
   const digests = await notifications.sendDigests(now);
-  return { scheduled, ...jobs, reminders, autoApproved, expiredExports, expiredReservations, staleDeals, digests };
+  const purged = await (await import("@/server/modules/setup/maintenance")).setupMaintenance(now);
+  return { scheduled, ...jobs, reminders, autoApproved, expiredExports, expiredReservations, staleDeals, digests, purged };
 }

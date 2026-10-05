@@ -9,7 +9,8 @@ import { findActiveUserIdByEmail, findUserForLogin, recordLoginFailure, recordLo
 import { isRateLimited, rateLimit } from "@/server/rate-limit";
 import { logger } from "@/server/log";
 import { authConfig } from "./config";
-import { LOCKOUT_MINUTES, MAX_FAILED_LOGINS, openSecret, passwordLoginAllowed, verifyTotp } from "./protection";
+import { getSetting } from "@/server/modules/setup/service";
+import { openSecret, passwordLoginAllowed, verifyTotp } from "./protection";
 
 /** Shown to the user instead of the generic message (they reveal nothing an attacker does not know already). */
 class AccountLocked extends CredentialsSignin {
@@ -50,9 +51,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const keys = [[`login:ip:${ip ?? "unknown"}`, 30], [`login:email:${email}`, 10]] as const;
         if (keys.some(([k, n]) => isRateLimited(k, n, WINDOW))) throw new TooManyAttempts();
         const user = await findUserForLogin(email);
+        const agent = request?.headers.get("user-agent")?.slice(0, 200) ?? null;
+        // lockout rule of the password policy (Setup → Security Control)
+        const policy = await getSetting("passwordPolicy");
         const fail = async (reason: string) => {
           for (const [k, n] of keys) rateLimit(k, n, WINDOW);
-          await audit({ action: "LOGIN_FAILED", entity: "User", entityId: user?.id ?? null, userId: user?.id, ip, after: { email, reason } });
+          await audit({ action: "LOGIN_FAILED", entity: "User", entityId: user?.id ?? null, userId: user?.id, ip, after: { email, reason, agent } });
         };
         if (!user?.active || user.isIntegration || !user.passwordHash || !passwordLoginAllowed(email)) {
           // unknown, inactive, integration or SSO-only account: indistinguishable from a wrong password
@@ -65,7 +69,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           throw new AccountLocked();
         }
         if (!(await verify(user.passwordHash, password).catch(() => false))) {
-          const { locked } = await recordLoginFailure(user.id, MAX_FAILED_LOGINS, LOCKOUT_MINUTES);
+          const { locked } = await recordLoginFailure(user.id, policy.lockoutAttempts, policy.lockoutMinutes);
           await fail(locked ? "wrong password – account locked" : "wrong password");
           throw locked ? new AccountLocked() : new CredentialsSignin();
         }
@@ -74,13 +78,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (!code || !/[0-9]/.test(code)) throw new CodeRequired();
           const secret = openSecret(user.totpSecret);
           if (!secret || !verifyTotp(secret, code)) {
-            const { locked } = await recordLoginFailure(user.id, MAX_FAILED_LOGINS, LOCKOUT_MINUTES);
+            const { locked } = await recordLoginFailure(user.id, policy.lockoutAttempts, policy.lockoutMinutes);
             await fail(locked ? "wrong code – account locked" : "wrong code");
             throw locked ? new AccountLocked() : new CredentialsSignin();
           }
         }
         await recordLoginSuccess(user.id);
-        await audit({ action: "LOGIN", entity: "User", entityId: user.id, userId: user.id, ip, after: user.totpEnabledAt ? { twoStep: true } : undefined });
+        await audit({ action: "LOGIN", entity: "User", entityId: user.id, userId: user.id, ip, after: { agent, ...(user.totpEnabledAt ? { twoStep: true } : {}) } });
         return { id: user.id };
       },
     }),
@@ -114,7 +118,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!match) return {};
         await recordLoginSuccess(match.id);
         await audit({ action: "LOGIN", entity: "User", entityId: match.id, userId: match.id, after: { provider: "entra" } });
-        return { sub: match.id };
+        return { sub: match.id, lat: Date.now() };
       }
       return authConfig.callbacks.jwt({ token, user });
     },
