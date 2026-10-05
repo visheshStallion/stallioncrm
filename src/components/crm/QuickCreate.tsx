@@ -3,13 +3,14 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { createDealFormAction } from "@/server/modules/deals/actions";
 import { createLeadAction } from "@/server/modules/leads/actions";
 import type { QuickCreateItem } from "./nav-config";
-import { Drawer, DropdownMenu, MenuItem } from "./overlays";
+import { DropdownMenu, MenuItem, Modal } from "./overlays";
 
 export interface QuickCreateLookups {
   brands: Array<{ id: string; code: string; name: string }>;
@@ -59,7 +60,7 @@ function BrandRegion({ lookups }: { lookups: QuickCreateLookups }) {
   );
 }
 
-/** "+" Quick Create menu; Lead and Deal open a drawer with mandatory fields only. */
+/** "+" Quick Create menu; Lead and Deal open a centred popup with mandatory fields only. */
 export function QuickCreateMenu({ items, lookups }: { items: QuickCreateItem[]; lookups: QuickCreateLookups }) {
   const [drawer, setDrawer] = useState<string | null>(null);
   if (items.length === 0) return null;
@@ -74,7 +75,7 @@ export function QuickCreateMenu({ items, lookups }: { items: QuickCreateItem[]; 
             aria-expanded={open}
             aria-controls={id}
             aria-label="Quick create"
-            className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary-hover"
+            className="crm-quick-create"
             data-testid="quick-create"
           >
             <Plus className="h-4 w-4" />
@@ -83,7 +84,7 @@ export function QuickCreateMenu({ items, lookups }: { items: QuickCreateItem[]; 
       >
         {(close) => (
           <>
-            <div className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase text-text-muted">Quick create</div>
+            <div className="crm-menu-title">Quick create</div>
             {items.map((i) =>
               i.mode === "drawer" ? (
                 <MenuItem
@@ -105,8 +106,20 @@ export function QuickCreateMenu({ items, lookups }: { items: QuickCreateItem[]; 
         )}
       </DropdownMenu>
 
-      <Drawer open={drawer === "lead"} onClose={() => setDrawer(null)} title="Quick create: Lead">
-        <ActionForm action={createLeadAction} className="space-y-3">
+      <Modal
+        open={drawer === "lead"}
+        onClose={() => setDrawer(null)}
+        title="Quick create: Lead"
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => setDrawer(null)}>
+              Cancel
+            </Button>
+            <SubmitButton form="qc-lead-form">Save</SubmitButton>
+          </>
+        }
+      >
+        <ActionForm id="qc-lead-form" action={createLeadAction} className="space-y-3">
           <BrandRegion lookups={lookups} />
           <div className="space-y-1">
             <Label htmlFor="qc-lastName">
@@ -131,14 +144,23 @@ export function QuickCreateMenu({ items, lookups }: { items: QuickCreateItem[]; 
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="autoAssign" /> Assign automatically
           </label>
-          <div className="flex justify-end gap-2 border-t border-border pt-3">
-            <SubmitButton>Save</SubmitButton>
-          </div>
         </ActionForm>
-      </Drawer>
+      </Modal>
 
-      <Drawer open={drawer === "deal"} onClose={() => setDrawer(null)} title="Quick create: Deal">
-        <ActionForm action={createDealFormAction} className="space-y-3">
+      <Modal
+        open={drawer === "deal"}
+        onClose={() => setDrawer(null)}
+        title="Quick create: Deal"
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => setDrawer(null)}>
+              Cancel
+            </Button>
+            <SubmitButton form="qc-deal-form">Save</SubmitButton>
+          </>
+        }
+      >
+        <ActionForm id="qc-deal-form" action={createDealFormAction} className="space-y-3">
           <BrandRegion lookups={lookups} />
           <div className="space-y-1">
             <Label htmlFor="qc-dealName">
@@ -154,11 +176,8 @@ export function QuickCreateMenu({ items, lookups }: { items: QuickCreateItem[]; 
             <Label htmlFor="qc-amount">Amount (₦)</Label>
             <Input id="qc-amount" name="amount" type="number" min={0} step="1000" />
           </div>
-          <div className="flex justify-end gap-2 border-t border-border pt-3">
-            <SubmitButton>Save</SubmitButton>
-          </div>
         </ActionForm>
-      </Drawer>
+      </Modal>
     </>
   );
 }

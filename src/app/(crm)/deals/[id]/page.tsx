@@ -149,7 +149,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
           <Timeline entries={timeline.map((t) => ({ ...t, at: formatDateTime(t.at, df) }))} />
         </div>
       ) : (
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
           <RelatedNav
             items={[
               { id: "info", label: "Deal Information" },

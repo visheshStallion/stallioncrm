@@ -1,10 +1,9 @@
 "use client";
 
-import { ChevronsLeft, ChevronsRight, MoreHorizontal, Pin, PinOff, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsLeft, ChevronsRight, CircleHelp, MoreHorizontal, Pin, PinOff, Settings, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { BrandBadge } from "@/components/BrandBadge";
 import { BrandLogo } from "@/components/BrandLogo";
 import { toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
@@ -20,17 +19,29 @@ export interface RailPrefs {
   collapsed: boolean;
 }
 
+const SHORTCUTS: Array<[string, string]> = [
+  ["Ctrl K", "Search"],
+  ["c", "Create a record"],
+  ["e", "Edit the record"],
+  ["/", "Filter the list"],
+  ["j / k", "Next / previous record"],
+];
+
 /**
- * Dark, collapsible left module rail (64 px icons / 220 px icon + label). Items are the modules the
- * profile can read, in the user's saved order; unpinned modules live under "More".
+ * Dark left module rail (sidebar navigation mode): icons with a small label below, or icon + label in a row when
+ * pinned open. Items are the modules the profile can read, in the user's saved order; unpinned modules live under
+ * "More". Sizes come from the --w-sidebar* / --h-sidebar-item tokens.
  */
 export function ModuleRail({
   items,
   prefs,
   brand,
+  isAdmin = false,
 }: {
   items: RailItem[];
   prefs: RailPrefs;
+  /** Setup is offered at the bottom of the rail to administrators. */
+  isAdmin?: boolean;
   /** When a single brand is selected in the switcher, show it at the top. */
   brand?: { id: string; code: string; name: string; color: string | null; hasLogo: boolean } | null;
 }) {
@@ -56,21 +67,11 @@ export function ModuleRail({
     });
 
   const link = (i: RailItem) => (
-    <Link
-      key={i.key}
-      href={i.href}
-      title={collapsed ? i.label : undefined}
-      aria-current={active(i.href) ? "page" : undefined}
-      className={cn(
-        "flex h-9 items-center gap-3 rounded-md px-3 text-[13px] text-sidebar-fg hover:bg-sidebar-active/70 hover:text-sidebar-active-fg",
-        active(i.href) && "bg-sidebar-active font-semibold text-sidebar-active-fg",
-        collapsed && "justify-center px-0",
-      )}
-    >
-      <Icon name={i.icon} className="h-[18px] w-[18px] shrink-0" />
-      {collapsed ? <span className="sr-only">{i.label}</span> : <span className="truncate">{i.label}</span>}
-      {i.badge && !collapsed ? (
-        <span className="ml-auto rounded-full bg-danger px-1.5 text-[10px] font-semibold text-white" data-testid={`rail-badge-${i.key}`} title={`${i.badge} ${i.key === "approvals" ? "waiting for your decision" : "overdue"}`}>
+    <Link key={i.key} href={i.href} title={collapsed ? i.label : undefined} aria-current={active(i.href) ? "page" : undefined} className="crm-sidebar-item">
+      <Icon name={i.icon} />
+      <span className="crm-sidebar-label">{i.label}</span>
+      {i.badge ? (
+        <span className="crm-sidebar-badge" data-testid={`rail-badge-${i.key}`} title={`${i.badge} ${i.key === "approvals" ? "waiting for your decision" : "overdue"}`}>
           {i.badge > 99 ? "99+" : i.badge}
         </span>
       ) : null}
@@ -78,44 +79,34 @@ export function ModuleRail({
   );
 
   return (
-    <aside
-      className={cn("sticky top-0 hidden h-screen shrink-0 flex-col bg-sidebar transition-[width] md:flex", collapsed ? "w-16" : "w-[220px]")}
-      aria-label="Modules"
-      data-testid="module-rail"
-    >
-      <Link href="/" className={cn("flex h-[52px] items-center gap-2 border-b border-white/10 px-4 font-bold text-white", collapsed && "justify-center px-0")}>
-        <span className="flex h-7 w-7 items-center justify-center rounded bg-primary text-xs">SC</span>
+    <aside className="crm-sidebar hidden md:flex" data-open={!collapsed} aria-label="Modules" data-testid="module-rail">
+      <Link href="/" className="crm-sidebar-top">
+        <span className="crm-logo-mark">SC</span>
         {collapsed ? <span className="sr-only">StallionCRM</span> : <span>StallionCRM</span>}
       </Link>
       {brand ? (
-        <div className={cn("flex items-center gap-2 border-b border-white/10 px-4 py-2", collapsed && "justify-center px-1")} data-testid="rail-brand">
-          <BrandLogo brand={brand} showName={!collapsed} className="rounded-md bg-white px-1.5 py-1" />
-          {collapsed ? null : <BrandBadge brand={brand} className="bg-white" />}
+        <div className="crm-sidebar-brand" data-testid="rail-brand">
+          <BrandLogo brand={brand} showName={false} className="rounded-md bg-white p-0.5" />
+          <span className={cn("font-bold text-white", collapsed ? "text-[10px]" : "text-xs")}>{brand.code}</span>
         </div>
       ) : null}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto p-2" data-testid="module-nav">
+      <nav className="crm-sidebar-nav" data-testid="module-nav">
         {visible.map(link)}
         {more.length ? (
           <DropdownMenu
             label="More modules"
             align="left"
-            className="left-full top-0 ml-2"
+            className="left-full top-0 ml-1 mt-0"
             trigger={({ toggle, open, id }) => (
-              <button
-                type="button"
-                onClick={toggle}
-                aria-expanded={open}
-                aria-controls={id}
-                className={cn("flex h-9 w-full items-center gap-3 rounded-md px-3 text-[13px] text-sidebar-fg hover:bg-sidebar-active/70", collapsed && "justify-center px-0")}
-              >
-                <MoreHorizontal className="h-[18px] w-[18px]" />
-                {collapsed ? <span className="sr-only">More</span> : "More"}
+              <button type="button" onClick={toggle} aria-expanded={open} aria-controls={id} className="crm-sidebar-item crm-sidebar-group">
+                <MoreHorizontal />
+                <span className="crm-sidebar-label">More</span>
               </button>
             )}
           >
             {(close) =>
               more.map((i) => (
-                <Link key={i.key} href={i.href} role="menuitem" onClick={close} className="flex items-center gap-2 rounded px-2.5 py-1.5 hover:bg-muted">
+                <Link key={i.key} href={i.href} role="menuitem" onClick={close} className="crm-menu-item">
                   <Icon name={i.icon} className="h-4 w-4" /> {i.label}
                 </Link>
               ))
@@ -123,14 +114,39 @@ export function ModuleRail({
           </DropdownMenu>
         ) : null}
       </nav>
-      <div className={cn("flex items-center gap-1 border-t border-white/10 p-2", collapsed && "flex-col")}>
-        <button
-          type="button"
-          onClick={() => setCustomizing(true)}
-          className="rounded px-2 py-1 text-xs text-sidebar-fg hover:bg-sidebar-active/70"
-          title="Reorder and pin modules"
+      <div className="crm-sidebar-group">
+        {isAdmin ? (
+          <Link href="/admin" className="crm-sidebar-item" title="Setup" aria-current={pathname.startsWith("/admin") ? "page" : undefined}>
+            <Settings />
+            <span className="crm-sidebar-label">Setup</span>
+          </Link>
+        ) : null}
+        <DropdownMenu
+          label="Help"
+          align="left"
+          className="bottom-0 left-full ml-1 mt-0 w-64"
+          trigger={({ toggle, open, id }) => (
+            <button type="button" onClick={toggle} aria-expanded={open} aria-controls={id} className="crm-sidebar-item" title="Help and keyboard shortcuts">
+              <CircleHelp />
+              <span className="crm-sidebar-label">Help</span>
+            </button>
+          )}
         >
-          {collapsed ? "⋮" : "Customize"}
+          <div className="crm-menu-title">Keyboard shortcuts</div>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 px-3 pb-2 text-xs">
+            {SHORTCUTS.map(([k, what]) => (
+              <div key={k} className="contents">
+                <dt>
+                  <kbd className="crm-kbd">{k}</kbd>
+                </dt>
+                <dd className="text-text-muted">{what}</dd>
+              </div>
+            ))}
+          </dl>
+        </DropdownMenu>
+        <button type="button" onClick={() => setCustomizing(true)} className="crm-sidebar-item" title="Reorder and pin modules">
+          <SlidersHorizontal />
+          <span className="crm-sidebar-label">Customize</span>
         </button>
         <button
           type="button"
@@ -140,9 +156,11 @@ export function ModuleRail({
             save({ collapsed: next });
           }}
           aria-label={collapsed ? "Expand module rail" : "Collapse module rail"}
-          className="ml-auto rounded p-1 text-sidebar-fg hover:bg-sidebar-active/70"
+          aria-pressed={!collapsed}
+          className="crm-sidebar-item"
         >
-          {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+          {collapsed ? <ChevronsRight /> : <ChevronsLeft />}
+          <span className="crm-sidebar-label">{collapsed ? "Pin open" : "Collapse"}</span>
         </button>
       </div>
 

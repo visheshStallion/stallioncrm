@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { Settings2 } from "lucide-react";
 
 export interface SetupCategory {
   key: string;
@@ -22,13 +22,18 @@ export function SetupLanding({ categories }: { categories: SetupCategory[] }) {
     .filter((c) => c.items.length);
   return (
     <div className="space-y-4" data-testid="setup-landing">
-      <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search setup" className="max-w-sm" aria-label="Search setup" />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search setup" className="max-w-80" aria-label="Search setup" />
+      <div className="crm-setup-grid">
         {visible.map((c) => (
-          <section key={c.key} className="rounded-lg border border-border bg-surface p-4" data-testid="setup-category">
-            <h2 className="font-semibold">{c.title}</h2>
-            <p className="mb-2 text-xs text-text-muted">{c.description}</p>
-            <ul className="space-y-1 text-[13px]">
+          <section key={c.key} className="crm-setup-card" data-testid="setup-category">
+            <h2 className="crm-setup-card-title">
+              <span className="crm-setup-card-icon" aria-hidden="true">
+                <Settings2 className="h-4 w-4" />
+              </span>
+              {c.title}
+            </h2>
+            <p className="mb-2 mt-1 text-xs text-text-muted">{c.description}</p>
+            <ul className="space-y-1 text-sm">
               {c.items.map((i) => (
                 <li key={i.href}>
                   {i.available ? (
@@ -56,8 +61,8 @@ export function SetupLayout({ categories, children }: { categories: SetupCategor
   if (pathname === "/admin") return <>{children}</>;
   return (
     <div className="flex items-start gap-4">
-      <nav className="sticky top-[68px] w-56 shrink-0 rounded-lg border border-border bg-surface p-2 text-[13px]" aria-label="Setup sections" data-testid="setup-nav">
-        <Link href="/admin" className="mb-1 block rounded px-2 py-1 font-semibold hover:bg-muted">
+      <nav className="crm-subnav hidden lg:block" aria-label="Setup sections" data-testid="setup-nav">
+        <Link href="/admin" className="crm-subnav-item font-bold">
           ← Setup
         </Link>
         {categories.map((c) => {
@@ -65,13 +70,13 @@ export function SetupLayout({ categories, children }: { categories: SetupCategor
           if (!items.length) return null;
           return (
             <div key={c.key} className="mt-2">
-              <div className="px-2 pb-1 text-[11px] font-semibold uppercase text-text-muted">{c.title}</div>
+              <div className="crm-menu-title px-2">{c.title}</div>
               {items.map((i) => (
                 <Link
                   key={i.href}
                   href={i.href}
                   aria-current={pathname === i.href ? "page" : undefined}
-                  className={cn("block rounded px-2 py-1 hover:bg-muted", pathname === i.href && "bg-primary/10 font-semibold text-primary")}
+                  className="crm-subnav-item"
                 >
                   {i.label}
                 </Link>

@@ -1,7 +1,7 @@
 import type { Decorator, Preview } from "@storybook/react-vite";
 import "../src/app/globals.css";
 
-/** Light/dark and comfortable/compact variants from the toolbar. */
+/** Light/dark and standard/comfortable/compact variants from the toolbar. */
 const withTheme: Decorator = (Story, ctx) => {
   const html = document.documentElement;
   html.classList.toggle("dark", ctx.globals.theme === "dark");
@@ -22,10 +22,10 @@ const preview: Preview = {
     },
     density: {
       description: "Table density",
-      toolbar: { title: "Density", icon: "component", items: ["comfortable", "compact"], dynamicTitle: true },
+      toolbar: { title: "Density", icon: "component", items: ["standard", "comfortable", "compact"], dynamicTitle: true },
     },
   },
-  initialGlobals: { theme: "light", density: "comfortable" },
+  initialGlobals: { theme: "light", density: "standard" },
   parameters: { layout: "fullscreen", controls: { expanded: true } },
 };
 export default preview;

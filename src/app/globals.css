@@ -1,109 +1,84 @@
 @import "tailwindcss";
+@import "@fontsource/lato/400.css";
+@import "@fontsource/lato/700.css";
 @import "@fontsource-variable/inter";
+@import "../styles/tokens.css";
+@import "../styles/crm.css";
 
 /* Dark mode follows the `.dark` class on <html> (set from the user's theme preference). */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ───────────────────────── Design tokens (docs/DESIGN_SYSTEM.md) ───────────────────────── */
-:root {
-  --primary: #1565d0; /* prompt 17 suggests #1A73E8; darkened for WCAG AA on tinted fills */
-  --primary-hover: #114fa3;
-  --primary-foreground: #ffffff;
-  --surface: #ffffff;
-  --canvas: #f4f6f9;
-  --sidebar-bg: #1f2a3c;
-  --sidebar-fg: #c9d1dd;
-  --sidebar-active-fg: #ffffff;
-  --sidebar-active-bg: #2e3b52;
-  --border: #e3e7ed;
-  --text: #1f2937;
-  --text-muted: #5b6472;
-  --muted: #f1f4f8;
-  --success: #1e9e5a;
-  --warning: #f59e0b;
-  --danger: #e5484d;
-  --info: #0ea5e9;
-  --ring: #1565d0;
-  --radius-control: 4px;
-  --radius-card: 6px;
-  --row-height: 40px;
-  --topbar-height: 52px;
-  color-scheme: light;
-}
-
-.dark {
-  --primary: #4c95f0;
-  --primary-hover: #74adf4;
-  --primary-foreground: #0b1220;
-  --surface: #161d2b;
-  --canvas: #0e1420;
-  --sidebar-bg: #0b111c;
-  --sidebar-fg: #aab4c3;
-  --sidebar-active-fg: #ffffff;
-  --sidebar-active-bg: #23304a;
-  --border: #2a3446;
-  --text: #e5e9f0;
-  --text-muted: #9aa5b5;
-  --muted: #1d2636;
-  --success: #3ccf86;
-  --warning: #fbbf24;
-  --danger: #f87171;
-  --info: #38bdf8;
-  --ring: #74adf4;
-  color-scheme: dark;
-}
-
-[data-density="compact"] {
-  --row-height: 32px;
-}
-
+/* Tailwind theme = the tokens of src/styles/tokens.css (docs/DESIGN_SYSTEM.md, docs/ZOHO_LAYOUT_SPEC.md). */
 @theme inline {
-  /* new names */
-  --color-canvas: var(--canvas);
-  --color-surface: var(--surface);
-  --color-text: var(--text);
-  --color-text-muted: var(--text-muted);
-  --color-primary-hover: var(--primary-hover);
-  --color-sidebar: var(--sidebar-bg);
-  --color-sidebar-fg: var(--sidebar-fg);
-  --color-sidebar-active: var(--sidebar-active-bg);
-  --color-sidebar-active-fg: var(--sidebar-active-fg);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-danger: var(--danger);
-  --color-info: var(--info);
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-surface-alt: var(--c-surface-alt);
+  --color-text: var(--c-text);
+  --color-text-muted: var(--c-text-muted);
+  --color-text-subtle: var(--c-text-subtle);
+  --color-primary: var(--c-primary);
+  --color-primary-hover: var(--c-primary-hover);
+  --color-primary-soft: var(--c-primary-soft);
+  --color-primary-foreground: var(--c-primary-contrast);
+  --color-link: var(--c-link);
+  --color-border: var(--c-border);
+  --color-border-strong: var(--c-border-strong);
+  --color-sidebar: var(--c-sidebar);
+  --color-sidebar-fg: var(--c-sidebar-text);
+  --color-sidebar-active: var(--c-sidebar-active-bg);
+  --color-sidebar-active-fg: var(--c-sidebar-active);
+  --color-success: var(--c-success);
+  --color-warning: var(--c-warning);
+  --color-danger: var(--c-danger);
+  --color-info: var(--c-info);
   /* names used by the shadcn-style primitives */
-  --color-background: var(--canvas);
-  --color-foreground: var(--text);
-  --color-card: var(--surface);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--text-muted);
-  --color-border: var(--border);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-ring: var(--ring);
-  --radius-md: var(--radius-control);
-  --radius-lg: var(--radius-card);
-  --font-sans: "Inter Variable", Lato, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-
-html {
-  font-size: 14px;
+  --color-background: var(--c-canvas);
+  --color-foreground: var(--c-text);
+  --color-card: var(--c-surface);
+  --color-muted: var(--c-surface-alt);
+  --color-muted-foreground: var(--c-text-muted);
+  --color-ring: var(--c-primary);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
+  --shadow-sm: var(--shadow-card);
+  --shadow-lg: var(--shadow-pop);
+  --shadow-xl: var(--shadow-modal);
+  --font-sans: var(--font-sans);
+  /* 4px grid at the 13px baseline; text sizes follow the type scale */
+  --spacing: calc(4rem / 13);
+  --text-xs: var(--fs-xs);
+  --text-xs--line-height: 1.4;
+  --text-sm: var(--fs-base);
+  --text-sm--line-height: 1.45;
+  --text-base: var(--fs-md);
+  --text-base--line-height: 1.5;
+  --text-lg: var(--fs-lg);
+  --text-lg--line-height: 1.4;
+  --text-xl: var(--fs-xl);
+  --text-xl--line-height: 1.35;
+  --text-2xl: var(--fs-title);
+  --text-2xl--line-height: 1.3;
 }
 
 body {
-  background: var(--canvas);
-  color: var(--text);
+  background: var(--c-canvas);
+  color: var(--c-text);
   font-family: var(--font-sans);
-  font-feature-settings: "cv11", "ss01";
+  font-size: var(--fs-base);
 }
 
-* {
-  border-color: var(--border);
+/* in the base layer, so a border colour set by a component class or a utility wins */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--c-border);
+  }
 }
 
 :focus-visible {
-  outline: 2px solid var(--ring);
+  outline: 2px solid var(--c-primary);
   outline-offset: 1px;
 }
 
@@ -115,12 +90,4 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* Dense CRM tables: 13px text, token-driven row height. */
-.crm-table {
-  font-size: 13px;
-}
-.crm-table tbody tr {
-  height: var(--row-height);
 }

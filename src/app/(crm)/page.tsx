@@ -18,16 +18,16 @@ export const metadata = { title: "Home" };
 
 function Widget({ title, href, children, testId }: { title: string; href?: string; children: ReactNode; testId?: string }) {
   return (
-    <section className="flex flex-col rounded-lg border border-border bg-surface" data-testid={testId ?? "home-widget"}>
-      <header className="flex items-center border-b border-border px-4 py-2.5">
-        <h2 className="text-[13px] font-semibold">{title}</h2>
+    <section className="crm-card col-span-12 flex flex-col md:col-span-6 xl:col-span-4" data-testid={testId ?? "home-widget"}>
+      <header className="crm-card-header">
+        <h2>{title}</h2>
         {href ? (
-          <Link href={href} className="ml-auto text-xs text-primary hover:underline">
+          <Link href={href} className="ml-auto text-xs font-normal text-primary hover:underline">
             View all
           </Link>
         ) : null}
       </header>
-      <div className="flex-1 p-4 text-[13px]">{children}</div>
+      <div className="flex-1 p-4 text-sm">{children}</div>
     </section>
   );
 }
@@ -111,7 +111,7 @@ export default async function HomePage() {
         title={`Welcome, ${ctx.user.name.split(" ")[0]}`}
         left={<span className="text-[13px] text-text-muted">{ctx.user.roleName} · {ctx.scope === "ALL" ? "all brands & regions" : `${ctx.memberships.length} territor${ctx.memberships.length === 1 ? "y" : "ies"}`}</span>}
       />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="home-widgets">
+      <div className="crm-widget-grid" data-testid="home-widgets">
         {canActivities ? (
           <Widget title="My open tasks" href="/activities" testId="widget-tasks">
             {myTasks.rows.length ? (

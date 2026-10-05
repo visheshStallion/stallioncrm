@@ -17,7 +17,7 @@ const TONES: Record<Tone, string> = {
 /** Status pill (stage, status, approval state). */
 export function StatusPill({ tone = "neutral", children, className }: { tone?: Tone; children: ReactNode; className?: string }) {
   return (
-    <span data-testid="status-pill" className={cn("inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold", TONES[tone], className)}>
+    <span data-testid="status-pill" className={cn("crm-pill", TONES[tone], className)}>
       {children}
     </span>
   );
@@ -29,7 +29,7 @@ export function Avatar({ name, size = 24, className }: { name: string; size?: nu
   return (
     <span
       title={name}
-      className={cn("inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white", className)}
+      className={cn("crm-avatar", className)}
       style={{ width: size, height: size, fontSize: Math.max(9, size * 0.4), backgroundColor: bg }}
     >
       {initials(name)}
@@ -61,7 +61,7 @@ export function EmptyState({ title, text, actions }: { title: string; text?: str
         <path d="M89 20h10M94 15v10" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
       </svg>
       <div>
-        <p className="font-semibold">{title}</p>
+        <p className="crm-empty-title">{title}</p>
         {text ? <p className="mt-1 text-sm text-text-muted">{text}</p> : null}
       </div>
       {actions ? <div className="flex gap-2">{actions}</div> : null}
@@ -71,14 +71,14 @@ export function EmptyState({ title, text, actions }: { title: string; text?: str
 
 /** Brand colour stripe (left edge of kanban cards / record headers). */
 export function BrandStripe({ brand, className }: { brand?: { code: string; color?: string | null } | null; className?: string }) {
-  return <span aria-hidden="true" className={cn("absolute inset-y-0 left-0 w-1 rounded-l-[inherit]", className)} style={{ backgroundColor: brand ? brandColor(brand) : "transparent" }} />;
+  return <span aria-hidden="true" className={cn("absolute inset-y-0 left-0 w-[3px] rounded-l-[inherit]", className)} style={{ backgroundColor: brand ? brandColor(brand) : "transparent" }} />;
 }
 
 /** Page title row inside the content (breadcrumb-less, like the reference CRM). */
 export function PageTitleRow({ title, left, actions }: { title: ReactNode; left?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-3">
-      <h1 className="text-[20px] font-semibold leading-tight">{title}</h1>
+    <div className="crm-page-title">
+      <h1>{title}</h1>
       {left}
       <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
     </div>

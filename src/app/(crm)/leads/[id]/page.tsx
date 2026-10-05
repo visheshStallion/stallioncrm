@@ -121,7 +121,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           />
         </div>
       ) : (
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
           <RelatedNav
             items={[
               { id: "info", label: "Lead Information" },

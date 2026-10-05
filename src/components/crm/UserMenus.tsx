@@ -12,7 +12,7 @@ import type { Preferences } from "@/server/modules/preferences/schema";
 import { DropdownMenu } from "./overlays";
 import { Avatar } from "./primitives";
 
-const iconBtn = "flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-muted hover:text-text";
+const iconBtn = "crm-icon-btn";
 
 export interface NotificationItem {
   id: string;
@@ -37,11 +37,9 @@ export function NotificationsBell({ count, items = [] }: { count: number; items?
     <DropdownMenu
       label="Notifications"
       trigger={({ toggle, open, id }) => (
-        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={id} aria-label={`Notifications (${count})`} className={cn(iconBtn, "relative")}>
-          <Bell className="h-4 w-4" />
-          {count > 0 ? (
-            <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-danger px-1 text-[10px] font-semibold text-white">{count > 99 ? "99+" : count}</span>
-          ) : null}
+        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={id} aria-label={`Notifications (${count})`} className={iconBtn}>
+          <Bell />
+          {count > 0 ? <span className="crm-count">{count > 99 ? "99+" : count}</span> : null}
         </button>
       )}
     >
@@ -95,7 +93,7 @@ export function NotificationsBell({ count, items = [] }: { count: number; items?
 export function CalendarShortcut() {
   return (
     <Link href="/activities?view=calendar" className={iconBtn} aria-label="Calendar" title="Calendar">
-      <Calendar className="h-4 w-4" />
+      <Calendar />
     </Link>
   );
 }
@@ -103,7 +101,7 @@ export function CalendarShortcut() {
 export function SetupGear() {
   return (
     <Link href="/admin" className={iconBtn} aria-label="Setup" title="Setup" data-testid="setup-gear">
-      <Settings className="h-4 w-4" />
+      <Settings />
     </Link>
   );
 }
@@ -115,7 +113,7 @@ export function AvatarMenu({
   logout,
 }: {
   user: { name: string; email: string; roleName: string; profileName: string };
-  prefs: Pick<Preferences, "theme" | "density" | "dateFormat">;
+  prefs: Pick<Preferences, "theme" | "density" | "dateFormat" | "nav">;
   logout: () => Promise<void>;
 }) {
   const router = useRouter();
@@ -151,7 +149,7 @@ export function AvatarMenu({
       trigger={({ toggle, open, id }) => (
         <button type="button" onClick={toggle} aria-expanded={open} aria-controls={id} aria-label="Account menu" className="flex items-center gap-2 rounded-md px-1 py-0.5 hover:bg-muted" data-testid="avatar-menu">
           <Avatar name={user.name} size={28} />
-          <span className="hidden text-left leading-tight lg:block">
+          <span className="hidden text-left leading-tight xl:block">
             <span className="block text-[13px] font-medium" data-testid="current-user">
               {user.name}
             </span>
@@ -177,8 +175,14 @@ export function AvatarMenu({
         ])}
         <div className="text-[11px] font-semibold uppercase text-text-muted">Density</div>
         {seg("density", [
+          ["standard", "Standard"],
           ["comfortable", "Comfortable"],
           ["compact", "Compact"],
+        ])}
+        <div className="text-[11px] font-semibold uppercase text-text-muted">Navigation</div>
+        {seg("nav", [
+          ["sidebar", "Sidebar"],
+          ["classic", "Classic tabs"],
         ])}
         <div className="text-[11px] font-semibold uppercase text-text-muted">Date format</div>
         {seg("dateFormat", [

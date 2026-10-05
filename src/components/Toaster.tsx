@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
 
 type Toast = { id: number; message: string; variant: "error" | "success" | "info" };
 const EVENT = "crm:toast";
@@ -24,7 +23,7 @@ export function Toaster() {
     const onToast = (e: Event) => {
       const t = { id: ++id, ...(e as CustomEvent).detail } as Toast;
       setToasts((xs) => [...xs, t]);
-      setTimeout(() => setToasts((xs) => xs.filter((x) => x.id !== t.id)), 5000);
+      setTimeout(() => setToasts((xs) => xs.filter((x) => x.id !== t.id)), 4000);
     };
     window.addEventListener(EVENT, onToast);
     return () => window.removeEventListener(EVENT, onToast);
@@ -36,15 +35,8 @@ export function Toaster() {
       aria-live="polite"
     >
       {toasts.map((t) => (
-        <div
-          key={t.id}
-          className={cn(
-            "pointer-events-auto rounded-md border px-4 py-3 text-sm shadow-lg",
-            t.variant === "error" && "border-red-200 bg-red-50 text-red-800",
-            t.variant === "success" && "border-emerald-200 bg-emerald-50 text-emerald-800",
-            t.variant === "info" && "border-border bg-card",
-          )}
-        >
+        <div key={t.id} className="crm-toast" data-variant={t.variant} data-testid="toast">
+          <span className="crm-toast-dot" aria-hidden="true" />
           {t.message}
         </div>
       ))}

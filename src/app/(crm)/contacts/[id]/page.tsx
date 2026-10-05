@@ -61,7 +61,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
           ) : null
         }
       />
-      <div className="flex items-start gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <RelatedNav
           items={[
             { id: "info", label: "Contact Information" },

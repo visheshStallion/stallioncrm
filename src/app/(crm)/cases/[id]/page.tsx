@@ -84,7 +84,7 @@ export default async function CasePage({ params }: { params: Promise<{ id: strin
           ) : null
         }
       />
-      <div className="flex items-start gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <RelatedNav
           items={[
             { id: "info", label: "Case Information" },

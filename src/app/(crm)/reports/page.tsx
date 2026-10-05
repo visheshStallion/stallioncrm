@@ -23,7 +23,7 @@ export default async function ReportsPage() {
     { key: "group", title: "Group folder", hint: "Shared with everyone.", rows: reports.filter((r) => !r.standard && r.folder === "GROUP") },
   ];
   return (
-    <div className="mx-auto max-w-6xl">
+    <div>
       <PageTitleRow
         title="Reports"
         actions={
@@ -36,19 +36,29 @@ export default async function ReportsPage() {
           ) : null
         }
       />
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <nav className="crm-subnav hidden lg:block" aria-label="Report folders" data-testid="report-folders">
+          <div className="crm-menu-title px-2">Folders</div>
+          {folders.map((f) => (
+            <a key={f.key} href={`#folder-${f.key}`} className="crm-subnav-item justify-between gap-2">
+              {f.title}
+              <span className="crm-kanban-count bg-surface-alt">{f.rows.length}</span>
+            </a>
+          ))}
+        </nav>
+        <div className="min-w-0 flex-1 space-y-4">
         {folders.map((f) => (
-          <section key={f.key} className="rounded-lg border border-border bg-surface" data-testid={`folder-${f.key}`}>
-            <header className="flex items-baseline gap-2 border-b border-border px-4 py-2.5">
-              <h2 className="text-[13px] font-semibold">{f.title}</h2>
-              <span className="text-xs text-text-muted">{f.hint}</span>
+          <section key={f.key} id={`folder-${f.key}`} className="crm-related-card" data-testid={`folder-${f.key}`}>
+            <header className="crm-card-header">
+              <h2>{f.title}</h2>
+              <span className="text-xs font-normal text-text-muted">{f.hint}</span>
             </header>
             {f.rows.length === 0 ? (
               <EmptyState title="No reports in this folder" />
             ) : (
               <ul className="divide-y divide-border">
                 {f.rows.map((r) => (
-                  <li key={r.id} className="flex items-center gap-3 px-4 py-2 text-[13px]">
+                  <li key={r.id} className="flex min-h-10 items-center gap-3 px-4 text-sm">
                     <Link href={`/reports/${r.key ?? r.id}`} className="font-medium text-primary hover:underline">
                       {r.name}
                     </Link>
@@ -62,6 +72,7 @@ export default async function ReportsPage() {
             )}
           </section>
         ))}
+        </div>
       </div>
     </div>
   );

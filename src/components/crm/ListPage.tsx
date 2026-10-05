@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronLeft, ChevronRight, Filter, LayoutGrid, List, PanelLeftClose, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -38,7 +38,7 @@ export function ViewSelector({ views, current, onSaveCurrent }: { views: ViewOpt
       label="Views"
       align="left"
       trigger={({ toggle, open, id }) => (
-        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={id} className="flex items-center gap-1 rounded-md px-2 py-1 text-[20px] font-semibold hover:bg-muted" data-testid="view-selector">
+        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={id} className="crm-view-title" data-testid="view-selector">
           {active?.name} <ChevronDown className="h-4 w-4" />
         </button>
       )}
@@ -50,7 +50,7 @@ export function ViewSelector({ views, current, onSaveCurrent }: { views: ViewOpt
             if (!list.length) return null;
             return (
               <div key={g}>
-                <div className="px-2.5 pb-1 pt-2 text-[11px] font-semibold uppercase text-text-muted">{g === "system" ? "System views" : "My views"}</div>
+                <div className="crm-menu-title">{g === "system" ? "System views" : "My views"}</div>
                 {list.map((v) => (
                   <MenuItem
                     key={v.id}
@@ -96,13 +96,12 @@ export function LayoutToggle({ layout }: { layout: "list" | "kanban" }) {
     p.delete("page");
     return `${pathname}?${p.toString()}`;
   };
-  const cls = (on: boolean) => cn("flex h-8 items-center gap-1 px-2.5 text-[13px]", on ? "bg-primary/10 font-semibold text-primary" : "hover:bg-muted");
   return (
-    <div className="flex overflow-hidden rounded-md border border-border bg-surface" role="group" aria-label="Layout">
-      <Link href={href("list")} className={cls(layout === "list")} aria-current={layout === "list" ? "page" : undefined}>
+    <div className="crm-segment" role="group" aria-label="Layout">
+      <Link href={href("list")} aria-current={layout === "list" ? "page" : undefined}>
         <List className="h-4 w-4" /> List
       </Link>
-      <Link href={href("kanban")} className={cls(layout === "kanban")} aria-current={layout === "kanban" ? "page" : undefined}>
+      <Link href={href("kanban")} aria-current={layout === "kanban" ? "page" : undefined}>
         <LayoutGrid className="h-4 w-4" /> Kanban
       </Link>
     </div>
@@ -113,7 +112,7 @@ export function LayoutToggle({ layout }: { layout: "list" | "kanban" }) {
 export function CreateSplitButton({ label, href, importHref }: { label: string; href: string; importHref?: string }) {
   return (
     <div className="flex">
-      <Button asChild className={cn(importHref && "rounded-r-none")}>
+      <Button asChild className={cn(importHref && "crm-btn-split-main")}>
         <Link href={href} data-shortcut="create">
           {label}
         </Link>
@@ -122,7 +121,7 @@ export function CreateSplitButton({ label, href, importHref }: { label: string; 
         <DropdownMenu
           label={`${label} options`}
           trigger={({ toggle, open, id }) => (
-            <Button type="button" onClick={toggle} aria-expanded={open} aria-controls={id} aria-label="More create options" className="rounded-l-none border-l border-white/30 px-2">
+            <Button type="button" onClick={toggle} aria-expanded={open} aria-controls={id} aria-label="More create options" className="crm-btn-split-caret">
               <ChevronDown className="h-4 w-4" />
             </Button>
           )}
@@ -149,9 +148,12 @@ export function ActionsMenu({ children }: { children: ReactNode }) {
   );
 }
 
+/** Open / closed state of the filter panel, owned by ModuleListFrame (toolbar toggle, remembered per module). */
+const FilterOpen = createContext<{ open: boolean; setOpen: (open: boolean) => void } | null>(null);
+
 /**
- * Left filter panel (260 px, collapsible): search, system-defined filters, field filters with operators.
- * Applies by rewriting the URL (`q`, `sys`, `f=field~op~value[~value2]`).
+ * Left filter panel (--w-filter, collapsible): search, system-defined filters, field filters with operators.
+ * Applies by rewriting the URL (`q`, `sys`, `f=field~op~value[~value2]`). Below 1280px it lies over the table.
  */
 export function FilterPanel({
   fields,
@@ -164,16 +166,21 @@ export function FilterPanel({
   systemFilters: Array<{ key: string; label: string }>;
   searchPlaceholder?: string;
 }) {
-  const { sp, push } = useUrl();
-  const [open, setOpen] = useState(true);
+  const { sp, push, pathname } = useUrl();
+  const shared = useContext(FilterOpen);
+  const [localOpen, setLocalOpen] = useState(true);
+  const open = shared ? shared.open : localOpen;
+  const setOpen = shared ? shared.setOpen : setLocalOpen;
+  const moduleLabel = (pathname.split("/")[1] ?? "records").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
   const [q, setQ] = useState(sp.get("q") ?? "");
   const [sys, setSys] = useState(sp.get("sys") ?? "");
   const [fieldQuery, setFieldQuery] = useState("");
   const [conds, setConds] = useState<Record<string, Condition>>(() => Object.fromEntries(conditions.map((c) => [c.field, c])));
 
   if (!open) {
-    return (
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} aria-label="Show filters" className="self-start">
+    // the toolbar of ModuleListFrame carries the toggle; standalone panels show their own button
+    return shared ? null : (
+      <Button type="button" variant="outline" size="icon" onClick={() => setOpen(true)} aria-label="Show filters" className="self-start">
         <Filter className="h-4 w-4" />
       </Button>
     );
@@ -197,50 +204,50 @@ export function FilterPanel({
   };
 
   return (
-    <aside className="w-[260px] shrink-0 self-start rounded-lg border border-border bg-surface" aria-label="Filters" data-testid="filter-panel">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <span className="text-[13px] font-semibold">Filter records</span>
+    <aside className={cn("crm-filter", !shared && "self-start rounded-md border border-border")} aria-label="Filters" data-testid="filter-panel">
+      <div className="crm-filter-title">
+        <span>Filter {moduleLabel} by</span>
         <button type="button" onClick={() => setOpen(false)} aria-label="Hide filters" className="text-text-muted hover:text-text">
           <PanelLeftClose className="h-4 w-4" />
         </button>
       </div>
-      <div className="space-y-3 p-3 text-[13px]">
+      <div className="crm-filter-scroll space-y-2">
         <div className="relative">
-          <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-text-muted" />
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" />
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && apply()}
             placeholder={searchPlaceholder}
-            className="h-9 pl-8"
+            className="pl-8"
             aria-label="Search records"
             data-shortcut="filter"
           />
         </div>
-        <details open className="space-y-1">
-          <summary className="cursor-pointer font-semibold">System defined filters</summary>
+        <details open className="crm-filter-section">
+          <summary>System Defined Filters</summary>
           {systemFilters.map((s) => (
-            <label key={s.key} className="flex items-center gap-2 py-0.5">
+            <label key={s.key} className="crm-filter-row">
               <input type="radio" name="sys" checked={sys === s.key} onChange={() => setSys(s.key)} />
               {s.label}
             </label>
           ))}
-          <label className="flex items-center gap-2 py-0.5">
+          <label className="crm-filter-row">
             <input type="radio" name="sys" checked={!sys} onChange={() => setSys("")} />
             None
           </label>
         </details>
-        <details open>
-          <summary className="cursor-pointer font-semibold">Filter by fields</summary>
-          <Input value={fieldQuery} onChange={(e) => setFieldQuery(e.target.value)} placeholder="Find field" className="my-2 h-8" aria-label="Find field" />
-          <div className="max-h-[45vh] space-y-1 overflow-y-auto pr-1">
+        <details open className="crm-filter-section">
+          <summary>Filter By Fields</summary>
+          <Input value={fieldQuery} onChange={(e) => setFieldQuery(e.target.value)} placeholder="Find field" className="mb-2" aria-label="Find field" />
+          <div>
             {fields
               .filter((f) => f.label.toLowerCase().includes(fieldQuery.toLowerCase()))
               .map((f) => {
                 const c = conds[f.key];
                 return (
-                  <div key={f.key} className="rounded border border-transparent py-0.5 data-[on=true]:border-border data-[on=true]:p-1.5" data-on={!!c}>
-                    <label className="flex items-center gap-2">
+                  <div key={f.key} className="rounded border border-transparent data-[on=true]:my-1 data-[on=true]:border-border data-[on=true]:p-1.5" data-on={!!c}>
+                    <label className="crm-filter-row">
                       <input
                         type="checkbox"
                         checked={!!c}
@@ -261,14 +268,14 @@ export function FilterPanel({
               })}
           </div>
         </details>
-        <div className="flex gap-2 border-t border-border pt-3">
-          <Button type="button" size="sm" onClick={apply}>
-            Apply filter
-          </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={clear}>
-            Clear
-          </Button>
-        </div>
+      </div>
+      <div className="crm-filter-actions">
+        <Button type="button" size="sm" onClick={apply}>
+          Apply Filter
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={clear}>
+          Clear
+        </Button>
       </div>
     </aside>
   );
@@ -278,7 +285,7 @@ function ConditionEditor({ field, c, onChange }: { field: FieldDef; c: Condition
   const noValue = c.op === "isEmpty" || c.op === "isNotEmpty";
   return (
     <div className="mt-1 space-y-1 pl-5">
-      <Select value={c.op} onChange={(e) => onChange({ ...c, op: e.target.value as FilterOp })} className="h-7 w-full text-xs" aria-label={`${field.label} operator`}>
+      <Select value={c.op} onChange={(e) => onChange({ ...c, op: e.target.value as FilterOp })} className="crm-btn-sm w-full" aria-label={`${field.label} operator`}>
         {OPS_BY_TYPE[field.type].map((op) => (
           <option key={op} value={op}>
             {OP_LABELS[op]}
@@ -286,7 +293,7 @@ function ConditionEditor({ field, c, onChange }: { field: FieldDef; c: Condition
         ))}
       </Select>
       {noValue ? null : field.type === "enum" || field.type === "boolean" ? (
-        <Select value={c.value ?? ""} onChange={(e) => onChange({ ...c, value: e.target.value })} className="h-7 w-full text-xs" aria-label={`${field.label} value`}>
+        <Select value={c.value ?? ""} onChange={(e) => onChange({ ...c, value: e.target.value })} className="crm-btn-sm w-full" aria-label={`${field.label} value`}>
           <option value="">Choose…</option>
           {(field.type === "boolean" ? [{ value: "true", label: "Yes" }, { value: "false", label: "No" }] : field.options ?? []).map((o) => (
             <option key={o.value} value={o.value}>
@@ -296,8 +303,8 @@ function ConditionEditor({ field, c, onChange }: { field: FieldDef; c: Condition
         </Select>
       ) : c.op === "between" ? (
         <div className="flex gap-1">
-          <Input type={field.type === "date" ? "date" : "number"} value={c.value ?? ""} onChange={(e) => onChange({ ...c, value: e.target.value })} className="h-7 text-xs" aria-label={`${field.label} from`} />
-          <Input type={field.type === "date" ? "date" : "number"} value={c.value2 ?? ""} onChange={(e) => onChange({ ...c, value2: e.target.value })} className="h-7 text-xs" aria-label={`${field.label} to`} />
+          <Input type={field.type === "date" ? "date" : "number"} value={c.value ?? ""} onChange={(e) => onChange({ ...c, value: e.target.value })} className="crm-btn-sm" aria-label={`${field.label} from`} />
+          <Input type={field.type === "date" ? "date" : "number"} value={c.value2 ?? ""} onChange={(e) => onChange({ ...c, value2: e.target.value })} className="crm-btn-sm" aria-label={`${field.label} to`} />
         </div>
       ) : (
         <Input
@@ -305,7 +312,7 @@ function ConditionEditor({ field, c, onChange }: { field: FieldDef; c: Condition
           value={c.value ?? ""}
           onChange={(e) => onChange({ ...c, value: e.target.value })}
           placeholder={c.op === "lastNDays" ? "days" : ""}
-          className="h-7 text-xs"
+          className="crm-btn-sm"
           aria-label={`${field.label} value`}
         />
       )}
@@ -320,7 +327,7 @@ export function Pagination({ total, page, per }: { total: number; page: number; 
   const to = Math.min(page * per, total);
   const go = (p: number) => push((s) => s.set("page", String(p)));
   return (
-    <div className="flex flex-wrap items-center gap-3 text-[13px] text-text-muted" data-testid="pagination">
+    <div className="crm-table-footer crm-flush" data-testid="pagination">
       <span>
         Total Records <strong className="text-text" data-testid="total-records">{total}</strong>
       </span>
@@ -344,7 +351,7 @@ export function Pagination({ total, page, per }: { total: number; page: number; 
               s.delete("page");
             })
           }
-          className="h-8 text-[13px]"
+          className="crm-btn-sm"
           aria-label="Records per page"
         >
           {PAGE_SIZES.map((n) => (
@@ -359,18 +366,51 @@ export function Pagination({ total, page, per }: { total: number; page: number; 
   );
 }
 
-/** ModuleListPage frame: title row (view selector + actions) and filter panel + content. */
+/** Below this width the filter panel is an overlay and starts closed. */
+const FILTER_OVERLAY_BELOW = 1280;
+
+/**
+ * ModuleListPage frame: toolbar (filter toggle, view selector, actions), filter panel and the table area, edge to
+ * edge. Whether the filter panel is open is remembered per module (in the browser).
+ */
 export function ModuleListFrame({ title, actions, filters, children }: { title: ReactNode; actions: ReactNode; filters?: ReactNode; children: ReactNode }) {
+  const pathname = usePathname();
+  const storageKey = `crm:filter-open:${pathname.split("/")[1] ?? ""}`;
+  const [open, setOpenState] = useState(true);
+  useEffect(() => {
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(storageKey);
+    } catch {
+      /* storage blocked: use the default */
+    }
+    setOpenState(stored === null ? window.innerWidth >= FILTER_OVERLAY_BELOW : stored === "1");
+  }, [storageKey]);
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    try {
+      window.localStorage.setItem(storageKey, next ? "1" : "0");
+    } catch {
+      /* not remembered */
+    }
+  };
   return (
-    <div data-testid="module-list-page">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {title}
-        <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
+    <FilterOpen.Provider value={{ open, setOpen }}>
+      <div className="crm-list" data-testid="module-list-page">
+        <div className="crm-toolbar">
+          {filters ? (
+            <Button type="button" variant="ghost" size="icon" onClick={() => setOpen(!open)} aria-label={open ? "Hide filters" : "Show filters"} aria-pressed={open} data-testid="filter-toggle">
+              <Filter className="h-4 w-4" />
+            </Button>
+          ) : null}
+          {title}
+          <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>
+        </div>
+        <div className="crm-list-body">
+          {filters}
+          <div className="crm-list-content">{children}</div>
+        </div>
       </div>
-      <div className="flex items-start gap-3">
-        {filters}
-        <div className="min-w-0 flex-1 space-y-2">{children}</div>
-      </div>
-    </div>
+    </FilterOpen.Provider>
   );
 }

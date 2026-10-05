@@ -42,11 +42,7 @@ export function DropdownMenu({
           id={id}
           role="menu"
           aria-label={label}
-          className={cn(
-            "absolute z-40 mt-1 min-w-48 rounded-md border border-border bg-surface p-1 text-sm text-text shadow-lg",
-            align === "right" ? "right-0" : "left-0",
-            className,
-          )}
+          className={cn("crm-menu", align === "right" ? "right-0" : "left-0", className)}
         >
           {typeof children === "function" ? children(close) : children}
         </div>
@@ -56,10 +52,7 @@ export function DropdownMenu({
 }
 
 export function MenuItem({ children, onClick, href, disabled }: { children: ReactNode; onClick?: () => void; href?: string; disabled?: boolean }) {
-  const cls = cn(
-    "flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left hover:bg-muted focus:bg-muted focus:outline-none",
-    disabled && "pointer-events-none opacity-50",
-  );
+  const cls = cn("crm-menu-item", disabled && "pointer-events-none opacity-50");
   return href ? (
     <a role="menuitem" href={href} className={cls}>
       {children}
@@ -71,7 +64,33 @@ export function MenuItem({ children, onClick, href, disabled }: { children: Reac
   );
 }
 
-/** Right-side drawer (Quick Create, filter panel on narrow screens). */
+/** Centred popup (Quick Create): header with title and close, scrolling body, optional footer with the buttons. */
+export function Modal({ open, onClose, title, children, footer }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6" role="dialog" aria-modal="true" aria-label={title} data-testid="modal">
+      <button type="button" aria-label="Close" className="crm-overlay" onClick={onClose} />
+      <div className="crm-modal">
+        <header className="crm-modal-header">
+          <h2>{title}</h2>
+          <Button size="icon" variant="ghost" onClick={onClose} aria-label="Close popup">
+            <X className="h-4 w-4" />
+          </Button>
+        </header>
+        <div className="crm-modal-body">{children}</div>
+        {footer ? <footer className="crm-modal-footer">{footer}</footer> : null}
+      </div>
+    </div>
+  );
+}
+
+/** Side drawer (module customisation, filter panel on narrow screens). */
 export function Drawer({ open, onClose, title, children, width = 440 }: { open: boolean; onClose: () => void; title: string; children: ReactNode; width?: number }) {
   useEffect(() => {
     if (!open) return;
@@ -82,15 +101,15 @@ export function Drawer({ open, onClose, title, children, width = 440 }: { open: 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={title}>
-      <button type="button" aria-label="Close" className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <aside className="absolute inset-y-0 right-0 flex max-w-full flex-col bg-surface shadow-xl" style={{ width }}>
-        <header className="flex h-[52px] items-center justify-between border-b border-border px-4">
-          <h2 className="font-semibold">{title}</h2>
+      <button type="button" aria-label="Close" className="crm-overlay" onClick={onClose} />
+      <aside className="crm-drawer" style={{ width }}>
+        <header className="crm-modal-header">
+          <h2>{title}</h2>
           <Button size="icon" variant="ghost" onClick={onClose} aria-label="Close drawer">
             <X className="h-4 w-4" />
           </Button>
         </header>
-        <div className="flex-1 overflow-y-auto p-4">{children}</div>
+        <div className="crm-modal-body">{children}</div>
       </aside>
     </div>
   );
@@ -117,11 +136,11 @@ export function ConfirmDialog({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="alertdialog" aria-modal="true" aria-label={title}>
-      <button type="button" aria-label="Cancel" className="absolute inset-0 bg-black/30" onClick={onCancel} />
-      <div className="relative w-full max-w-sm rounded-lg bg-surface p-5 shadow-xl">
-        <h2 className="font-semibold">{title}</h2>
-        {text ? <p className="mt-2 text-sm text-text-muted">{text}</p> : null}
-        <div className="mt-4 flex justify-end gap-2">
+      <button type="button" aria-label="Cancel" className="crm-overlay" onClick={onCancel} />
+      <div className="crm-modal max-w-sm">
+        <h2 className="crm-modal-header">{title}</h2>
+        {text ? <p className="crm-modal-body text-text-muted">{text}</p> : null}
+        <div className="crm-modal-footer">
           <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>

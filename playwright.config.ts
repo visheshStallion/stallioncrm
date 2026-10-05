@@ -8,6 +8,8 @@ const PORT = Number(process.env.PORT ?? 3100);
  *  - visual: screenshot regression of the page templates, light + dark (tests/visual). Baselines are
  *            platform-specific (…-win32.png / …-linux.png); missing baselines are written, not failed.
  *            Refresh with `pnpm e2e:visual --update-snapshots`.
+ *  - compare: `pnpm ui:compare` – renders our screens next to the reference screenshots in private/reference
+ *            (git-ignored) and writes private/reference/report.html. Not part of the test suites.
  */
 export default defineConfig({
   fullyParallel: false,
@@ -24,6 +26,7 @@ export default defineConfig({
   projects: [
     { name: "e2e", testDir: "tests/e2e", use: { ...devices["Desktop Chrome"] } },
     { name: "visual", testDir: "tests/visual", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
+    { name: "compare", testDir: "tests/compare", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 } },
   ],
   webServer: {
     command: "node --import tsx scripts/e2e-server.ts",

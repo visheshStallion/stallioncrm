@@ -27,9 +27,10 @@ export interface ColumnMeta {
 const VIRTUALIZE_AFTER = 500;
 
 /**
- * CRM data table (TanStack): sorting, column chooser (drag reorder, show/hide, freeze first column – saved per
- * user), row selection with a bulk-action bar, double-click inline edit, hover quick actions, sticky header and
- * row virtualisation above 500 rows. Rows are already scoped by the server.
+ * CRM data table (TanStack): sorting, column chooser (show/hide, freeze first column), columns reordered by
+ * dragging a header and resized by dragging its right edge (all saved per user), row selection with a
+ * bulk-action bar, double-click inline edit, hover quick actions, sticky header and row virtualisation above
+ * 500 rows. Rows are already scoped by the server.
  */
 export function DataTable<T extends { id: string }>({
   columns,
@@ -65,6 +66,10 @@ export function DataTable<T extends { id: string }>({
   const [order, setOrder] = useState<string[]>(() => mergeOrder(ids, initialLayout?.order));
   const [hidden, setHidden] = useState<Set<string>>(new Set(initialLayout?.hidden ?? []));
   const [freeze, setFreeze] = useState(initialLayout?.freezeFirst ?? true);
+  const [widths, setWidths] = useState<Record<string, number>>(initialLayout?.widths ?? {});
+  const [dropOn, setDropOn] = useState<string | null>(null);
+  const [resizing, setResizing] = useState<string | null>(null);
+  const dragCol = useRef<string | null>(null);
   const [chooser, setChooser] = useState(false);
   const [editing, setEditing] = useState<{ row: string; col: string } | null>(null);
   const dragFrom = useRef<number | null>(null);
@@ -126,10 +131,50 @@ export function DataTable<T extends { id: string }>({
 
   const saveLayout = async () => {
     if (!module) return setChooser(false);
-    const res = await setPreferenceAction(`columns:${module}`, { order, hidden: [...hidden], freezeFirst: freeze });
+    const res = await setPreferenceAction(`columns:${module}`, { order, hidden: [...hidden], freezeFirst: freeze, widths });
     toast(res.ok ? "Column layout saved" : res.error.message, res.ok ? "success" : "error");
     setChooser(false);
   };
+  /** Header drag / resize save silently: the layout simply stays as the user left it. */
+  const persist = (next: { order?: string[]; widths?: Record<string, number> }) => {
+    if (module) void setPreferenceAction(`columns:${module}`, { order: next.order ?? order, hidden: [...hidden], freezeFirst: freeze, widths: next.widths ?? widths });
+  };
+  const dropColumn = (onto: string) => {
+    const from = dragCol.current;
+    dragCol.current = null;
+    setDropOn(null);
+    if (!from || from === onto) return;
+    const next = order.filter((c) => c !== from);
+    next.splice(next.indexOf(onto), 0, from);
+    setOrder(next);
+    persist({ order: next });
+  };
+  const startResize = (e: React.PointerEvent<HTMLSpanElement>, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const th = e.currentTarget.parentElement as HTMLElement;
+    const startX = e.clientX;
+    const startW = th.offsetWidth;
+    let latest = startW;
+    setResizing(id);
+    const onMove = (ev: PointerEvent) => {
+      latest = Math.round(Math.min(800, Math.max(60, startW + ev.clientX - startX)));
+      setWidths((w) => ({ ...w, [id]: latest }));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setResizing(null);
+      setWidths((w) => {
+        const next = { ...w, [id]: latest };
+        persist({ widths: next });
+        return next;
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+  const widthStyle = (id: string) => (widths[id] ? { width: widths[id], minWidth: widths[id], maxWidth: widths[id] } : undefined);
 
   const headerLabel = (id: string) => {
     const col = columns.find((c) => (c.id ?? (c as { accessorKey?: string }).accessorKey) === id);
@@ -137,15 +182,17 @@ export function DataTable<T extends { id: string }>({
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex min-h-9 flex-wrap items-center gap-2">
+    <div className="crm-flush">
+      <div className="crm-table-strip">
         {selectedIds.length && bulkBar ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-md bg-primary/10 px-2 py-1" data-testid="bulk-bar">
-            <span className="text-xs font-semibold text-primary">{selectedIds.length} selected</span>
-            {bulkBar(selectedIds, () => setRowSelection({}))}
-            <button type="button" className="text-xs underline" onClick={() => setRowSelection({})}>
+          <div className="crm-bulkbar" data-testid="bulk-bar">
+            <span>
+              {selectedIds.length} {selectedIds.length === 1 ? "Record" : "Records"} Selected
+            </span>
+            <button type="button" className="font-normal underline" onClick={() => setRowSelection({})}>
               Clear
             </button>
+            {bulkBar(selectedIds, () => setRowSelection({}))}
           </div>
         ) : (
           toolbar
@@ -155,8 +202,8 @@ export function DataTable<T extends { id: string }>({
             <Columns3 className="h-4 w-4" />
           </Button>
           {chooser ? (
-            <div className="absolute right-0 z-30 mt-1 w-64 rounded-md border border-border bg-surface p-2 shadow-lg" data-testid="column-menu">
-              <p className="px-1 pb-1 text-[11px] font-semibold uppercase text-text-muted">Columns (drag to reorder)</p>
+            <div className="crm-menu right-0 w-64 p-2" data-testid="column-menu">
+              <p className="crm-menu-title px-1">Columns (drag to reorder)</p>
               <ul>
                 {order.map((id, idx) => (
                   <li
@@ -213,19 +260,33 @@ export function DataTable<T extends { id: string }>({
         </div>
       </div>
 
-      <div ref={scrollRef} className={cn("overflow-auto rounded-lg border border-border bg-surface", virtual ? "max-h-[70vh]" : "max-h-[calc(100vh-240px)]")}>
-        <table className="crm-table w-full border-separate border-spacing-0">
-          <thead className="sticky top-0 z-10 bg-muted">
+      <div ref={scrollRef} className="crm-table-wrap">
+        <table className="crm-table" data-resizing={resizing ? "true" : undefined}>
+          <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((h) => (
                   <th
                     key={h.id}
+                    style={widthStyle(h.column.id)}
+                    draggable={h.column.id !== "_select"}
+                    data-drop={dropOn === h.column.id}
+                    onDragStart={() => (dragCol.current = h.column.id)}
+                    onDragOver={(e) => {
+                      if (!dragCol.current || h.column.id === "_select") return;
+                      e.preventDefault();
+                      setDropOn(h.column.id);
+                    }}
+                    onDragLeave={() => setDropOn((c) => (c === h.column.id ? null : c))}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (h.column.id !== "_select") dropColumn(h.column.id);
+                    }}
                     className={cn(
-                      "h-9 whitespace-nowrap border-b border-border px-3 text-left text-[12px] font-semibold text-text-muted",
-                      freeze && (h.column.id === "_select" || h.column.id === firstDataCol) && "sticky z-20 bg-muted",
-                      freeze && h.column.id === "_select" && "left-0 w-9",
-                      freeze && h.column.id === firstDataCol && (selectable ? "left-9" : "left-0"),
+                      h.column.id === "_select" && "crm-col-check",
+                      freeze && (h.column.id === "_select" || h.column.id === firstDataCol) && "sticky z-20",
+                      freeze && h.column.id === "_select" && "left-0",
+                      freeze && h.column.id === firstDataCol && (selectable ? "left-10" : "left-0"),
                     )}
                   >
                     {h.isPlaceholder ? null : h.column.getCanSort() ? (
@@ -236,9 +297,12 @@ export function DataTable<T extends { id: string }>({
                     ) : (
                       flexRender(h.column.columnDef.header, h.getContext())
                     )}
+                    {h.column.id !== "_select" ? (
+                      <span className="crm-col-resize" data-active={resizing === h.column.id} onPointerDown={(e) => startResize(e, h.column.id)} draggable onDragStart={(e) => e.preventDefault()} aria-hidden="true" />
+                    ) : null}
                   </th>
                 ))}
-                {rowActions ? <th className="w-24 border-b border-border" aria-label="Quick actions" /> : null}
+                {rowActions ? <th className="w-24" aria-label="Quick actions" /> : null}
               </tr>
             ))}
           </thead>
@@ -250,7 +314,7 @@ export function DataTable<T extends { id: string }>({
               </tr>
             ) : (
               renderRows.map((row) => (
-                <tr key={row.id} data-testid="data-row" className="group hover:bg-muted/60">
+                <tr key={row.id} data-testid="data-row" data-selected={row.getIsSelected() ? "true" : undefined}>
                   {row.getVisibleCells().map((cell) => {
                     const meta = cell.column.columnDef.meta as ColumnMeta | undefined;
                     const isEditing = editing?.row === row.id && editing.col === cell.column.id;
@@ -259,11 +323,13 @@ export function DataTable<T extends { id: string }>({
                         key={cell.id}
                         onDoubleClick={meta?.editable && onCellEdit ? () => setEditing({ row: row.id, col: cell.column.id }) : undefined}
                         title={meta?.editable && onCellEdit ? "Double-click to edit" : undefined}
+                        style={widthStyle(cell.column.id)}
                         className={cn(
-                          "whitespace-nowrap border-b border-border px-3",
-                          freeze && (cell.column.id === "_select" || cell.column.id === firstDataCol) && "sticky z-[5] bg-surface group-hover:bg-muted",
+                          cell.column.id === "_select" && "crm-col-check",
+                          cell.column.id === firstDataCol && "crm-col-name",
+                          freeze && (cell.column.id === "_select" || cell.column.id === firstDataCol) && "sticky z-[5]",
                           freeze && cell.column.id === "_select" && "left-0",
-                          freeze && cell.column.id === firstDataCol && (selectable ? "left-9" : "left-0"),
+                          freeze && cell.column.id === firstDataCol && (selectable ? "left-10" : "left-0"),
                         )}
                       >
                         {isEditing && meta?.editable ? (
@@ -283,8 +349,8 @@ export function DataTable<T extends { id: string }>({
                     );
                   })}
                   {rowActions ? (
-                    <td className="border-b border-border px-2">
-                      <div className="flex justify-end gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">{rowActions(row.original)}</div>
+                    <td>
+                      <div className="crm-row-actions">{rowActions(row.original)}</div>
                     </td>
                   ) : null}
                 </tr>
@@ -315,7 +381,7 @@ function InlineEditor({
     if (e.key === "Escape") onCancel();
   };
   return meta.type === "select" ? (
-    <select autoFocus value={v} onChange={(e) => onSave(e.target.value)} onBlur={onCancel} onKeyDown={keys} className="h-7 rounded border border-primary bg-surface px-1 text-[13px]" aria-label="Edit value">
+    <select autoFocus value={v} onChange={(e) => onSave(e.target.value)} onBlur={onCancel} onKeyDown={keys} className="crm-select crm-btn-sm border-primary" aria-label="Edit value">
       {meta.options?.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
@@ -323,7 +389,7 @@ function InlineEditor({
       ))}
     </select>
   ) : (
-    <input autoFocus value={v} onChange={(e) => setV(e.target.value)} onBlur={() => onSave(v)} onKeyDown={keys} className="h-7 w-full rounded border border-primary bg-surface px-1 text-[13px]" aria-label="Edit value" />
+    <input autoFocus value={v} onChange={(e) => setV(e.target.value)} onBlur={() => onSave(v)} onKeyDown={keys} className="crm-input crm-btn-sm border-primary" aria-label="Edit value" />
   );
 }
 

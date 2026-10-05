@@ -10,3 +10,4 @@ export const inlineEditLeadAction = ok;
 export const massOwnerAction = ok;
 export const massStatusAction = ok;
 export const checkDuplicatesAction = async () => ({ ok: true as const, data: { sameBrand: [], existsElsewhere: false, contacts: [] } });
+export const markNotificationsReadAction = ok;

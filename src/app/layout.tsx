@@ -21,7 +21,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const prefs = ctx ? await getPreferences(ctx) : null;
   const theme = prefs?.theme ?? "light";
   return (
-    <html lang="en" className={theme === "dark" ? "dark" : undefined} data-theme-pref={theme} data-density={prefs?.density ?? "comfortable"} suppressHydrationWarning>
+    <html lang="en" className={theme === "dark" ? "dark" : undefined} data-theme-pref={theme} data-density={prefs?.density ?? "standard"} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: SYSTEM_THEME_SCRIPT }} />
       </head>

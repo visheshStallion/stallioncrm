@@ -82,18 +82,18 @@ export function GlobalSearch({ brands }: { brands: Array<{ id: string; code: str
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-8 w-full max-w-sm items-center gap-2 rounded-md border border-white/0 bg-muted px-3 text-left text-[13px] text-text-muted hover:border-border"
+        className="crm-search"
         aria-label="Search (Ctrl+K)"
         data-testid="global-search"
       >
         <Search className="h-4 w-4" />
         <span className="flex-1">Search</span>
-        <kbd className="rounded border border-border bg-surface px-1.5 text-[10px]">Ctrl K</kbd>
+        <kbd className="crm-kbd">Ctrl K</kbd>
       </button>
       {open ? (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[12vh]" role="dialog" aria-modal="true" aria-label="Search">
-          <button type="button" aria-label="Close search" className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} />
-          <div className="relative w-full max-w-xl overflow-hidden rounded-lg border border-border bg-surface shadow-2xl">
+          <button type="button" aria-label="Close search" className="crm-overlay" onClick={() => setOpen(false)} />
+          <div className="crm-modal overflow-hidden">
             <div className="flex items-center gap-2 border-b border-border px-3">
               <Search className="h-4 w-4 text-text-muted" />
               <input

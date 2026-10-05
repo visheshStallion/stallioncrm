@@ -132,7 +132,8 @@ test("admin: integration principal limited to SNMNL, token and OAuth client cann
   await page.waitForLoadState("networkidle");
   const hook = page.getByTestId("webhook-form");
   await hook.locator("#name").fill(`E2E hook ${stamp}`);
-  await hook.locator("#url").fill("https://127.0.0.1:9/hook");
+  // a public address literal: the production build refuses private receivers, and nothing is delivered before the subscription is removed
+  await hook.locator("#url").fill("https://93.184.216.34/hook");
   await hook.getByLabel("case.resolved").check();
   await hook.locator("#userId").selectOption({ label: name });
   await hook.getByRole("button", { name: "Create subscription" }).click();

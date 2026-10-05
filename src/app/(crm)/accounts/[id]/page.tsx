@@ -75,7 +75,7 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
         <span className="text-text-muted">Brands this customer buys:</span>
         {brandIds.length ? brandIds.map((b) => <BrandBadge key={b} brand={dir.brands.find((x) => x.id === b)} />) : <span className="text-text-muted">—</span>}
       </div>
-      <div className="flex items-start gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <RelatedNav
           items={[
             { id: "info", label: "Account Information" },

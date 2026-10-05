@@ -1,0 +1,175 @@
+/*
+ * Design tokens (docs/ZOHO_LAYOUT_SPEC.md lists every value and where it came from).
+ * Sizes are written as `calc(<px>rem / 13)`: the density baseline is html { font-size: 13px }, so the number is
+ * the size in px at the baseline and everything grows in step when the "comfortable" density (14px) is chosen.
+ */
+:root {
+  /* typography */
+  --font-sans: "Lato", "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fs-xs: calc(11rem / 13);
+  --fs-sm: calc(12rem / 13);
+  --fs-base: 1rem; /* 13px */
+  --fs-md: calc(14rem / 13);
+  --fs-lg: calc(16rem / 13);
+  --fs-xl: calc(18rem / 13);
+  --fs-title: calc(20rem / 13);
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-bold: 700;
+
+  /* colours */
+  --c-primary: #1565d0; /* brief: #1a73e8 – darkened: as text on the soft fill and the canvas it must reach 4.5:1 */
+  --c-primary-hover: #114fa3;
+  --c-primary-soft: #e8f1fe;
+  --c-primary-contrast: #ffffff;
+  --c-link: #1565d0;
+  --c-canvas: #f3f5f8;
+  --c-surface: #ffffff;
+  --c-surface-alt: #f7f8fa;
+  --c-border: #e2e6ec;
+  --c-border-strong: #cfd6de;
+  --c-text: #313949;
+  --c-text-muted: #5b6472; /* brief: #6c7686 – darkened, fails 4.5:1 on canvas and surface-alt */
+  --c-text-subtle: #98a2b3; /* icons, placeholders and rules only – never body text */
+  --c-sidebar: #1e2638;
+  --c-sidebar-text: #b9c2d3;
+  --c-sidebar-active-bg: #2d3850;
+  --c-sidebar-active: #ffffff;
+  --c-sidebar-rule: rgba(255, 255, 255, 0.08);
+  --c-header: #ffffff;
+  --c-success: #22a861;
+  --c-warning: #f5a623;
+  --c-danger: #e5484d;
+  --c-info: #0ea5e9;
+  --c-row-hover: #f5f9ff;
+  --c-row-selected: #e8f1fe;
+  --c-kanban-col: #eef1f5;
+  --c-toast: #2b2f36;
+  --c-toast-text: #ffffff;
+  --c-overlay: rgba(16, 24, 40, 0.45);
+  --c-scroll-thumb: #c7ced8;
+
+  /* geometry */
+  --h-header: calc(48rem / 13);
+  --w-sidebar: calc(60rem / 13);
+  --w-sidebar-open: calc(220rem / 13);
+  --h-sidebar-item: calc(56rem / 13);
+  --w-filter: calc(260rem / 13);
+  --w-related-nav: calc(200rem / 13);
+  --w-subnav: calc(240rem / 13);
+  --w-search: calc(360rem / 13);
+  --w-kanban-col: calc(280rem / 13);
+  --w-modal: calc(560rem / 13);
+  --h-toolbar: calc(52rem / 13);
+  --h-bar: calc(56rem / 13); /* record and form title bars, modal footer */
+  --h-control: calc(32rem / 13);
+  --h-control-sm: calc(28rem / 13);
+  --h-row: calc(40rem / 13);
+  --h-row-compact: calc(32rem / 13);
+  --h-th: calc(36rem / 13);
+  --h-tab: calc(40rem / 13);
+  --h-card-header: calc(44rem / 13);
+  --h-footer: calc(44rem / 13);
+  --h-pill: calc(20rem / 13);
+  --h-menu-item: calc(32rem / 13);
+  --size-icon: calc(18rem / 13);
+  --size-hit: calc(36rem / 13);
+  --size-avatar: calc(28rem / 13);
+  --size-avatar-sm: calc(20rem / 13);
+  --size-check: calc(14rem / 13);
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-lg: 6px;
+  --radius-pill: 999px;
+  --space-1: calc(4rem / 13);
+  --space-2: calc(8rem / 13);
+  --space-3: calc(12rem / 13);
+  --space-4: calc(16rem / 13);
+  --space-5: calc(20rem / 13);
+  --space-6: calc(24rem / 13);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-pop: 0 4px 16px rgba(16, 24, 40, 0.14);
+  --shadow-modal: 0 12px 32px rgba(16, 24, 40, 0.22);
+  --focus-ring: 0 0 0 2px rgba(21, 101, 208, 0.25);
+  --ease: 150ms ease;
+  color-scheme: light;
+}
+
+/* `.dark` is set from the user's theme preference; `[data-theme="dark"]` is the same switch for embedding. */
+.dark,
+[data-theme="dark"] {
+  --c-primary: #4c95f0;
+  --c-primary-hover: #74adf4;
+  --c-primary-soft: #1b2b47;
+  --c-primary-contrast: #0b1220;
+  --c-link: #74adf4;
+  --c-canvas: #0e1420;
+  --c-surface: #161d2b;
+  --c-surface-alt: #1b2434;
+  --c-border: #2a3446;
+  --c-border-strong: #3a4660;
+  --c-text: #e5e9f0;
+  --c-text-muted: #9aa5b5;
+  --c-text-subtle: #6f7c90;
+  --c-sidebar: #0b111c;
+  --c-sidebar-text: #aab4c3;
+  --c-sidebar-active-bg: #23304a;
+  --c-sidebar-active: #ffffff;
+  --c-header: #161d2b;
+  --c-success: #3ccf86;
+  --c-warning: #fbbf24;
+  --c-danger: #f87171;
+  --c-info: #38bdf8;
+  --c-row-hover: #1b2740;
+  --c-row-selected: #1b2b47;
+  --c-kanban-col: #121a28;
+  --c-toast: #e5e9f0;
+  --c-toast-text: #161d2b;
+  --c-overlay: rgba(0, 0, 0, 0.6);
+  --c-scroll-thumb: #3a4660;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-modal: 0 12px 32px rgba(0, 0, 0, 0.6);
+  --focus-ring: 0 0 0 2px rgba(116, 173, 244, 0.35);
+  color-scheme: dark;
+}
+
+/* Density: one switch. "standard" is the 13px baseline. */
+html {
+  font-size: 13px;
+}
+html[data-density="comfortable"] {
+  font-size: 14px;
+}
+html[data-density="compact"] {
+  --h-row: var(--h-row-compact);
+  --h-sidebar-item: calc(48rem / 13);
+}
+
+/* Names used before the calibrated tokens existed – kept so older utilities keep working. */
+:root,
+.dark,
+[data-theme="dark"] {
+  --primary: var(--c-primary);
+  --primary-hover: var(--c-primary-hover);
+  --primary-foreground: var(--c-primary-contrast);
+  --surface: var(--c-surface);
+  --canvas: var(--c-canvas);
+  --sidebar-bg: var(--c-sidebar);
+  --sidebar-fg: var(--c-sidebar-text);
+  --sidebar-active-fg: var(--c-sidebar-active);
+  --sidebar-active-bg: var(--c-sidebar-active-bg);
+  --border: var(--c-border);
+  --text: var(--c-text);
+  --text-muted: var(--c-text-muted);
+  --muted: var(--c-surface-alt);
+  --success: var(--c-success);
+  --warning: var(--c-warning);
+  --danger: var(--c-danger);
+  --info: var(--c-info);
+  --ring: var(--c-primary);
+  --radius-control: var(--radius);
+  --radius-card: var(--radius);
+  --row-height: var(--h-row);
+  --topbar-height: var(--h-header);
+}

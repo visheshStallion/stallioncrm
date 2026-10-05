@@ -32,11 +32,14 @@ export function ActionForm({
   children,
   className,
   confirm,
+  id,
 }: {
   action: (prev: unknown, fd: FormData) => Promise<Result>;
   children: ReactNode;
   className?: string;
   confirm?: string;
+  /** lets a submit button outside the form (popup footer) reference it with `form` */
+  id?: string;
 }) {
   const router = useRouter();
   const ref = useRef<HTMLFormElement>(null);
@@ -59,7 +62,7 @@ export function ActionForm({
     failed.current = null;
   }, [state]);
   return (
-    <form ref={ref} action={formAction} className={className}>
+    <form ref={ref} id={id} action={formAction} className={className}>
       {children}
     </form>
   );

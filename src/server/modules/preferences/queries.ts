@@ -10,7 +10,7 @@ import { DEFAULT_PREFERENCES, PREFERENCE_SCHEMAS, schemaForKey, type ColumnLayou
 export const getPreferences = cache(async (ctx: AccessContext): Promise<Preferences> => {
   if (ctx.system) return DEFAULT_PREFERENCES;
   const rows = await scopedDb(ctx).userPreference.findMany({
-    where: { userId: ctx.userId, key: { in: ["theme", "density", "dateFormat", "rail"] } },
+    where: { userId: ctx.userId, key: { in: ["theme", "density", "dateFormat", "rail", "nav"] } },
   });
   const out: Preferences = { ...DEFAULT_PREFERENCES };
   for (const r of rows) {

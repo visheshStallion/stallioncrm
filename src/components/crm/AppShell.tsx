@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { logoutAction } from "@/app/(crm)/actions";
 import { hasPermission } from "@/server/access/can";
@@ -14,6 +15,7 @@ import { MobileNav } from "@/components/pwa/MobileNav";
 import { PwaClient } from "@/components/pwa/PwaClient";
 import { BrandLogoStrip } from "@/components/BrandLogo";
 import { BrandSwitcher } from "./BrandSwitcher";
+import { ClassicNav } from "./ClassicNav";
 import { GlobalSearch } from "./GlobalSearch";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { ModuleRail } from "./ModuleRail";
@@ -22,9 +24,10 @@ import { QuickCreateMenu } from "./QuickCreate";
 import { AvatarMenu, CalendarShortcut, NotificationsBell, SetupGear } from "./UserMenus";
 
 /**
- * Authenticated app shell (prompt 17 §2): dark module rail + 52 px top bar (brand switcher, region filter,
- * search, quick create, notifications, calendar, setup gear for admins, avatar menu). Everything shown is
- * derived from the access context – modules the profile cannot read never appear.
+ * Authenticated app shell: header (logo, brand logos and switcher, search, quick create, calendar, notifications,
+ * setup gear for admins, avatar menu) and the modules either in the dark sidebar or – classic mode – as tabs
+ * under the header (user preference `nav`). Everything shown is derived from the access context – modules the
+ * profile cannot read never appear.
  */
 export async function AppShell({ ctx, children }: { ctx: AccessContext; children: ReactNode }) {
   // Home and the approvals inbox are personal pages – available to every profile.
@@ -44,20 +47,23 @@ export async function AppShell({ ctx, children }: { ctx: AccessContext; children
 
   const selectedBrand = filters.brandId ? dir.brands.find((b) => b.id === filters.brandId) : null;
   // the logo(s) of the signed-in user's brands on every page: the selected brand, else all of the user's brands
-  const logoBrands = selectedBrand ? [selectedBrand] : dir.myBrands;
+  const logoBrands = selectedBrand ? [selectedBrand] : [...dir.myBrands].sort((a, b) => Number(b.status === "ACTIVE") - Number(a.status === "ACTIVE"));
   const railBrand = logoBrands.length === 1 ? logoBrands[0]! : null;
 
+  const railPrefs = prefs.rail ?? { order: RAIL_ORDER.map((i) => i.key), pinned: DEFAULT_PINNED, collapsed: true };
+  const classic = prefs.nav === "classic";
+
   return (
-    <div className="flex min-h-screen bg-canvas">
-      <div className="hidden md:flex">
-        <ModuleRail
-          items={railItems}
-          brand={railBrand}
-          prefs={prefs.rail ?? { order: RAIL_ORDER.map((i) => i.key), pinned: DEFAULT_PINNED, collapsed: false }}
-        />
-      </div>
+    <div className="flex min-h-screen bg-canvas" data-nav={prefs.nav}>
+      {classic ? null : <ModuleRail items={railItems} brand={railBrand} prefs={railPrefs} isAdmin={ctx.isAdmin} />}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-[52px] items-center gap-2 border-b border-border bg-surface px-3 md:gap-3 md:px-4" data-testid="top-bar">
+        <header className="crm-header" data-testid="top-bar">
+          {classic ? (
+            <Link href="/" className="crm-logo hidden md:inline-flex">
+              <span className="crm-logo-mark">SC</span>
+              <span className="hidden lg:inline">StallionCRM</span>
+            </Link>
+          ) : null}
           <BrandLogoStrip brands={logoBrands} />
           <BrandSwitcher
             brands={dir.myBrands.map((b) => ({ id: b.id, label: `${b.code} – ${b.name}` }))}
@@ -65,7 +71,7 @@ export async function AppShell({ ctx, children }: { ctx: AccessContext; children
             brandId={filters.brandId ?? null}
             regionId={filters.regionId ?? null}
           />
-          <div className="hidden flex-1 justify-center md:flex">
+          <div className="hidden min-w-0 md:block">
             <GlobalSearch brands={dir.brands.map((b) => ({ id: b.id, code: b.code, color: b.color }))} />
           </div>
           <div className="ml-auto flex items-center gap-1">
@@ -75,20 +81,21 @@ export async function AppShell({ ctx, children }: { ctx: AccessContext; children
                 lookups={{ brands: lookups.brands, regions: lookups.regions, defaultBrandId: lookups.defaultBrandId, defaultRegionId: lookups.defaultRegionId }}
               />
             ) : null}
-            <NotificationsBell count={notifications.unread} items={notifications.rows} />
             <span className="hidden md:contents">
               <CalendarShortcut />
-              {ctx.isAdmin ? <SetupGear /> : null}
             </span>
+            <NotificationsBell count={notifications.unread} items={notifications.rows} />
+            <span className="hidden md:contents">{ctx.isAdmin ? <SetupGear /> : null}</span>
             <AvatarMenu
               user={{ ...ctx.user, profileName: ctx.profile.name }}
-              prefs={{ theme: prefs.theme, density: prefs.density, dateFormat: prefs.dateFormat }}
+              prefs={{ theme: prefs.theme, density: prefs.density, dateFormat: prefs.dateFormat, nav: prefs.nav }}
               logout={logoutAction}
             />
           </div>
         </header>
+        {classic ? <ClassicNav items={railItems} prefs={railPrefs} /> : null}
         <PwaClient />
-        <main className="flex-1 p-3 pb-20 md:p-5 md:pb-5">{children}</main>
+        <main className="crm-main pb-20 md:pb-4">{children}</main>
       </div>
       <MobileNav items={railItems} unread={notifications.unread} />
       <KeyboardShortcuts />

@@ -81,3 +81,48 @@ test("a multi-brand user sees each of their brands' logos, narrowed by the brand
   await expect(page.getByTestId("brand-logos").getByTestId("brand-logo").first()).toHaveAttribute("data-brand", "SNMNL");
   await page.getByTestId("brand-switcher").selectOption({ label: "All my brands" });
 });
+
+test("classic navigation: module tabs under the header instead of the sidebar, saved per user", async ({ page }) => {
+  await login(page, "exec.hmnl.2");
+  await expect(page.getByTestId("module-rail")).toBeVisible();
+  await page.getByTestId("avatar-menu").click();
+  await page.getByRole("radio", { name: "Classic tabs" }).click();
+  await expect(page.getByTestId("classic-nav")).toBeVisible();
+  await expect(page.getByTestId("module-rail")).toHaveCount(0);
+  await page.getByTestId("classic-nav").getByRole("link", { name: "Deals" }).click();
+  await expect(page).toHaveURL(/\/deals/);
+  await expect(page.getByTestId("classic-nav").getByRole("link", { name: "Deals" })).toHaveAttribute("aria-current", "page");
+  await page.reload();
+  await expect(page.getByTestId("classic-nav")).toBeVisible();
+  // back to the default for the other tests
+  await page.getByTestId("avatar-menu").click();
+  await page.getByRole("radio", { name: "Sidebar" }).click();
+  await expect(page.getByTestId("module-rail")).toBeVisible();
+});
+
+test("the filter panel toggle of a list is remembered per module", async ({ page }) => {
+  await login(page, "exec.hmnl.1");
+  await page.goto("/leads");
+  await expect(page.getByTestId("filter-panel")).toBeVisible();
+  await page.getByTestId("filter-toggle").click();
+  await expect(page.getByTestId("filter-panel")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("data-row").first()).toBeVisible();
+  await expect(page.getByTestId("filter-panel")).toHaveCount(0);
+  await page.goto("/deals");
+  await expect(page.getByTestId("filter-panel")).toBeVisible();
+});
+
+test("the layout tokens are applied: 48px header, 60px sidebar, 13px base, 40px rows", async ({ page }) => {
+  await login(page, "admin");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/deals?view=all");
+  await expect(page.getByTestId("data-row").first()).toBeVisible();
+  const box = async (testId: string) => (await page.getByTestId(testId).first().boundingBox())!;
+  expect((await box("top-bar")).height).toBe(48);
+  expect((await box("module-rail")).width).toBe(60);
+  expect((await box("filter-panel")).width).toBe(260);
+  expect((await box("data-row")).height).toBe(40);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize)).toBe("13px");
+  expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).toMatch(/^"?Lato/);
+});
