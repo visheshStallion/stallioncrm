@@ -12,6 +12,11 @@ trust – the evidence (screenshot, report, test run) is attached to the sign-of
 - [ ] `pnpm db:deploy` run; **the seed is NOT run in production** (it creates fictitious users with a public
       password).
 - [ ] First administrator created (see README → "First administrator"); password changed; two-step sign-in on.
+- [ ] **A second Super Admin appointed** (Setup → Administrators & Brand Admins): destructive operations need two,
+      and the last Super Admin cannot be removed. Password policy, MFA policy and session settings reviewed
+      (Setup → Security Control) – each change needs both Super Admins.
+- [ ] If demo data was loaded for training: **Setup → Remove sample data** carried out and the demo users
+      deactivated before real work starts.
 - [ ] Scheduler calls `POST /api/public/cron/tick` every minute with `CRON_SECRET` (reminders, SLA escalation,
       approvals, exports, reservation expiry, digests).
 - [ ] Mail settings and, per brand, the sender identity (Setup → Brands); test message received.

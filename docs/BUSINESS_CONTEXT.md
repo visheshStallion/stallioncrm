@@ -99,6 +99,24 @@ Shared master data (Accounts/Contacts, Products, Price Books): see §8.
 
 Brand is NEVER encoded in a profile – 5 profiles serve all 10 brands.
 
+### Admin tiers (Setup, prompt 19)
+
+Tiers sit on top of the profile – they decide what a person may do in **Setup**, not which records they see.
+
+| Tier | Who | Scope |
+|---|---|---|
+| **Super Admin** | 1–3 named people (e.g. CRM owner + IT head). A flag on a user who has the Administrator profile | Everything, including other admins, security policies, data backup and purge, sample-data removal, configuration import. Cannot be deleted or demoted while they are the last Super Admin |
+| **Administrator** | CRM Admin (IT) – the Administrator profile | All of Setup except the functions marked Super Admin only |
+| **Brand Admin** (delegated) | Optional, per brand – any user who works in the brand, appointed by a Super Admin | Setup limited to the own brand: the brand's team (territory membership) and its discount thresholds. Never sees other brands, security or organisation-wide settings |
+| Setup permissions | Any other profile, ticked per function by a Super Admin | Single functions that can be delegated (e.g. Currencies for a finance profile) – never security, users or tiers |
+
+- Every Setup page and service declares the tiers that may open it (the entry of the Setup catalogue); outside the
+  tier the answer is 404.
+- **Destructive operations** (mass delete, purging the recycle bin, removing sample data, changing an authentication
+  policy, revoking a Super Admin, disabling an administrator) need **re-authentication and a second Super Admin's
+  approval** (four eyes) and are audited with both names. An installation therefore needs at least two Super Admins.
+- The full list of Setup functions with tier and status: `docs/SETUP_CATALOGUE.md`.
+
 ## 7. Permission matrix
 
 | Capability | Sales Exec (Lagos) | Sales Exec (Regional) | Brand Manager | RSM | Management | Administrator |
@@ -114,7 +132,7 @@ Brand is NEVER encoded in a profile – 5 profiles serve all 10 brands.
 | Export data | No | No | Own brand | Yes | Yes | Yes |
 | Mass update / mass email | No | No | Yes | Yes | Yes | Yes |
 | Delete records | No | No | No | No | No | Yes |
-| Setup / customization | No | No | No | No | No | Yes |
+| Setup / customization | Personal settings | Personal settings | Personal settings | Personal settings | Personal settings | Yes (Super Admin functions: Super Admins only) |
 
 ## 8. Data ownership & sharing
 

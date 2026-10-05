@@ -30,6 +30,16 @@ Re-run the suite after every new module; a new brand-owned model is picked up au
 
 ## 2. Controls
 
+**Admin tiers and four eyes (prompt 19).** Setup is tiered: Super Admin (a flag that only the Setup service can
+set – a database trigger refuses any change from a user session – and that requires the Administrator profile),
+Administrator, delegated Brand Admin (own brand only) and per-profile setup permissions for functions that can be
+delegated. Every Setup page and service checks the tier of its catalogue entry and answers 404 outside it.
+Destructive operations (purge, mass delete, sample-data removal, authentication-policy changes, revoking a Super
+Admin, disabling an administrator) need the requester's re-authentication and a second Super Admin's
+re-authenticated approval; both are in the audit log. The last active Super Admin cannot be disabled or demoted
+(service check and database trigger). Password policy, MFA-by-profile and session length are organisation
+settings; a configuration import that would change one of them is refused.
+
 | Area | Control |
 |---|---|
 | Authentication | Password (argon2id) and/or Microsoft Entra ID SSO (no auto-provisioning). Generic error for unknown user / wrong password. |
@@ -85,6 +95,11 @@ Status: ✔ implemented and tested · ◐ partly · ✘ not done.
   totals). Do not rely on field hiding to keep totals confidential.
 - Inventory cost visibility is enforced by the application (`inventoryFinance`), not by row-level security: RLS
   separates brands, not cost tiers.
+- **Setup (prompt 19)**: sharing rules are validated and stored but **not applied** by the access engine; there is
+  no limit on concurrent sessions and no idle timeout (only a maximum session length); no allowed-IP ranges, no
+  field encryption at rest, no impersonation ("login as"), no invitation e-mails. Re-authentication for destructive
+  operations is throttled per server process, like the other rate limits. See SETUP_CATALOGUE.md for every
+  function's status.
 
 ## 4. Backups and restore drill
 

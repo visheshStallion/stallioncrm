@@ -2,8 +2,9 @@
 
 ## Administering brands & users
 
-Administration lives at **`/admin`** and is available only to users whose profile has the **Admin → edit**
-permission (the *Administrator* profile). Everyone else gets *404 Not found* on every `/admin` page and
+Administration is part of **Setup** (`/setup`, see the last section of this guide); the pages below keep their
+`/admin/…` addresses and are available only to users whose profile has the **Admin → edit** permission (the
+*Administrator* profile). Everyone else gets *404 Not found* on every `/admin` page and
 `/api/v1/admin/*` endpoint – the area is not revealed. Every change is written to the audit log.
 
 ### Brands (`/admin/brands`)
@@ -334,3 +335,108 @@ See [INVENTORY_GUIDE.md](INVENTORY_GUIDE.md). For administrators:
   screens, in the API, exports and webhooks, and for updates. Report and dashboard totals still include hidden
   fields (see SECURITY.md).
 - **Backups**: `scripts/backup.sh` daily; restore drill quarterly (SECURITY.md §4).
+
+## Setup (`/setup`)
+
+Setup is the home of every configuration and control function. Open it with the gear in the header (or avatar →
+Personal settings). You see only what your tier may open; a function outside your tier answers *404 Not found*.
+The complete list with tier, priority and how far each function is built is in
+[SETUP_CATALOGUE.md](SETUP_CATALOGUE.md) – functions marked *Planned* open a "Coming soon" page.
+
+- **Search** looks through function names and descriptions; **Recently visited** remembers the last six (per browser).
+- The pages of earlier releases keep their `/admin/…` addresses and are listed in Setup under their category.
+
+### Tiers
+| Tier | How you get it | What it opens |
+|---|---|---|
+| Super Admin | appointed by a Super Admin under *Administrators & Brand Admins* (needs the Administrator profile; at most three) | everything |
+| Administrator | the Administrator profile | everything except the Super Admin functions |
+| Brand Admin | appointed per brand by a Super Admin; the user must already work in the brand | *Brand team* and *Brand thresholds* of that brand |
+| Setup permissions | ticked per profile by a Super Admin | single functions that can be delegated (Currencies, Fiscal Year, Validation Rules, System health) |
+| everyone | – | Personal Settings |
+
+**Keep at least two Super Admins.** Destructive operations need a second one, and the last Super Admin cannot be
+revoked or deactivated (the database refuses it too). The first Super Admin is created by `pnpm db:bootstrap`; on an
+installation upgraded from an earlier release the (up to three) longest-serving administrators became Super Admins.
+
+### Two-person approval (four eyes)
+These operations are *requested* by one Super Admin and *carried out* only when a second Super Admin approves –
+each confirms with their own password (accounts without a password: the authenticator code):
+
+purging the recycle bin · mass delete · removing sample data · changing the password policy, the MFA policy or the
+session settings · revoking a Super Admin · deactivating an administrator.
+
+Requests wait under **Data Administration → Two-person approvals** for 72 hours; the requester can withdraw, the
+second Super Admin approves or rejects. The audit log records the request, the decision with both names, and the
+result. Importing a configuration cannot be used to get around this: an import that would change an authentication
+policy is refused.
+
+### General
+- **Personal Settings** (everyone): theme, density, navigation mode, date format; links to notification preferences,
+  sign-in security (password, two-step sign-in) and API tokens.
+- **Company Details** (Super Admin): group name, address, contact, default time zone, locale, date format. Legal
+  entities, addresses and bank details printed on documents belong to each brand.
+- **Fiscal Year**: the first month of the financial year. Stored and shown; forecasts and reports still use
+  calendar quarters.
+- **Business Hours & Holidays**: under Cases → SLA (one calendar for the group).
+- **Currencies**: home currency and a hand-maintained list of exchange rates.
+
+### Users & Control
+- **Users, Roles, Profiles, Territory Management**: as before (see the top of this guide).
+- **Compare Profiles**: choose two profiles to see every permission, field access and setup permission that differs.
+- **Data Sharing Settings**: shows the default ("private by territory") and lets you define sharing rules. A rule is
+  refused – with the reason – when it would show one brand's records to people who do not work in that brand; there
+  is no override. **Rules are stored and previewed but not applied yet**: until the access engine applies them,
+  give people a territory in the brand instead.
+
+### Security Control (Super Admin, except Login History)
+- **Password Policy**: minimum length, required character classes, expiry, how many earlier passwords may not be
+  reused, lockout attempts and duration. Applies when a password is set or changed; an expired password sends the
+  user to *Sign-in security* until they chose a new one. Users change their own password there.
+- **Multi-factor authentication**: tick the profiles that must use two-step sign-in. Their users are sent to
+  *Sign-in security* until they switched it on, and cannot switch it off again.
+- **Session settings**: maximum session length (1–12 hours) and *Sign out all sessions of a user* (lost phone,
+  suspected break-in).
+- **Login History** (Administrator): every sign-in, failed attempt and sign-out with address and device.
+
+### Channels, Customization, Automation, Process Management
+The existing pages (web forms, fields and layouts, pipelines and Blueprint, templates, workflow rules, assignment
+rules, approval processes, SLA and escalation) are linked from their categories. New:
+
+- **Validation Rules**: refuse a save when a formula is true, with your own message – in the screens, the API and
+  imports. Choose the module, write the formula from the listed fields and functions
+  (`amount > 50000000 && isBlank(financeBank)`), use **Preview impact** to see how many existing records would be
+  refused, then save. A rule can be limited to one brand and switched off without deleting it.
+
+### Data Administration
+- **Recycle Bin**: deleted records per module; an administrator restores them. *Purge for good* is a Super Admin
+  two-person operation. Optional retention: purge automatically after N days (0 = never).
+- **Mass delete / mass transfer**: transfer every record of a module from one owner to another (the new owner must
+  work in the brand and region of each record). Mass delete (Super Admin, two-person) moves the matching records to
+  the recycle bin; at least one criterion – brand, owner or "created before" – is required.
+- **Remove sample data** (Super Admin, two-person): empties **all** business tables before go-live and keeps the
+  configuration, users and the audit log. It cannot tell demo records from real ones – use it only before real work
+  has started. Deactivate the demo users afterwards.
+- **Data Backup** (Super Admin): encrypted full backup to download. Scheduled backups and restore are database
+  operations (GO_LIVE_CHECKLIST.md).
+- **Setup Audit Trail**: every setting change with before / after, who, when and from which address; open a row to
+  see the changed fields. Organisation settings that are not security policies can be reverted with one click.
+- **Audit Log**: all data changes, with export – as before.
+
+### Developer Space
+- **Configuration export / import** (Super Admin): the configuration as one JSON document – settings, roles,
+  profiles, validation rules, custom fields, layouts, pipelines. *Validate only* checks a document against this
+  installation without changing anything; *Import* applies it as a whole or not at all. Use it to carry a
+  configuration from a test installation to production (both need the same brand codes).
+
+### Brands & Territories
+- **Brand team** (Administrator, Brand Admin): who works in which territory of a brand and who manages it. Add a
+  user by e-mail address; a Brand Admin can only do this for the own brand.
+- **Brand thresholds** (Administrator, Brand Admin): the discount approval thresholds of each brand.
+- **Administrators & Brand Admins** (Super Admin): appoint and revoke Super Admins and Brand Admins, and tick the
+  setup permissions of other profiles.
+- Creating a brand and making a brand inactive are reserved for Super Admins.
+
+### Usage & Health
+- **System health**: waiting and failed jobs, failed webhook deliveries, undelivered messages and failed imports of
+  the last 24 hours. "Jobs waiting … late" means the scheduler is not calling `/api/public/cron/tick`.

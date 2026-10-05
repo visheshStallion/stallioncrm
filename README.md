@@ -7,7 +7,7 @@ entitled to – via UI, search, reports, exports, related lists or the API.
 - Business rules: [`docs/BUSINESS_CONTEXT.md`](docs/BUSINESS_CONTEXT.md)
 - How it is enforced and how to add a module: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - UI design system and page templates: [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md); layout tokens, measurements and `pnpm ui:compare`: [`docs/ZOHO_LAYOUT_SPEC.md`](docs/ZOHO_LAYOUT_SPEC.md)
-- Administering brands, territories, profiles and users: [`docs/ADMIN_GUIDE.md`](docs/ADMIN_GUIDE.md)
+- Administering brands, territories, profiles and users, and the Setup area: [`docs/ADMIN_GUIDE.md`](docs/ADMIN_GUIDE.md); every Setup function with tier and status: [`docs/SETUP_CATALOGUE.md`](docs/SETUP_CATALOGUE.md)
 - Decision record: [`docs/adr/0001-brand-isolation.md`](docs/adr/0001-brand-isolation.md)
 - Security, isolation tests and known limitations: [`docs/SECURITY.md`](docs/SECURITY.md)
 - Go-live: [`docs/GO_LIVE_CHECKLIST.md`](docs/GO_LIVE_CHECKLIST.md) · migration from Zoho: [`docs/MIGRATION_FROM_ZOHO.md`](docs/MIGRATION_FROM_ZOHO.md)
@@ -42,7 +42,9 @@ role `stallion_rls` used for Row-Level Security). The default `postgres` user is
 | Email | Role | Sees |
 |---|---|---|
 | `md@stallioncrm.test` | Managing Director | everything |
-| `admin@stallioncrm.test` | CRM Administrator | everything + `/admin` |
+| `superadmin@stallioncrm.test`, `admin@stallioncrm.test` | Super Admins | everything, including the Super Admin functions of Setup (destructive operations need both) |
+| `crmadmin@stallioncrm.test` | CRM Administrator | everything + Setup, without the Super Admin functions |
+| `ba.hmnl@stallioncrm.test` | Lagos Sales Exec + Brand Admin of HMNL | HMNL – Lagos; Setup for the HMNL brand only |
 | `bm.hmnl@stallioncrm.test` | Brand Manager HMNL | HMNL, all regions |
 | `exec.hmnl.1@stallioncrm.test` | Lagos Sales Exec | HMNL – Lagos |
 | `exec.multi.1@stallioncrm.test` | Lagos Sales Exec (multi-brand) | HMNL + SNMNL – Lagos |
@@ -50,7 +52,7 @@ role `stallion_rls` used for Row-Level Security). The default `postgres` user is
 | `exec.abuja@stallioncrm.test` | Regional Sales Exec | all brands, Abuja |
 
 Inventory staff: `stock.hmnl@…` (Stock Controller), `logistics.hmnl@…` (Logistics), `acct.hmnl@…` (Brand Accountant).
-See `prisma/seed-data.ts` for all 31 users. **The seed is for development and demos only** – it must never be
+See `prisma/seed-data.ts` for all 33 users. **The seed is for development and demos only** – it must never be
 run in production (public password).
 
 ### First administrator (production)
