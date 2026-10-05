@@ -75,3 +75,14 @@ export async function templateUsage(templateId: string): Promise<Array<{ kind: s
   const used = rules.filter((r) => JSON.stringify(r.actions ?? "").includes(templateId));
   return [...campaigns.map((c) => ({ kind: "Campaign", name: c.name })), ...used.map((r) => ({ kind: "Workflow rule", name: r.name }))];
 }
+
+/** A message template for rendering (deliver() uses it for workflow and campaign e-mails). */
+export const templateForRender = (id: string) => unsafeDb.template.findUnique({ where: { id }, select: { id: true, brandId: true, blocks: true, category: true } });
+
+/**
+ * Creates or updates a message template for the rich e-mail editor. System client: the service has checked that
+ * the user may manage the brand's templates (brand manager, Brand Admin or administrator).
+ */
+export function unsafeUpsertTemplate(id: string | null, data: Prisma.TemplateUncheckedCreateInput) {
+  return id ? unsafeDb.template.update({ where: { id }, data }) : unsafeDb.template.create({ data });
+}

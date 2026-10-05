@@ -2,13 +2,15 @@ import Link from "next/link";
 import { getPreferences } from "@/server/modules/preferences/queries";
 import { requireSetup } from "../guard";
 import { Section, SetupHeader } from "../_components";
+import { mySignatures } from "@/server/modules/email/service";
 import { Prefs } from "./Prefs";
+import { Signatures } from "./Signatures";
 
 export const metadata = { title: "Personal Settings" };
 
 export default async function PersonalSettingsPage() {
   const { ctx, entry } = await requireSetup("personal-settings"); // setupPermission: ALL
-  const prefs = await getPreferences(ctx);
+  const [prefs, signatures] = await Promise.all([getPreferences(ctx), mySignatures(ctx)]);
   return (
     <div>
       <SetupHeader entry={entry} />
@@ -27,6 +29,9 @@ export default async function PersonalSettingsPage() {
       </Section>
       <Section title="Display" testId="personal-display">
         <Prefs values={{ theme: prefs.theme, density: prefs.density, nav: prefs.nav, dateFormat: prefs.dateFormat }} />
+      </Section>
+      <Section title="E-mail signatures" hint="One signature per brand: it is added to the e-mails you send for that brand." testId="personal-signatures">
+        <Signatures brands={signatures} />
       </Section>
       <Section title="More">
         <ul className="space-y-1">

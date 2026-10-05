@@ -47,7 +47,7 @@ export interface Recipient {
   leadId: string | null;
 }
 export interface MessageRecord {
-  parentType: "Lead" | "Deal" | "Case";
+  parentType: "Lead" | "Deal" | "Case" | "Contact" | "Account" | "Quote" | "SalesOrder" | "Invoice";
   parentId: string;
   brandId: string;
   regionId: string;
@@ -132,6 +132,13 @@ export interface DeliverInput {
   unsubscribeUrl?: string | null;
   /** override of the recipient address (campaign members carry their own) */
   to?: string;
+  // ── rich e-mail (prompt 20) ──
+  /** complete HTML of the e-mail; when missing and the template has blocks, it is rendered from the template */
+  html?: string | null;
+  cc?: string[];
+  bcc?: string[];
+  replyTo?: string | null;
+  attachments?: OutboundMessage["attachments"];
 }
 
 /**
@@ -148,6 +155,19 @@ export async function deliver(ctx: AccessContext, input: DeliverInput) {
   const to = input.to ?? addressFor(channel, record.recipient);
   const subject = channel === "EMAIL" ? (input.subject?.trim() || `Message from ${brand.name}`).slice(0, 200) : null;
   const ownerId = ctx.system ? record.ownerId : ctx.userId;
+
+  // Workflow and campaign e-mails use the same templates and renderer as the composer: a template with blocks is
+  // sent as a rich e-mail in the brand layout (merge data of THIS record only).
+  let html = input.html ?? null;
+  let attachments = input.attachments;
+  if (channel === "EMAIL" && !html && input.templateId) {
+    const { renderTemplateForRecord } = await import("@/server/modules/email/service");
+    const rendered = await renderTemplateForRecord(input.templateId, record, input.unsubscribeUrl ?? null);
+    if (rendered) {
+      html = rendered.html;
+      attachments = [...(attachments ?? []), ...rendered.inline];
+    }
+  }
 
   const activity = await db.activity.create({
     data: {
@@ -183,6 +203,10 @@ export async function deliver(ctx: AccessContext, input: DeliverInput) {
       toAddress: to,
       subject,
       body: input.body,
+      bodyHtml: html,
+      cc: input.cc?.length ? input.cc.join(", ") : null,
+      bcc: input.bcc?.length ? input.bcc.join(", ") : null,
+      attachments: attachments?.filter((a) => !a.cid).length ? attachments.filter((a) => !a.cid).map((a) => ({ name: a.filename, size: a.content.byteLength })) : undefined,
       brandId: record.brandId,
       regionId: record.regionId,
       ownerId,
@@ -190,7 +214,7 @@ export async function deliver(ctx: AccessContext, input: DeliverInput) {
     select: { id: true },
   });
   try {
-    const { providerMessageId } = await providerFor(channel).send({ channel, from, to, subject, text: input.body, whatsappTemplate: input.whatsappTemplate ?? null, unsubscribeUrl: input.unsubscribeUrl ?? null });
+    const { providerMessageId } = await providerFor(channel).send({ channel, from, to, subject, text: input.body, html, cc: input.cc, bcc: input.bcc, replyTo: input.replyTo ?? null, attachments, whatsappTemplate: input.whatsappTemplate ?? null, unsubscribeUrl: input.unsubscribeUrl ?? null });
     await db.message.update({ where: { id: message.id }, data: { status: "SENT", providerMessageId, sentAt: new Date() }, select: { id: true } });
     return { id: message.id, activityId: activity.id, status: "SENT" as const, providerMessageId, from: from.address, to, error: null };
   } catch (err) {

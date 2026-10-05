@@ -22,6 +22,14 @@ export interface OutboundMessage {
   whatsappTemplate?: { name: string; language?: string; parameters?: string[] } | null;
   /** List-Unsubscribe target (campaign email) */
   unsubscribeUrl?: string | null;
+  // ── rich e-mail (prompt 20) ──
+  /** complete HTML document; without it the text is sent as minimal HTML */
+  html?: string | null;
+  cc?: string[];
+  bcc?: string[];
+  replyTo?: string | null;
+  /** `cid` = an image referenced from the HTML as cid:… (shown inline, not as a download) */
+  attachments?: Array<{ filename: string; contentType: string; content: Uint8Array; cid?: string }>;
 }
 
 export interface ProviderResult {
@@ -100,8 +108,12 @@ const smtp: Provider = {
       from: m.from.name ? { name: headerSafe(m.from.name), address: m.from.address } : m.from.address,
       to: m.to,
       subject: headerSafe(m.subject ?? ""),
+      ...(m.cc?.length ? { cc: m.cc } : {}),
+      ...(m.bcc?.length ? { bcc: m.bcc } : {}),
+      ...(m.replyTo ? { replyTo: m.replyTo } : {}),
       text: m.text,
-      html: textToHtml(m.text),
+      html: m.html ?? textToHtml(m.text),
+      ...(m.attachments?.length ? { attachments: m.attachments.map((a) => ({ filename: headerSafe(a.filename), contentType: a.contentType, content: Buffer.from(a.content), ...(a.cid ? { cid: a.cid, contentDisposition: "inline" as const } : {}) })) } : {}),
       ...(m.unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${m.unsubscribeUrl}>` } } : {}),
     });
     return { providerMessageId: info.messageId };
@@ -128,7 +140,15 @@ const graph: Provider = {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${graphToken.value}` },
       body: JSON.stringify({
-        message: { subject: headerSafe(m.subject ?? ""), body: { contentType: "HTML", content: textToHtml(m.text) }, toRecipients: [{ emailAddress: { address: m.to } }] },
+        message: {
+          subject: headerSafe(m.subject ?? ""),
+          body: { contentType: "HTML", content: m.html ?? textToHtml(m.text) },
+          toRecipients: [{ emailAddress: { address: m.to } }],
+          ...(m.cc?.length ? { ccRecipients: m.cc.map((address) => ({ emailAddress: { address } })) } : {}),
+          ...(m.bcc?.length ? { bccRecipients: m.bcc.map((address) => ({ emailAddress: { address } })) } : {}),
+          ...(m.replyTo ? { replyTo: [{ emailAddress: { address: m.replyTo } }] } : {}),
+          ...(m.attachments?.length ? { attachments: m.attachments.map((a) => ({ "@odata.type": "#microsoft.graph.fileAttachment", name: headerSafe(a.filename), contentType: a.contentType, contentBytes: Buffer.from(a.content).toString("base64"), ...(a.cid ? { isInline: true, contentId: a.cid } : {}) })) } : {}),
+        },
         saveToSentItems: true,
       }),
       signal: AbortSignal.timeout(15_000),

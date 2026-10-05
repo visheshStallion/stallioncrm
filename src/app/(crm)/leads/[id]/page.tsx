@@ -74,11 +74,6 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
         nav={<RecordNav module="leads" id={lead.id} basePath="/leads" />}
         actions={
           <>
-            {lead.email ? (
-              <Button asChild variant="outline">
-                <a href={`mailto:${lead.email}`}>Send Email</a>
-              </Button>
-            ) : null}
             {canConvert ? (
               <Button asChild variant="outline">
                 <Link href={`/leads/${lead.id}/convert`}>Convert</Link>

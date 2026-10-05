@@ -89,6 +89,7 @@ describe("access", () => {
   it("an HMNL exec cannot print or PDF an SNMNL record – 404, and nothing is rendered or audited", async () => {
     const before = await unsafeDb.auditLog.count({ where: { entity: "Print" } });
     await expect(print.renderPrintHtml(hmnlExec, { module: "deals", recordIds: [snmnlDeal.id], via: "preview" })).rejects.toThrow(/not found/i);
+    await expect(print.renderPrintHtml(snmnlExec, { module: "deals", recordIds: [hmnlDeal.id], via: "preview" })).rejects.toThrow(/not found/i);
     await expect(print.renderPrintPdf(hmnlExec, { module: "deals", recordIds: [snmnlDeal.id], via: "pdf" })).rejects.toThrow(/not found/i);
     await expect(print.renderPrintHtml(hmnlExec, { module: "nothing", recordIds: [snmnlDeal.id], via: "preview" })).rejects.toThrow(/not found/i);
     // bulk: one id of another brand fails the whole request – nothing is skipped silently

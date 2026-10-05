@@ -36,6 +36,13 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
             ← Campaigns
           </Link>
         }
+        actions={
+          canCreate ? (
+            <Link href="/campaigns/templates/email/new" className="crm-btn crm-btn-primary" data-testid="new-email-template">
+              New e-mail template
+            </Link>
+          ) : null
+        }
       />
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
         <section className="overflow-x-auto rounded-lg border border-border bg-surface">
@@ -63,6 +70,11 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
                     {t.channel === "WHATSAPP" ? <div className="mt-1 text-xs text-text-muted">WhatsApp: {t.whatsappStatus.toLowerCase().replace("_", " ")}</div> : null}
                   </td>
                   <td className="px-3 py-2 text-right">
+                    {t.channel === "EMAIL" ? (
+                      <Link href={`/campaigns/templates/email/${t.id}`} className="mr-3 text-xs font-semibold text-primary hover:underline">
+                        Design
+                      </Link>
+                    ) : null}
                     {canManageTemplate(ctx, t.brandId) ? (
                       <Link href={`/campaigns/templates?edit=${t.id}`} className="text-xs font-semibold text-primary hover:underline">
                         Edit

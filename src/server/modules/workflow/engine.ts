@@ -276,6 +276,7 @@ const HANDLERS: Record<string, (job: Job) => Promise<unknown>> = {
   "import.run": async (job) => (await import("@/server/modules/imports/service")).runImport(job),
   "export.run": async (job) => (await import("@/server/modules/exports/service")).runExport(job),
   "print.bulk": async (job) => (await import("@/server/modules/print/bulk")).runBulkPrint(job),
+  "email.scheduled": async (job) => (await import("@/server/modules/email/service")).runScheduledEmail(job),
   "webhook.deliver": async (job) => (await import("@/server/integrations/webhooks")).deliverWebhook(job),
   "erp.post": async (job) => (await import("@/server/integrations/erp")).postDocumentJob(job),
   "erp.journal": async (job) => (await import("@/server/integrations/erp")).postJournalJob(job),

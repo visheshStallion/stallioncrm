@@ -1,6 +1,7 @@
 "use client";
 
-import { Printer } from "lucide-react";
+import { Mail, Printer } from "lucide-react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "@/components/Toaster";
@@ -139,6 +140,22 @@ export function PrintPageButton() {
   return (
     <Button variant="outline" type="button" onClick={() => window.print()} data-testid="print-page">
       <Printer className="h-4 w-4" /> Print / PDF
+    </Button>
+  );
+}
+
+const EMAIL_PARENT: Record<string, string> = { leads: "Lead", deals: "Deal", cases: "Case", contacts: "Contact", accounts: "Account", quotes: "Quote", salesOrders: "SalesOrder", invoices: "Invoice" };
+
+/** "Send Email" on a record page: opens the e-mail composer for the record (brand sender, templates, attachments). */
+export function SendEmailButton() {
+  const target = printTarget(usePathname());
+  const type = target?.id ? EMAIL_PARENT[target.module] : undefined;
+  if (!type) return null;
+  return (
+    <Button variant="outline" asChild>
+      <Link href={`/email/compose?type=${type}&id=${target!.id}`} data-testid="send-email">
+        <Mail className="h-4 w-4" /> Send Email
+      </Link>
     </Button>
   );
 }

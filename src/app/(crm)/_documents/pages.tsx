@@ -224,9 +224,6 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
                 PDF
               </a>
             </Button>
-            <Button variant="outline" disabled title="Email arrives with prompt 10">
-              Send Email
-            </Button>
             <DocButtons type={type} id={doc.id} buttons={buttons} />
           </>
         }
