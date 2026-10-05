@@ -1,0 +1,11 @@
+# never upload local-only material or test artefacts
+/prompt
+/private
+/imports
+*.xlsx
+/tests
+/test-results
+/playwright-report
+/storybook-static
+/.local
+.env*
