@@ -144,3 +144,8 @@ template says.
 - *Share…* opens the editor: sharing is the template's visibility (personal, brand, public) – there is no sharing
   with single users, roles or territories.
 - Print layouts (Setup → Print templates) are listed in the hub but copied, archived and deleted in their designer.
+- There is no separate profile permission "Manage templates" per template type: who may write a template follows the
+  roles above (author, brand manager, Brand Admin, administrator) and, for e-mail / SMS / WhatsApp templates, the
+  Campaigns permission.
+- Demo data has the starter record templates as public templates. A database that is not re-seeded (production)
+  gets them through *New Template → Start from*.
