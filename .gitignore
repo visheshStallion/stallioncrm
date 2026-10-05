@@ -30,3 +30,6 @@ Thumbs.db
 !.vscode/extensions.json
 .idea/
 storybook-static/
+
+# vercel
+.vercel

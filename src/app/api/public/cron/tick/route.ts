@@ -3,7 +3,7 @@ import { logger } from "@/server/log";
 import { tick } from "@/server/modules/workflow/engine";
 
 /**
- * POST /api/public/cron/tick – the scheduler heartbeat (every minute or so) with `Authorization: Bearer
+ * POST (or GET, which is what Vercel Cron sends) /api/public/cron/tick – the scheduler heartbeat (every minute or so) with `Authorization: Bearer
  * $CRON_SECRET`: evaluates scheduled workflow rules, runs due jobs, sends activity reminders and applies
  * approval auto-approvals. Every part is idempotent. Disabled (404) when CRON_SECRET is not configured.
  */
@@ -19,3 +19,6 @@ export async function POST(req: Request) {
   logger.info(result, "scheduler tick");
   return Response.json({ ok: true, ...result });
 }
+
+/** Vercel Cron calls its paths with GET and the same `Authorization: Bearer $CRON_SECRET` header. */
+export const GET = POST;
