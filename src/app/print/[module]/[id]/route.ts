@@ -5,7 +5,7 @@ import { printModule } from "@/server/modules/print/modules";
 import { printToolbar } from "@/server/modules/print/toolbar";
 import { getUiFilters, requireApiContext } from "@/server/request";
 
-const paperOf = (v: string | null): Paper | null => (v === "LETTER" ? "LETTER" : v === "A4" ? "A4" : null);
+const paperOf = (v: string | null): Paper | null => (v === "LETTER" || v === "A4" || v === "A5" ? v : null);
 const orientationOf = (v: string | null): Orientation | null => (v === "landscape" ? "landscape" : v === "portrait" ? "portrait" : null);
 
 /**

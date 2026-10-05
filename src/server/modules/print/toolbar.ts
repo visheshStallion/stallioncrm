@@ -35,7 +35,7 @@ export function printToolbar(o: {
   ${Object.entries(o.hidden ?? {}).map(([k, v]) => `<input type="hidden" name="${esc(k)}" value="${esc(v)}">`).join("")}
   ${select("template", "Template", o.templates ?? [], o.template ?? "")}
   ${o.companies?.length ? select("company", "Print as company", o.companies, o.company ?? "") : o.fixedCompany ? `<span data-testid="print-company">Letterhead: <strong>${esc(o.fixedCompany)}</strong></span>` : ""}
-  ${select("paper", "Paper", [{ id: "A4", label: "A4" }, { id: "LETTER", label: "Letter" }], o.paper)}
+  ${select("paper", "Paper", [{ id: "A4", label: "A4" }, { id: "LETTER", label: "Letter" }, { id: "A5", label: "A5" }], o.paper)}
   ${select("orientation", "Orientation", [{ id: "portrait", label: "Portrait" }, { id: "landscape", label: "Landscape" }], o.orientation)}
   <span class="grow"></span>
   <a href="${esc(o.pdfHref)}" data-testid="print-pdf">Download PDF</a>

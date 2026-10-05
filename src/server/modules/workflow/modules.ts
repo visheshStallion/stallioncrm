@@ -140,6 +140,7 @@ export const ACTION_LABELS: Record<string, string> = {
   CREATE_TASK: "Create a task",
   SEND_NOTIFICATION: "Send a notification",
   SEND_EMAIL: "Send an email",
+  SEND_DOCUMENT: "Send the document to the customer",
   WEBHOOK: "Call a webhook",
   ASSIGN_OWNER: "Assign owner",
   CALL_FUNCTION: "Call a function",

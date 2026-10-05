@@ -32,7 +32,7 @@ export type PrintBlock =
   | { type: "totals"; /** adds the grand total in words */ words?: boolean }
   /** HTML produced by the document-template compiler (prompt 21) from the record – already escaped, not merged again */
   | { type: "html"; html: string }
-  | { type: "terms"; html?: string }
+  | { type: "terms"; html?: string; /** false = without the bank details (the document has its own payment block) */ bank?: boolean }
   | { type: "signatures"; roles: string[]; /** a box for the company stamp */ stamp?: boolean }
   | { type: "qr"; value: "url" | "vin" | "number"; caption?: string }
   | { type: "barcode"; value: "vin" | "number" }
@@ -271,7 +271,7 @@ function blockHtml(b: PrintBlock, record: PrintRecord, lh: Letterhead, o: PrintO
     }
     case "terms": {
       const body = b.html ? renderMergeHtml(b.html, merge) : record.terms ? nl2br(record.terms) : "";
-      const bank = lh.bankDetails ? `<p><strong>Bank details</strong><br>${nl2br(lh.bankDetails)}</p>` : "";
+      const bank = lh.bankDetails && b.bank !== false ? `<p><strong>Bank details</strong><br>${nl2br(lh.bankDetails)}</p>` : "";
       return body || bank ? `<div class="terms">${body ? `<p><strong>Terms &amp; conditions</strong></p><div class="rich">${body}</div>` : ""}${bank}</div>` : "";
     }
     case "signatures":

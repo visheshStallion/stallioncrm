@@ -351,9 +351,10 @@ export async function previewTemplatePdf(ctx: AccessContext, input: unknown): Pr
 
 /** What the builder offers for a module: fields, related lists and merge fields, read from a record the user can open. */
 export async function builderCatalogue(ctx: AccessContext, moduleKey: string, recordId?: string | null) {
-  const { sampleRecord } = await import("@/server/modules/print/service");
-  const sample = await sampleRecord(ctx, moduleKey, recordId);
+  const { sampleRecord, sampleChoices } = await import("@/server/modules/print/service");
+  const [sample, samples] = await Promise.all([sampleRecord(ctx, moduleKey, recordId), sampleChoices(ctx, moduleKey)]);
   return {
+    samples,
     sampleId: sample?.id ?? null,
     sampleTitle: sample?.title ?? null,
     fields: (sample?.fields ?? []).map((f) => ({ key: f.key, label: f.label })),

@@ -146,6 +146,9 @@ export function PrintPageButton() {
 
 const EMAIL_PARENT: Record<string, string> = { leads: "Lead", deals: "Deal", cases: "Case", contacts: "Contact", accounts: "Account", quotes: "Quote", salesOrders: "SalesOrder", invoices: "Invoice" };
 
+/** documents go out with their PDF attached: the composer opens with the brand's default document template chosen */
+const DOCUMENTS = new Set(["Quote", "SalesOrder", "Invoice"]);
+
 /** "Send Email" on a record page: opens the e-mail composer for the record (brand sender, templates, attachments). */
 export function SendEmailButton() {
   const target = printTarget(usePathname());
@@ -153,8 +156,22 @@ export function SendEmailButton() {
   if (!type) return null;
   return (
     <Button variant="outline" asChild>
-      <Link href={`/email/compose?type=${type}&id=${target!.id}`} data-testid="send-email">
+      <Link href={`/email/compose?type=${type}&id=${target!.id}${DOCUMENTS.has(type) ? "&attach=1" : ""}`} data-testid="send-email">
         <Mail className="h-4 w-4" /> Send Email
+      </Link>
+    </Button>
+  );
+}
+
+const BULK_SEND = new Set(["quotes", "salesOrders", "invoices", "deals"]);
+
+/** In the bulk bar of a document list: send each selected record to its customer as a PDF (opens the send dialog page). */
+export function BulkSend({ module, ids }: { module: string; ids: string[] }) {
+  if (!BULK_SEND.has(module) || ids.length === 0 || ids.length > 100) return null;
+  return (
+    <Button size="sm" variant="outline" asChild>
+      <Link href={`/templates/documents/send?module=${module}&ids=${ids.join(",")}`} data-testid="bulk-send">
+        <Mail className="h-3.5 w-3.5" /> Send documents
       </Link>
     </Button>
   );

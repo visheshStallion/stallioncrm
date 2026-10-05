@@ -263,6 +263,10 @@ standard stages and stages that contain deals cannot be removed).
 2. **Print templates** – Setup → Customization → Print templates: designer with draft / publish / versions / default.
 3. **Print policy** – watermark on list printouts per profile.
 4. `PRINT_PDF_ENGINE` (`chromium` or `basic`) chooses the PDF renderer; see docs/PRINT_AND_EMAIL_GUIDE.md.
+5. **Document templates** (`/templates/documents`) – company formats for invoices, sales orders, quotations and
+   other documents. Brand managers submit shared templates; the brand's Brand Admin (or an administrator when the
+   brand has none) approves them under **Approvals**. Set the default per module and brand on the template's page.
+   Group templates are for administrators.
 
 ## Cases
 

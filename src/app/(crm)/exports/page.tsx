@@ -79,7 +79,7 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
             <tbody>
               {jobs.map((j) => (
                 <tr key={j.id} className="border-b border-border last:border-0">
-                  <td className="px-3 py-2">{EXPORT_MODULES.find((m) => m.key === j.module)?.label ?? (j.module.startsWith("print:") ? `Printout – ${j.module.slice(6)}` : j.module)}</td>
+                  <td className="px-3 py-2">{EXPORT_MODULES.find((m) => m.key === j.module)?.label ?? (j.module.startsWith("print:") ? `Printout – ${j.module.slice(6)}` : j.module.startsWith("send:") ? `Documents sent – ${j.module.slice(5)} (report)` : j.module)}</td>
                   <td className="px-3 py-2 uppercase">{j.format}</td>
                   <td className="px-3 py-2">
                     <StatusPill tone={TONE[j.expired ? "EXPIRED" : j.status]}>{j.expired ? "Expired" : j.status.charAt(0) + j.status.slice(1).toLowerCase()}</StatusPill>

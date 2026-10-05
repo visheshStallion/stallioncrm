@@ -201,6 +201,14 @@ async function runAction(ctx: AccessContext, rule: WorkflowRule, mod: WfModule, 
       if (to.length) await enqueueJob({ type: "email.users", payload: { userIds: to, subject: renderTemplate(action.subject, facts), text: renderTemplate(action.body, facts), brandId }, brandId, ruleId: rule.id });
       return `email queued for ${to.length}`;
     }
+    case "SEND_DOCUMENT": {
+      const { SENDABLE } = await import("@/server/modules/doctpl/bulk");
+      if (!SENDABLE[mod.key]) return `skipped: ${mod.key} cannot be sent as documents`;
+      if (!facts.ownerId) return "skipped: the record has no owner";
+      // Sent by a job that runs AS THE RECORD'S OWNER: their access, the record's brand sender and letterhead.
+      await enqueueJob({ type: "document.send", payload: { module: mod.key, recordId: id, userId: String(facts.ownerId), documentTemplate: action.documentTemplate || "default", emailTemplateId: action.emailTemplateId || null }, brandId, ruleId: rule.id });
+      return "document queued";
+    }
     case "WEBHOOK": {
       const url = await assertPublicUrl(action.url);
       const brand = await scopedDb(ctx).brand.findUnique({ where: { id: brandId }, select: { code: true } });
@@ -276,6 +284,8 @@ const HANDLERS: Record<string, (job: Job) => Promise<unknown>> = {
   "import.run": async (job) => (await import("@/server/modules/imports/service")).runImport(job),
   "export.run": async (job) => (await import("@/server/modules/exports/service")).runExport(job),
   "print.bulk": async (job) => (await import("@/server/modules/print/bulk")).runBulkPrint(job),
+  "document.bulkSend": async (job) => (await import("@/server/modules/doctpl/bulk")).runBulkSend(job),
+  "document.send": async (job) => (await import("@/server/modules/doctpl/bulk")).runDocumentSend(job),
   "email.scheduled": async (job) => (await import("@/server/modules/email/service")).runScheduledEmail(job),
   "webhook.deliver": async (job) => (await import("@/server/integrations/webhooks")).deliverWebhook(job),
   "erp.post": async (job) => (await import("@/server/integrations/erp")).postDocumentJob(job),

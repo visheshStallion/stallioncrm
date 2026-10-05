@@ -16,6 +16,8 @@ export interface ComposerDraft {
 
 interface Props {
   record: { parentType: string; parentId: string; brandId: string; name: string; label: string; path: string };
+  /** address of the record's print preview */
+  printPath: string;
   from: string | null;
   brandLabel: string;
   brands: Array<{ id: string; label: string }>;
@@ -24,6 +26,12 @@ interface Props {
   hasSignature: boolean;
   attachments: Array<{ id: string; fileName: string; size: number }>;
   printTemplates: Array<{ id: string; name: string }>;
+  /** document templates of the template builder the sender may use for this record (ids start with "doc:") */
+  docTemplates: Array<{ id: string; name: string; isDefault: boolean }>;
+  /** copies generated earlier for this record (re-send) */
+  generated: Array<{ id: string; fileName: string; templateName: string; templateVersion: number; generatedAt: Date; sentVia: string }>;
+  /** open with the document attached (the "Send" of a quotation, sales order or invoice) */
+  attachDocument: boolean;
   mergeFields: string[];
   allowHtml: boolean;
   draft: ComposerDraft | null;
@@ -46,7 +54,8 @@ export function Composer(p: Props) {
   const [doc, setDoc] = useState<EmailDoc>(d?.doc ? (d.doc as EmailDoc) : EMPTY);
   const [templateId, setTemplateId] = useState(d?.templateId ? String(d.templateId) : "");
   const [signature, setSignature] = useState(d ? d.includeSignature !== false : true);
-  const [attachPrint, setAttachPrint] = useState(d?.attachPrint ? String(d.attachPrint) : "");
+  const [attachPrint, setAttachPrint] = useState(d ? (d.attachPrint ? String(d.attachPrint) : "") : p.attachDocument ? (p.docTemplates.find((t) => t.isDefault)?.id ?? "default") : "");
+  const [attachGenerated, setAttachGenerated] = useState(d?.attachGenerated ? String(d.attachGenerated) : "");
   const [attachmentIds, setAttachmentIds] = useState<string[]>(d && Array.isArray(d.attachmentIds) ? d.attachmentIds.map(String) : []);
   const [followUp, setFollowUp] = useState(d && typeof d.followUpDays === "number" ? String(d.followUpDays) : "");
   const [files, setFiles] = useState<File[]>([]);
@@ -71,7 +80,8 @@ export function Composer(p: Props) {
         doc,
         templateId: templateId || null,
         includeSignature: signature,
-        attachPrint: attachPrint || null,
+        attachPrint: attachGenerated ? null : attachPrint || null,
+        attachGenerated: attachGenerated || null,
         attachmentIds,
         followUpDays: followUp === "" ? null : Number(followUp),
       }),
@@ -226,16 +236,62 @@ export function Composer(p: Props) {
             <label htmlFor="em-print" className="text-xs text-text-muted">
               {p.record.label} as PDF
             </label>
-            <select id="em-print" className="crm-select" value={attachPrint} onChange={(e) => setAttachPrint(e.target.value)}>
+            <select id="em-print" className="crm-select" value={attachPrint} disabled={!!attachGenerated} onChange={(e) => setAttachPrint(e.target.value)} data-testid="email-document">
               <option value="">Do not attach</option>
-              <option value="default">Standard printout on the brand letterhead</option>
-              {p.printTemplates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
+              <option value="default">{p.docTemplates.some((t) => t.isDefault) ? "The brand's default template" : "Standard printout on the brand letterhead"}</option>
+              {p.docTemplates.length ? (
+                <optgroup label="Document templates">
+                  {p.docTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                      {t.isDefault ? " (default)" : ""}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {p.printTemplates.length ? (
+                <optgroup label="Print layouts">
+                  {p.printTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
             </select>
+            {attachPrint && !attachGenerated ? (
+              <a className="text-xs font-semibold text-primary underline" target="_blank" rel="noopener" href={`${p.printPath}${attachPrint === "default" ? "" : `?template=${encodeURIComponent(attachPrint)}`}`}>
+                Preview document
+              </a>
+            ) : null}
           </div>
+          <p className="text-xs text-text-muted">
+            <Link href="/templates/documents" target="_blank" className="text-primary underline">
+              Document templates
+            </Link>{" "}
+            – design your own format for this document.
+          </p>
+          {p.generated.length ? (
+            <div className="flex flex-wrap items-center gap-2" data-testid="email-generated">
+              <label htmlFor="em-copy" className="text-xs text-text-muted">
+                Sent or downloaded before
+              </label>
+              <select id="em-copy" className="crm-select" value={attachGenerated} onChange={(e) => setAttachGenerated(e.target.value)}>
+                <option value="">Generate again with the current data</option>
+                {p.generated.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    Attach the stored copy of {new Date(g.generatedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} – {g.templateName}
+                    {g.templateVersion ? ` v${g.templateVersion}` : ""}
+                  </option>
+                ))}
+              </select>
+              {attachGenerated ? (
+                <a className="text-xs font-semibold text-primary underline" target="_blank" rel="noopener" href={`/api/v1/generated-documents/${attachGenerated}`}>
+                  Open the copy
+                </a>
+              ) : null}
+            </div>
+          ) : null}
           {p.attachments.length ? (
             <ul className="space-y-1" aria-label="Documents of the record">
               {p.attachments.map((a) => (

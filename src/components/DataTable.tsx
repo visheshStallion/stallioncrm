@@ -13,7 +13,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowUpDown, Columns3, GripVertical } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "@/components/Toaster";
-import { BulkPrint } from "@/components/crm/PrintActions";
+import { BulkPrint, BulkSend } from "@/components/crm/PrintActions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { setPreferenceAction } from "@/server/modules/preferences/actions";
@@ -198,6 +198,7 @@ export function DataTable<T extends { id: string }>({
             </button>
             {bulkBar?.(selectedIds, () => setRowSelection({}))}
             {printable ? <BulkPrint module={module!} ids={selectedIds} /> : null}
+            {printable ? <BulkSend module={module!} ids={selectedIds} /> : null}
           </div>
         ) : (
           toolbar

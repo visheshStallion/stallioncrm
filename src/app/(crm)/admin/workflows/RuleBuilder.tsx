@@ -60,6 +60,7 @@ const NEW_ACTION: Record<string, Action> = {
   CREATE_TASK: { type: "CREATE_TASK", subject: "", dueInHours: 24, assignee: "OWNER", priority: "NORMAL", activityType: "TASK" },
   SEND_NOTIFICATION: { type: "SEND_NOTIFICATION", to: "OWNER", title: "" },
   SEND_EMAIL: { type: "SEND_EMAIL", to: "OWNER", subject: "", body: "" },
+  SEND_DOCUMENT: { type: "SEND_DOCUMENT", documentTemplate: "default", emailTemplateId: "" },
   WEBHOOK: { type: "WEBHOOK", url: "https://" },
   ASSIGN_OWNER: { type: "ASSIGN_OWNER", to: "BRAND_MANAGER" },
   CALL_FUNCTION: { type: "CALL_FUNCTION", name: FUNCTIONS[0].name },
@@ -340,6 +341,13 @@ export function RuleBuilder({ initial, brands, roles, users }: { initial: RuleDr
                   {recipient(a, i, `to-${i}`)}
                   <Input className="w-56" aria-label="Email subject" value={String(a.subject)} onChange={(e) => setAction(i, { subject: e.target.value })} placeholder="Subject" />
                   <Input className="w-72" aria-label="Email body" value={String(a.body ?? "")} onChange={(e) => setAction(i, { body: e.target.value })} placeholder="Body" />
+                </>
+              ) : null}
+              {a.type === "SEND_DOCUMENT" ? (
+                <>
+                  <Input className="w-64" aria-label="Document template" value={String(a.documentTemplate ?? "default")} onChange={(e) => setAction(i, { documentTemplate: e.target.value })} placeholder="default, or doc:<template id>" title="“default” uses the brand’s default document template. For one template, write doc: followed by the id in its address." />
+                  <Input className="w-56" aria-label="E-mail template id (optional)" value={String(a.emailTemplateId ?? "")} onChange={(e) => setAction(i, { emailTemplateId: e.target.value })} placeholder="E-mail template id (optional)" />
+                  <span className="text-xs text-text-muted">Quotes, sales orders and deals · sent as the record&apos;s owner to the customer</span>
                 </>
               ) : null}
               {a.type === "WEBHOOK" ? <Input className="w-96" type="url" aria-label="Webhook URL" value={String(a.url)} onChange={(e) => setAction(i, { url: e.target.value })} placeholder="https://…" /> : null}

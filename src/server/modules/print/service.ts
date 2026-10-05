@@ -556,6 +556,21 @@ export async function sampleRecord(ctx: AccessContext, moduleKey: string, record
   }
 }
 
+/** A few recent records of a module the user can open (id and title) – to choose what a template is previewed with. */
+export async function sampleChoices(ctx: AccessContext, moduleKey: string, take = 8): Promise<Array<{ id: string; title: string }>> {
+  const mod = moduleOrThrow(moduleKey);
+  if (!hasPermission(ctx, mod.permission, "read")) return [];
+  const model: Record<string, string> = { leads: "lead", contacts: "contact", accounts: "account", deals: "deal", quotes: "quote", salesOrders: "salesOrder", invoices: "invoice", activities: "activity", cases: "case", products: "product", priceBooks: "priceBook", campaigns: "campaign", inventoryDocuments: "inventoryDocument", vehicleUnits: "vehicleUnit" };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic delegate access
+  const rows: Array<{ id: string }> = await (scopedDb(ctx) as any)[model[mod.key]!].findMany({ select: { id: true }, orderBy: { updatedAt: "desc" }, take });
+  const out: Array<{ id: string; title: string }> = [];
+  for (const r of rows) {
+    const record = await loadPrintRecord(ctx, mod.key, r.id).catch(() => null);
+    if (record) out.push({ id: record.id, title: record.number && !record.title.includes(record.number) ? `${record.number} – ${record.title}` : record.title });
+  }
+  return out;
+}
+
 /** What the designer offers for a module: its fields and related lists, read from a sample record. */
 export async function designerCatalogue(ctx: AccessContext, moduleKey: string, recordId?: string | null) {
   assertSetup(ctx, "print-templates");

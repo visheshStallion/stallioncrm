@@ -230,7 +230,7 @@ export function compileDoc(content: DocContent, record: PrintRecord, lh: Letterh
       case "vehicle":
         return html(vehicleHtml(record, merge));
       case "terms":
-        return [{ type: "terms", html: b.html || undefined }];
+        return [{ type: "terms", html: b.html || undefined, bank: !content.body.some((x) => x.type === "payment") }];
       case "signatures":
         return [{ type: "signatures", roles: b.roles, stamp: b.stamp }];
       case "qr":

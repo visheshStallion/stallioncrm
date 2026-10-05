@@ -89,6 +89,15 @@ record at hand. All rich text (templates, e-mail bodies, signatures) passes one 
 forms, event handlers, `javascript:` links); previews render in sandboxed frames. List and bulk prints of customer
 modules need the export permission. Every print, PDF and sent e-mail is audited.
 
+**Document templates (prompt 21).** Templates and stored copies live in tables that user sessions cannot read; the
+service decides visibility (own personal templates, published templates of the user's brands, group templates).
+A template is compiled for a record that was loaded with the user's access and always carries the record's own
+brand letterhead; a template of another brand, another module or another person answers 404 at print and send
+time. Personal templates cannot produce financial documents. Shared templates are published by the Brand Admin
+or an administrator (brand managers go through the approval engine). Generated PDFs are stored under a
+brand-scoped key with a SHA-256 checksum and are immutable (database trigger); reading one requires access to
+its record. Page CSS is limited to an allow-list of declarations.
+
 ### Known limitations (read before go-live)
 
 - Rate limits (sign-in, tokens, public forms) are **per server process**. Behind several instances put a shared

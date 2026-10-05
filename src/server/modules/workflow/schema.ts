@@ -17,6 +17,8 @@ export const actionSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("SEND_NOTIFICATION"), to: recipient, roleName: z.string().max(80).optional(), title: text(200), body: z.string().max(500).optional() }),
   z.object({ type: z.literal("SEND_EMAIL"), to: recipient, roleName: z.string().max(80).optional(), subject: text(200), body: z.string().max(5000).default("") }),
+  // the record as a PDF with a document template, e-mailed to its customer as the record's owner (prompt 21)
+  z.object({ type: z.literal("SEND_DOCUMENT"), documentTemplate: z.string().trim().max(80).default("default"), emailTemplateId: z.string().trim().max(40).optional() }),
   z.object({ type: z.literal("WEBHOOK"), url: z.string().url().max(500).refine((u) => u.startsWith("https://"), "Webhooks must use https") }),
   z.object({ type: z.literal("ASSIGN_OWNER"), to: z.enum(["BRAND_MANAGER", "USER"]), userId: z.string().max(40).optional() }),
   z.object({ type: z.literal("CALL_FUNCTION"), name: z.enum(FUNCTIONS.map((f) => f.name) as [string, ...string[]]) }),

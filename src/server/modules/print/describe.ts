@@ -192,6 +192,11 @@ export function describeRecord(input: { module: string; moduleLabel: string; mer
       merge[key] = group;
     }
   }
+  // detail queries flatten related names (ownerName, accountName, contactName): offer them as {{owner.name}} etc. too
+  for (const [key, value] of Object.entries(root)) {
+    const group = /^([a-z][A-Za-z0-9]*)Name$/.exec(key)?.[1];
+    if (group && typeof value === "string" && value && !merge[group] && !Object.hasOwn(root, group)) merge[group] = { name: value };
+  }
   // custom fields print like any other field, under their own key
   if (isPlain(record.customFields)) {
     for (const [k, v] of Object.entries(record.customFields)) {

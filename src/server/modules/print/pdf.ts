@@ -338,7 +338,7 @@ function drawBlock(c: Canvas, b: PrintBlock, record: PrintRecord, lh: Letterhead
         c.paragraph("Terms & conditions", { size: 8.5, bold: true });
         c.paragraph(body, { size: 8, color: rgb(0.25, 0.3, 0.36), gap: 6 });
       }
-      if (lh.bankDetails) {
+      if (lh.bankDetails && b.bank !== false) {
         c.paragraph("Bank details", { size: 8.5, bold: true });
         c.paragraph(lh.bankDetails, { size: 8, color: rgb(0.25, 0.3, 0.36), gap: 6 });
       }

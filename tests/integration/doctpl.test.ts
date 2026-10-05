@@ -293,3 +293,50 @@ describe("send, stored copy, re-send", () => {
     expect((await tpl.generatedFor(admin, "quotes", quote.id)).map((g) => g.sentVia)).toEqual(["EMAIL"]);
   });
 });
+
+describe("bulk send and automation", () => {
+  it("bulk send needs the mass e-mail permission, only takes ids the user can open, and sends one e-mail per customer", async () => {
+    const bulk = await import("@/server/modules/doctpl/bulk");
+    await expect(bulk.requestBulkSend(hmnlExec, { module: "invoices", ids: [hmnlInvoice], documentTemplate: "default" })).rejects.toThrow(/mass e-mail permission/);
+    await expect(bulk.requestBulkSend(bmHmnl, { module: "invoices", ids: [hmnlInvoice, snmnlInvoice], documentTemplate: "default" })).rejects.toThrow(/not found/i);
+    await expect(bulk.requestBulkSend(admin, { module: "leads", ids: ["x"], documentTemplate: "default" })).rejects.toThrow(/cannot be sent as documents/);
+
+    const before = sandboxOutbox.length;
+    const job = await bulk.requestBulkSend(admin, { module: "invoices", ids: [hmnlInvoice, snmnlInvoice], documentTemplate: "default" });
+    expect(await bulk.runBulkSend({ payload: { exportId: job.jobId, userId: admin.userId } })).toEqual({ records: 2, sent: 2 });
+    const sent = sandboxOutbox.slice(before);
+    // each document from its own brand's sender, to its own customer, with its PDF
+    expect(sent.map((m) => [m.from.address, m.to]).sort()).toEqual([["sales@hmnl.example", "customer.hmnl@example.test"], ["sales@snmnl.example", "customer.snmnl@example.test"]]);
+    expect(sent.every((m) => m.attachments?.some((a) => a.contentType === "application/pdf"))).toBe(true);
+    const done = await unsafeDb.exportJob.findUniqueOrThrow({ where: { id: job.jobId } });
+    expect(done).toMatchObject({ status: "DONE", rowCount: 2, format: "csv" });
+    const { storage } = await import("@/server/storage");
+    const report = Buffer.from(await storage().get(done.storageKey!)).toString("utf8");
+    expect(report.match(/,Sent,/g)).toHaveLength(2);
+    expect(await bulk.runBulkSend({ payload: { exportId: job.jobId, userId: admin.userId } })).toHaveProperty("skipped"); // never twice
+    expect((await tpl.generatedFor(admin, "invoices", snmnlInvoice)).map((g) => g.templateName)).toEqual(["Group Tax Invoice"]);
+
+    // an HMNL template for a mixed selection: the SNMNL invoice is reported, not sent with the wrong brand's template
+    const hmnl = (await tpl.listTemplates(admin, { module: "invoices" })).find((t) => t.name === "HMNL Tax Invoice")!;
+    const mixed = await bulk.requestBulkSend(admin, { module: "invoices", ids: [hmnlInvoice, snmnlInvoice], documentTemplate: `doc:${hmnl.id}` });
+    expect(await bulk.runBulkSend({ payload: { exportId: mixed.jobId, userId: admin.userId } })).toEqual({ records: 2, sent: 1 });
+  });
+
+  it("the workflow action sends the document as the record's owner", async () => {
+    const bulk = await import("@/server/modules/doctpl/bulk");
+    const deal = await unsafeDb.deal.findFirstOrThrow({ where: { brandId: id.brand("HMNL"), ownerId: hmnlExec.userId, stage: { type: "OPEN" }, deletedAt: null, contactId: { not: null } }, select: { id: true, contactId: true } });
+    await unsafeDb.contact.update({ where: { id: deal.contactId! }, data: { email: "owner.customer@example.test" } });
+    const quote = await docs.createQuoteFromDeal(hmnlExec, deal.id);
+    await docs.saveDocument(hmnlExec, "quote", quote.id, { lines: [{ description: "Vehicle", qty: 1, unitPrice: 12_000_000, discountPct: 0, taxRate: 7.5 }] } as never);
+    await docs.submitQuote(hmnlExec, quote.id);
+    const res = await bulk.runDocumentSend({ payload: { module: "quotes", recordId: quote.id, userId: hmnlExec.userId, documentTemplate: "default", emailTemplateId: null } });
+    expect(res).toMatchObject({ to: "owner.customer@example.test" });
+    expect(sandboxOutbox[sandboxOutbox.length - 1]!.from.address).toBe("sales@hmnl.example");
+    expect((await unsafeDb.quote.findUniqueOrThrow({ where: { id: quote.id } })).status).toBe("SENT");
+    // as someone who cannot open the record nothing is sent
+    expect(await bulk.runDocumentSend({ payload: { module: "quotes", recordId: quote.id, userId: snmnlExec.userId, documentTemplate: "default", emailTemplateId: null } })).toHaveProperty("notSent");
+    // the action is part of the workflow rule schema
+    const { actionSchema } = await import("@/server/modules/workflow/schema");
+    expect(actionSchema.parse({ type: "SEND_DOCUMENT" })).toEqual({ type: "SEND_DOCUMENT", documentTemplate: "default" });
+  });
+});

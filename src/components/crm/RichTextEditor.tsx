@@ -28,6 +28,8 @@ export interface RichTextEditorProps {
   /** uploads are embedded in the document (PNG / JPEG / GIF / WebP, at most this many bytes) */
   maxImageBytes?: number;
   minHeight?: number;
+  /** colours added to the palette, e.g. the brand colour */
+  extraColors?: string[];
   label: string;
 }
 
@@ -115,7 +117,7 @@ function Toolbar({ editor, props, html, setHtml }: { editor: Editor; props: Rich
       </Btn>
       <select aria-label="Text colour" className="h-7 rounded border border-border bg-surface px-1 text-xs" value={(editor.getAttributes("textStyle").color as string | undefined) ?? ""} onChange={(e) => (e.target.value ? chain().setColor(e.target.value).run() : chain().unsetColor().run())}>
         <option value="">Colour</option>
-        {COLORS.map((c) => (
+        {[...new Set([...(props.extraColors ?? []), ...COLORS])].map((c) => (
           <option key={c} value={c} style={{ color: c }}>
             ■ {c}
           </option>
