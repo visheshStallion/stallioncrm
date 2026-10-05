@@ -85,7 +85,9 @@ Leads, accounts & contacts, deals with pipelines and Blueprint, products and pri
 invoices, activities and test drives, approvals and workflow automation, reports / dashboards / forecasts, e-mail /
 SMS / WhatsApp and campaigns, cases with SLA, import / export / custom fields, REST API with tokens and webhooks,
 ERP and payment adapters, vehicle and parts inventory per brand with journals, an installable mobile app with
-offline quick actions, global search and a notification centre – all behind the same brand-isolation layer.
+offline quick actions, global search and a notification centre, printing and PDF of every module on the brand
+letterhead with a template designer, and a rich e-mail composer with brand templates (docs/PRINT_AND_EMAIL_GUIDE.md)
+– all behind the same brand-isolation layer.
 
 Honest status: there is **no hosted deployment** in this repository; the ERP / payment adapters and web push are
 tested against mocks only; no penetration test has been done. See docs/SECURITY.md → "Known limitations".

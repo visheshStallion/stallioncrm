@@ -5,8 +5,8 @@
 Every configuration and control function of Setup (`/setup`), by category, with who may open it and how far it is
 built. The list follows the brief of prompt 19; it has **not** been checked against the live Zoho CRM account.
 
-**91 functions: 24 done, 29 in progress, 38 planned.** Of the 47 go-live (P1) functions,
-22 are done, 23 are in progress and 2 are planned.
+**94 functions: 27 done, 29 in progress, 38 planned.** Of the 49 go-live (P1) functions,
+24 are done, 23 are in progress and 2 are planned.
 
 - **Status** – *Done*: working. *In progress*: the core works, the note says what is missing. *Planned*: the page
   exists and says "Coming soon".
@@ -79,7 +79,9 @@ built. The list follows the brief of prompt 19; it has **not** been checked agai
 | Quote → SO → Invoice mapping | Field mapping between documents | P2 | ADMIN | Planned | `/setup/document-mapping` | Documents are converted with a fixed mapping (prompt 06) |
 | Pipelines & Stages | Pipelines per brand, stages, probabilities | P1 | ADMIN, BA (planned) | In progress | `/admin/pipelines` | Administrators only. Built by prompt 04 |
 | List view & Kanban settings | Default views, columns and kanban field per module | P2 | ADMIN | Planned | `/setup/list-kanban-settings` | Each user saves their own views and columns; there are no organisation defaults |
-| Templates | E-mail, SMS and WhatsApp templates per brand | P1 | ADMIN, BA (planned) | In progress | `/campaigns/templates` | Document (PDF) layouts are fixed per brand; no mail-merge templates. Open to brand managers through the Campaigns permission. Built by prompt 06 / 10. Opened by its module permission, not by the Setup tier |
+| E-mail, SMS & WhatsApp templates | Message templates per brand; rich e-mail templates with blocks, starter gallery and version history | P1 | ADMIN, BA (planned) | Done | `/campaigns/templates` | Open to brand managers through the Campaigns permission. Built by prompt 10 / 20. Opened by its module permission, not by the Setup tier |
+| Print templates | Design the printouts of every module from blocks, on the brand letterhead, with preview, versions and defaults | P1 | ADMIN, BA | Done | `/setup/print-templates` |  |
+| Print policy | Watermark on the list printouts of chosen profiles | P2 | ADMIN | Done | `/setup/print-policy` |  |
 | Canvas / Record page designer | Drag-and-drop record detail designer | P3 | ADMIN | Planned | `/setup/canvas` |  |
 | Wizards | Multi-step guided create forms | P3 | ADMIN | Planned | `/setup/wizards` |  |
 | Customize Home page | Role-based home layouts and widgets | P2 | ADMIN | Planned | `/setup/home-customization` | The home page already differs by role (prompt 09); it cannot be designed in Setup |
@@ -153,6 +155,7 @@ built. The list follows the brief of prompt 19; it has **not** been checked agai
 | Legacy code aliases | Old rep-file codes mapped to brands | P1 | ADMIN | Done | `/admin/brands` | Built by prompt 01 |
 | Regions | Regions list; each region gets a territory under every brand | P1 | ADMIN | Done | `/admin/regions` | Built by prompt 01 |
 | Brand team (territory membership) | Who works in which territory of a brand, and who manages it | P1 | ADMIN, BA | Done | `/setup/brand-members` |  |
+| Letterhead | Logo, legal entity, RC and VAT numbers, address, contact, bank details, colour and footer printed on every document of the brand | P1 | ADMIN, BA | In progress | `/setup/letterhead` | No separate watermark image; the group letterhead uses Company Details and has no logo |
 | Brand thresholds | Discount approval thresholds per brand | P1 | ADMIN, BA | In progress | `/setup/brand-thresholds` | Reservation expiry is in Inventory settings; the stale-deal period is fixed at 14 days |
 | Administrators & Brand Admins | Super Admins, delegated Brand Admins, and Setup permissions of other profiles | P2 | **SA** | Done | `/setup/admin-tiers` |  |
 | Access review | Who can see what: users × brands × regions | P1 | ADMIN | In progress | `/admin/access-review` | No recorded quarterly sign-off. Built by prompt 15 |

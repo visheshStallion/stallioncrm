@@ -253,7 +253,16 @@ standard stages and stages that contain deals cannot be removed).
 5. **Consent** is per brand. Campaigns only reach people with marketing consent for the campaign's brand;
    everyone else is listed as suppressed with the reason. Unsubscribe links and "STOP" replies opt out of that
    brand only.
-6. The scheduler tick (`/api/public/cron/tick`) sends queued campaign batches.
+6. The scheduler tick (`/api/public/cron/tick`) sends queued campaign batches and scheduled e-mails.
+7. **Rich e-mail templates** – Campaigns → Templates → *New e-mail template*: starter gallery, block editor, checks,
+   versions. The composer (**Send Email** on a record), workflows and campaigns all use them.
+
+## Printing and letterheads
+
+1. **Letterhead** per brand – Setup → Brands → Letterhead (Brand Admins: own brand).
+2. **Print templates** – Setup → Customization → Print templates: designer with draft / publish / versions / default.
+3. **Print policy** – watermark on list printouts per profile.
+4. `PRINT_PDF_ENGINE` (`chromium` or `basic`) chooses the PDF renderer; see docs/PRINT_AND_EMAIL_GUIDE.md.
 
 ## Cases
 

@@ -82,6 +82,13 @@ Status: ✔ implemented and tested · ◐ partly · ✘ not done.
 | V13 | API | ✔ | Same access model as the UI, OpenAPI, token scoping, IDOR scan, CSRF check. |
 | V14 | Configuration | ◐ | Security headers, no version headers, secrets in env. **CSP allows inline scripts** (`'unsafe-inline'`) because the framework renders inline bootstrap scripts; a nonce-based CSP is not implemented. |
 
+**Print and e-mail (prompt 20).** Printouts, PDFs and e-mails are built from records loaded with the user's scoped
+client and field mask – hidden records are 404, masked fields stay masked. A brand-owned record always carries its
+own brand's letterhead and sender; neither can be chosen through a parameter. Merge fields resolve only from the
+record at hand. All rich text (templates, e-mail bodies, signatures) passes one sanitiser (no scripts, iframes,
+forms, event handlers, `javascript:` links); previews render in sandboxed frames. List and bulk prints of customer
+modules need the export permission. Every print, PDF and sent e-mail is audited.
+
 ### Known limitations (read before go-live)
 
 - Rate limits (sign-in, tokens, public forms) are **per server process**. Behind several instances put a shared
