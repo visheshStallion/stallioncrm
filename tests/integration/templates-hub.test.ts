@@ -55,7 +55,7 @@ describe("record templates", () => {
   let walkIn: string;
 
   it("a Brand Admin creates and publishes a lead template for the own brand; values are validated against the module", async () => {
-    const body = { name: "Walk-in showroom enquiry", description: "Showroom visitor", fieldValues: { source: "WALK_IN", rating: "WARM", regionId: { $: "userRegion" }, ownerId: { $: "currentUser" }, paymentIntent: "CASH" }, lockedFields: ["source"], hiddenFields: ["rating"], childRecords: [{ subject: "Follow up in 24 h", type: "CALL" as const, dueInHours: 24, priority: "HIGH" as const }] };
+    const body = { name: "HMNL walk-in test", description: "Showroom visitor", fieldValues: { source: "WALK_IN", rating: "WARM", regionId: { $: "userRegion" }, ownerId: { $: "currentUser" }, paymentIntent: "CASH" }, lockedFields: ["source"], hiddenFields: ["rating"], childRecords: [{ subject: "Follow up in 24 h", type: "CALL" as const, dueInHours: 24, priority: "HIGH" as const }] };
     await expect(rec.createRecordTemplate(ba, { module: "leads", brandId: id.brand("HMNL"), visibility: "SHARED_BRAND" }, { ...body, fieldValues: { source: "TELEPATHY" } })).rejects.toThrow(/is not one of/);
     await expect(rec.createRecordTemplate(ba, { module: "leads", brandId: id.brand("HMNL"), visibility: "SHARED_BRAND" }, { ...body, fieldValues: { mobile: "+2348030000000" } })).rejects.toThrow(/belongs to one customer/);
     await expect(rec.createRecordTemplate(ba, { module: "leads", brandId: id.brand("HMNL"), visibility: "SHARED_BRAND" }, { ...body, fieldValues: { nothing: "x" } })).rejects.toThrow(/not a field/);
@@ -68,10 +68,10 @@ describe("record templates", () => {
     const t = await rec.createRecordTemplate(ba, { module: "leads", brandId: id.brand("HMNL"), visibility: "SHARED_BRAND" }, body);
     walkIn = t.id;
     // a draft is not offered
-    expect(names(await rec.pickerTemplates(hmnlExec, "leads"))).not.toContain("Walk-in showroom enquiry");
+    expect(names(await rec.pickerTemplates(hmnlExec, "leads"))).not.toContain("HMNL walk-in test");
     await expect(rec.resolveForUse(hmnlExec, t.id, "leads")).rejects.toThrow(/not found/i);
     await rec.publishRecordTemplate(ba, t.id);
-    expect(names(await rec.pickerTemplates(hmnlExec, "leads"))).toContain("Walk-in showroom enquiry");
+    expect(names(await rec.pickerTemplates(hmnlExec, "leads"))).toContain("HMNL walk-in test");
     // user sessions cannot read the tables
     await expect(rawAsUser(hmnlExec, `SELECT id FROM "RecordTemplate"`)).rejects.toThrow(/permission denied/);
   });
@@ -88,7 +88,7 @@ describe("record templates", () => {
     expect(made).toMatchObject({ templateId: walkIn, templateVersion: 1, tasks: 1 });
     const task = await unsafeDb.activity.findFirstOrThrow({ where: { parentType: "Lead", parentId: made.id } });
     expect(task).toMatchObject({ type: "CALL", subject: "Follow up in 24 h", priority: "HIGH", brandId: id.brand("HMNL") });
-    expect(await rec.templateOfRecord(hmnlExec, "leads", made.id)).toEqual({ createdFromTemplateId: walkIn, createdFromTemplateVersion: 1, templateName: "Walk-in showroom enquiry" });
+    expect(await rec.templateOfRecord(hmnlExec, "leads", made.id)).toEqual({ createdFromTemplateId: walkIn, createdFromTemplateVersion: 1, templateName: "HMNL walk-in test" });
     await expect(rec.templateOfRecord(snmnlExec, "leads", made.id)).rejects.toThrow(/not found/i);
     const t = await rec.getRecordTemplate(ba, walkIn);
     expect(t).toMatchObject({ usageCount: 1, usedThisMonth: 1 });
@@ -101,8 +101,8 @@ describe("record templates", () => {
     await expect(rec.resolveForUse(snmnlExec, walkIn, "leads")).rejects.toThrow(/not found/i);
     await expect(rec.getRecordTemplate(snmnlExec, walkIn)).rejects.toThrow(/not found/i);
     await expect(rec.createFromTemplate(snmnlExec, "leads", walkIn, { lastName: "X", mobile: "+2348035550102" })).rejects.toThrow(/not found/i);
-    expect(names(await rec.listRecordTemplates(snmnlExec))).not.toContain("Walk-in showroom enquiry");
-    expect((await hub.hubList(snmnlExec, { tab: "record" })).rows.map((r) => r.name)).not.toContain("Walk-in showroom enquiry");
+    expect(names(await rec.listRecordTemplates(snmnlExec))).not.toContain("HMNL walk-in test");
+    expect((await hub.hubList(snmnlExec, { tab: "record" })).rows.map((r) => r.name)).not.toContain("HMNL walk-in test");
     await expect(hub.setFavorite(snmnlExec, "record", walkIn, true)).rejects.toThrow(/not found/i);
     await expect(hub.cloneTemplate(snmnlExec, "record", walkIn)).rejects.toThrow(/not found/i);
 
@@ -212,7 +212,7 @@ describe("hub: views, favourites, folders, row actions", () => {
     const document = await hub.hubList(hmnlExec, { tab: "document" });
     expect(document.rows.find((r) => r.id === hmnlDoc)).toMatchObject({ kind: "document", status: "Published", scope: "Shared" });
     const record = await hub.hubList(hmnlExec, { tab: "record" });
-    expect(record.rows.map((r) => r.name)).toEqual(expect.arrayContaining(["Walk-in showroom enquiry", "Referral lead", "From my lead"]));
+    expect(record.rows.map((r) => r.name)).toEqual(expect.arrayContaining(["HMNL walk-in test", "Referral lead", "From my lead"]));
     expect(record.tabCounts.email).toBe(email.rows.length);
 
     // filters and search

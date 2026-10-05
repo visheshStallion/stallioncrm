@@ -91,7 +91,7 @@ test("Brand Admin of HMNL: own brand's team and thresholds only – SNMNL is not
   await page.getByTestId("setup-gear").click();
   await expect(page.getByTestId("setup-tier")).toContainText("Brand Admin");
   const links = await page.getByTestId("setup-category").getByRole("link").allTextContents();
-  expect(links.sort()).toEqual(["Brand team (territory membership)", "Brand thresholds", "Document templates", "Letterhead", "Personal Settings", "Print templates"]);
+  expect(links.sort()).toEqual(["Brand team (territory membership)", "Brand thresholds", "Document templates", "Letterhead", "Personal Settings", "Print templates", "Templates"]);
 
   await page.getByRole("link", { name: "Brand team (territory membership)" }).click();
   await expect(page.getByTestId("brand-team-brand")).toContainText("HMNL");

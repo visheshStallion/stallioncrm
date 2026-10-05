@@ -19,6 +19,16 @@ const PAGES: Array<{ name: string; path: string; ready: (p: Page) => Promise<voi
   },
   { name: "form", path: "/leads/new", ready: async (p) => void (await expect(p.getByTestId("form-footer")).toBeVisible()) },
   { name: "home", path: "/", ready: async (p) => void (await expect(p.getByTestId("home-widgets")).toBeVisible()), mask: (p) => [p.getByTestId("home-widget")] },
+  // templates hub and its New Template dialog (prompt 22)
+  { name: "templates-hub", path: "/templates?tab=record", ready: async (p) => void (await expect(p.getByTestId("hub-row").first()).toBeVisible()) },
+  {
+    name: "new-template-dialog",
+    path: "/templates?tab=record",
+    ready: async (p) => {
+      await p.getByTestId("new-template").click();
+      await expect(p.getByTestId("new-template-dialog")).toBeVisible();
+    },
+  },
   { name: "setup", path: "/admin", ready: async (p) => void (await expect(p.getByTestId("setup-landing")).toBeVisible()) },
 ];
 

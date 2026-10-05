@@ -5,8 +5,8 @@
 Every configuration and control function of Setup (`/setup`), by category, with who may open it and how far it is
 built. The list follows the brief of prompt 19; it has **not** been checked against the live Zoho CRM account.
 
-**95 functions: 28 done, 29 in progress, 38 planned.** Of the 50 go-live (P1) functions,
-25 are done, 23 are in progress and 2 are planned.
+**97 functions: 30 done, 29 in progress, 38 planned.** Of the 51 go-live (P1) functions,
+26 are done, 23 are in progress and 2 are planned.
 
 - **Status** – *Done*: working. *In progress*: the core works, the note says what is missing. *Planned*: the page
   exists and says "Coming soon".
@@ -82,6 +82,8 @@ built. The list follows the brief of prompt 19; it has **not** been checked agai
 | E-mail, SMS & WhatsApp templates | Message templates per brand; rich e-mail templates with blocks, starter gallery and version history | P1 | ADMIN, BA (planned) | Done | `/campaigns/templates` | Open to brand managers through the Campaigns permission. Built by prompt 10 / 20. Opened by its module permission, not by the Setup tier |
 | Print templates | Design the printouts of every module from blocks, on the brand letterhead, with preview, versions and defaults | P1 | ADMIN, BA | Done | `/setup/print-templates` |  |
 | Document templates | Rich page editor for company-formatted invoices, sales orders, quotations, offer letters and receipts: letterhead, smart blocks, approval, versions, stored copies | P1 | ADMIN, BA | Done | `/templates/documents` | Everyone reaches their personal templates from Personal Settings and the e-mail composer; shared ones are published by the Brand Admin or an administrator. Opened by its module permission, not by the Setup tier |
+| Templates | One place for e-mail, document / print, record, SMS and WhatsApp templates of every module: views, folders, favourites, new template by module | P1 | ADMIN, BA | Done | `/setup/templates` | Every user reaches the hub under Templates; what they see and may change follows each template type's rules |
+| Record template policy | Modules whose records must be created from a record template | P2 | ADMIN | Done | `/setup/record-template-policy` |  |
 | Print policy | Watermark on the list printouts of chosen profiles | P2 | ADMIN | Done | `/setup/print-policy` |  |
 | Canvas / Record page designer | Drag-and-drop record detail designer | P3 | ADMIN | Planned | `/setup/canvas` |  |
 | Wizards | Multi-step guided create forms | P3 | ADMIN | Planned | `/setup/wizards` |  |

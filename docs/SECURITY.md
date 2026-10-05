@@ -98,6 +98,13 @@ or an administrator (brand managers go through the approval engine). Generated P
 brand-scoped key with a SHA-256 checksum and are immutable (database trigger); reading one requires access to
 its record. Page CSS is limited to an allow-list of declarations.
 
+**Templates hub and record templates (prompt 22).** The hub only lists what each template type's own service lets the
+user see; favourites, folders and placements are in tables closed to user sessions, and a brand's shared folder does
+not exist for other brands. A record template never creates a record itself: the module's create service does, with
+the current user's access, and validates every value again. Locked and hidden fields are applied on the server
+(a tampered form or API body cannot override them); a template of another brand is a 404; an "all my brands"
+template cannot create a record in a brand the user is not in; quote lines are priced from the current price book.
+
 ### Known limitations (read before go-live)
 
 - Rate limits (sign-in, tokens, public forms) are **per server process**. Behind several instances put a shared

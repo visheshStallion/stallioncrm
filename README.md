@@ -87,7 +87,8 @@ SMS / WhatsApp and campaigns, cases with SLA, import / export / custom fields, R
 ERP and payment adapters, vehicle and parts inventory per brand with journals, an installable mobile app with
 offline quick actions, global search and a notification centre, printing and PDF of every module on the brand
 letterhead with a template designer, a document template builder for company-formatted invoices, orders and
-quotations, and a rich e-mail composer with brand templates (docs/PRINT_AND_EMAIL_GUIDE.md)
+quotations, a rich e-mail composer with brand templates (docs/PRINT_AND_EMAIL_GUIDE.md), and a templates hub with record
+templates for one-click record creation (docs/TEMPLATES_GUIDE.md)
 – all behind the same brand-isolation layer.
 
 Honest status: there is **no hosted deployment** in this repository; the ERP / payment adapters and web push are
