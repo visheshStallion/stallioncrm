@@ -15,7 +15,7 @@ export interface DocumentConfirmedEvent {
   brandCode: string;
   /** ERP / Books company of the brand's legal entity */
   erpCompanyCode: string | null;
-  dealId: string;
+  dealId: string | null;
   currency: string;
   total: number;
 }

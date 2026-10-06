@@ -11,7 +11,9 @@ export interface ErpDocument {
   currency: string;
   customerName: string | null;
   accountId: string | null;
-  dealId: string;
+  dealId: string | null;
+  /** the customer as the document shows it (snapshot): the ERP matches its customer by tax id, then phone, then name */
+  customer: { name: string | null; taxId: string | null; phone: string | null; email: string | null; address: string | null };
   subtotal: number;
   discountTotal: number;
   taxTotal: number;

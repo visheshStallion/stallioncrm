@@ -70,9 +70,17 @@ export const docByPath = (segment: string): DocConfig | undefined => Object.valu
 
 const empty = (v: unknown) => (v === "" || v === null ? undefined : v);
 
+/**
+ * A document line: a product of the document's brand, OR a free-text item (prompt 23). For a free-text line the
+ * description is the item name and the price is typed; for a product line a missing price is taken from the brand's
+ * price book when the document is created.
+ */
 export const lineSchema = z.object({
   productId: z.preprocess(empty, z.string().optional()).transform((v) => v ?? null),
-  description: z.string().trim().min(1, "Description is required").max(300),
+  description: z.string().trim().min(1, "Give each line an item name").max(300),
+  itemCode: z.preprocess(empty, z.string().trim().max(60).optional()).transform((v) => v ?? null),
+  uom: z.preprocess(empty, z.string().trim().max(20).optional()).transform((v) => v ?? null),
+  isStockItem: z.preprocess((v) => v === true || v === "true" || v === "on", z.boolean()).default(false),
   qty: z.coerce.number().positive().max(100_000),
   unitPrice: z.coerce.number().nonnegative().max(1e12),
   discountPct: z.preprocess(empty, z.coerce.number().min(0).max(100).optional()).transform((v) => v ?? 0),
@@ -98,3 +106,81 @@ export const paymentSchema = z.object({
   reference: z.preprocess(empty, z.string().trim().max(100).optional()).transform((v) => v ?? null),
   receivedAt: z.preprocess(empty, z.coerce.date().optional()).transform((v) => v ?? new Date()),
 });
+
+// ───────────────────────────── standalone creation (prompt 23) ─────────────────────────────
+
+const text = (max: number) => z.preprocess(empty, z.string().trim().max(max).optional()).transform((v) => v ?? null);
+
+/** The customer as the document shows it – complete without any account (`billTo` / `shipTo`). */
+export const partySchema = z.object({
+  name: z.string().trim().min(1, "Enter the customer's name").max(200),
+  company: text(200),
+  phone: text(40),
+  email: z.preprocess(empty, z.string().trim().toLowerCase().email("Enter a valid e-mail address").max(254).optional()).transform((v) => v ?? null),
+  address: text(400),
+  city: text(80),
+  state: text(80),
+  taxId: text(40),
+});
+export type Party = z.output<typeof partySchema>;
+
+/** A line on create: the price may be left out for a product line (taken from the price book). */
+export const createLineSchema = lineSchema.extend({
+  unitPrice: z.preprocess(empty, z.coerce.number().nonnegative().max(1e12).optional()),
+  taxRate: z.preprocess(empty, z.coerce.number().min(0).max(100).optional()),
+});
+
+export const createSchema = z.object({
+  /** brand and region: required, but filled from the user's only brand / their region when left out */
+  brandId: z.preprocess(empty, z.string().optional()),
+  regionId: z.preprocess(empty, z.string().optional()),
+  billTo: partySchema,
+  shipTo: partySchema.partial().nullish(),
+  lines: z.array(createLineSchema).min(1, "Add at least one line").max(100),
+  headerDiscountPct: z.preprocess(empty, z.coerce.number().min(0).max(100).optional()).transform((v) => v ?? 0),
+  /** invoice: invoice date (defaults to today); every type: its own date (valid until / delivery / due) */
+  issueDate: z.preprocess(empty, z.coerce.date().optional()),
+  date: z.preprocess(empty, z.coerce.date().optional()).transform((v) => v ?? null),
+  currency: z.preprocess(empty, z.string().trim().length(3).optional()),
+  terms: text(4000),
+  notes: text(4000),
+  // ── optional links (same brand; checked on the server) ──
+  dealId: z.preprocess(empty, z.string().optional()).transform((v) => v ?? null),
+  accountId: z.preprocess(empty, z.string().optional()).transform((v) => v ?? null),
+  contactId: z.preprocess(empty, z.string().optional()).transform((v) => v ?? null),
+  /** sales order: its quote; invoice: its quote or sales order */
+  sourceDocumentId: z.preprocess(empty, z.string().optional()).transform((v) => v ?? null),
+  priceBookId: z.preprocess(empty, z.string().optional()).transform((v) => v ?? null),
+  ownerId: z.preprocess(empty, z.string().optional()),
+});
+export type CreateDocumentInput = z.input<typeof createSchema>;
+
+/** Link later: any of these, or null to remove the link. */
+export const linkSchema = z.object({
+  dealId: z.string().min(1).nullish(),
+  accountId: z.string().min(1).nullish(),
+  contactId: z.string().min(1).nullish(),
+  sourceDocumentId: z.string().min(1).nullish(),
+  /** take the bill-to snapshot from the linked account / contact */
+  refreshBillTo: z.boolean().default(false),
+});
+export type LinkInput = z.input<typeof linkSchema>;
+
+/** Dependency rules per brand (Setup → Modules and Fields → Dependencies). Everything optional by default. */
+export const DOCUMENT_RULES = {
+  requireAccount: "Require an account on quotes, sales orders and invoices",
+  requireContact: "Require a contact on quotes, sales orders and invoices",
+  requireDeal: "Require a deal on quotes, sales orders and invoices",
+  requireProduct: "Require a product on every line (no free-text items)",
+  requireQuoteBeforeOrder: "Require a quote before a sales order",
+  requireOrderBeforeInvoice: "Require a sales order before an invoice",
+  requireStockLinkForVehicleInvoice: "Require vehicle lines to be linked to a stock unit before an invoice is issued",
+} as const;
+export type DocumentRule = keyof typeof DOCUMENT_RULES;
+export const documentRulesSchema = z.object({
+  ...(Object.fromEntries(Object.keys(DOCUMENT_RULES).map((k) => [k, z.boolean().default(false)])) as Record<DocumentRule, z.ZodDefault<z.ZodBoolean>>),
+  /** discounts on documents with free-text lines (no price book maximum): approval above this amount, 0 = off */
+  discountAmountApproval: z.coerce.number().min(0).max(1e13).default(0),
+});
+export type DocumentRules = z.output<typeof documentRulesSchema>;
+export const parseRules = (raw: unknown): DocumentRules => documentRulesSchema.parse(raw && typeof raw === "object" ? raw : {});

@@ -145,16 +145,18 @@ const lines = (parts: string[]) => parts.filter(Boolean).map((p) => esc(p).repla
 
 function partyHtml(title: string, merge: MergeData, own: boolean): string {
   // the customer of the record: its account, else its contact, else the record itself (leads, contacts, accounts)
-  const g = own ? ["record"] : ["account", "contact", "customer", "record"];
+  // documents print their bill-to snapshot first (prompt 23): complete even without an account
+  const g = own ? ["record"] : ["billTo", "account", "contact", "customer", "record"];
   const pick = (keys: string[]) => first(merge, g.flatMap((x) => keys.map((k) => `${x}.${k}`)));
-  const name = first(merge, own ? ["record.name"] : ["account.name", "contact.name", "record.customerName", "record.accountName", "record.contactName", "customer.name"]);
-  const body = lines([name, pick(["billingAddress", "address", "street"]), [pick(["city"]), pick(["state"])].filter(Boolean).join(", "), pick(["phone", "mobile"]), pick(["email"]), pick(["tin", "taxId"]) ? `TIN ${pick(["tin", "taxId"])}` : ""]);
+  const name = first(merge, own ? ["record.name"] : ["billTo.name", "account.name", "contact.name", "record.customerName", "record.accountName", "record.contactName", "customer.name"]);
+  const company = own ? "" : first(merge, ["billTo.company"]);
+  const body = lines([name, company !== name ? company : "", pick(["billingAddress", "address", "street"]), [pick(["city"]), pick(["state"])].filter(Boolean).join(", "), pick(["phone", "mobile"]), pick(["email"]), pick(["tin", "taxId"]) ? `TIN ${pick(["tin", "taxId"])}` : ""]);
   return `<div class="party"><h3>${esc(title)}</h3><p>${body || "&nbsp;"}</p></div>`;
 }
 
 function shipToHtml(merge: MergeData): string {
-  const name = first(merge, ["account.name", "contact.name", "record.customerName", "record.name"]);
-  const address = first(merge, ["record.shippingAddress", "record.deliveryAddress", "account.shippingAddress", "account.billingAddress", "account.address", "contact.address"]);
+  const name = first(merge, ["shipTo.name", "billTo.name", "account.name", "contact.name", "record.customerName", "record.name"]);
+  const address = first(merge, ["shipTo.address", "record.shippingAddress", "record.deliveryAddress", "account.shippingAddress", "account.billingAddress", "account.address", "contact.address"]);
   return `<div class="party"><h3>Ship to</h3><p>${lines([name, address]) || "&nbsp;"}</p></div>`;
 }
 
@@ -215,7 +217,7 @@ export function compileDoc(content: DocContent, record: PrintRecord, lh: Letterh
       case "title":
         return html(titleHtml(b, record, merge, extra));
       case "parties":
-        return html(`<div class="parties" data-block="parties">${partyHtml("Bill to", merge, !["account", "contact", "customer"].some((g) => merge[g]) && !valueOf(merge, "record.customerName"))}${b.shipTo ? shipToHtml(merge) : ""}</div>`);
+        return html(`<div class="parties" data-block="parties">${partyHtml("Bill to", merge, !["billTo", "account", "contact", "customer"].some((g) => merge[g]) && !valueOf(merge, "record.customerName"))}${b.shipTo ? shipToHtml(merge) : ""}</div>`);
       case "fields":
         return [{ type: "fields", title: b.title, columns: b.columns, fields: b.fields }];
       case "lineItems":

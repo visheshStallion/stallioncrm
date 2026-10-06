@@ -1,7 +1,7 @@
 import "server-only";
 import { assertSameBrand } from "@/server/access/brand-tag";
 import { assertCan } from "@/server/access/can";
-import { ForbiddenError } from "@/server/access/errors";
+import { ForbiddenError, NotFoundError } from "@/server/access/errors";
 import type { AccessContext } from "@/server/access/types";
 import { audit, scopedDb } from "@/server/db";
 import { cancelPendingApprovals } from "@/server/db/approval-engine";
@@ -14,7 +14,7 @@ import { defaultBookFor } from "@/server/modules/catalogue/pricing";
 import { getDeal } from "@/server/modules/deals/queries";
 import { decide, submitForApproval } from "@/server/modules/approvals/service";
 import { advanceDealToStage } from "@/server/modules/deals/service";
-import { DOCS, paymentSchema, saveSchema, type DocConfig, type DocType, type LineData, type SaveInput } from "./config";
+import { DOCS, createSchema, linkSchema, parseRules, paymentSchema, saveSchema, type CreateDocumentInput, type DocConfig, type DocType, type DocumentRules, type LineData, type LinkInput, type Party, type SaveInput } from "./config";
 import { getDocument, type DocDetail } from "./queries";
 import { computeTotals, discountApproval, paymentStatus, type ApprovalDecision } from "./totals";
 
@@ -46,7 +46,7 @@ async function writeLines(ctx: AccessContext, cfg: DocConfig, docId: string, lin
   await db.documentLine.deleteMany({ where: { [cfg.lineKey]: docId } });
   if (lines.length) {
     await db.documentLine.createMany({
-      data: lines.map((l, i) => ({ [cfg.lineKey]: docId, position: i + 1, productId: l.productId, description: l.description, qty: l.qty, unitPrice: l.unitPrice, discountPct: l.discountPct, taxRate: l.taxRate, lineTotal: lineTotals[i]!, vin: l.vin })) as any,
+      data: lines.map((l, i) => ({ [cfg.lineKey]: docId, position: i + 1, productId: l.productId, description: l.description, qty: l.qty, unitPrice: l.unitPrice, discountPct: l.discountPct, taxRate: l.taxRate, lineTotal: lineTotals[i]!, vin: l.vin, itemCode: l.itemCode ?? null, uom: l.uom ?? null, isStockItem: l.isStockItem ?? !!l.vin })) as any,
     });
   }
 }
@@ -75,12 +75,17 @@ export async function createQuoteFromDeal(ctx: AccessContext, dealId: string) {
       discountPct: deal.discountPct ?? 0,
       taxRate: price.taxRatePct,
       vin: null,
+      itemCode: null,
+      uom: null,
+      isStockItem: true,
     });
   }
   const totals = computeTotals(lines, 0);
+  const billTo = await snapshotFrom(ctx, deal.accountId, deal.contactId, deal.customerName);
   const quote = await db.quote.create({
     data: {
       dealId,
+      billTo: (billTo as object) ?? undefined,
       accountId: deal.accountId,
       contactId: deal.contactId,
       brandId: deal.brandId,
@@ -145,7 +150,7 @@ export async function quoteApprovalDecision(ctx: AccessContext, doc: DocDetail):
   }
   const productIds = doc.lines.map((l) => l.productId).filter((x): x is string => !!x);
   const entries = bookId && productIds.length ? await db.priceBookEntry.findMany({ where: { priceBookId: bookId, productId: { in: productIds } }, select: { productId: true, maxDiscountPct: true } }) : [];
-  return discountApproval({
+  const decision = discountApproval({
     lines: doc.lines.map((l) => {
       const e = entries.find((x) => x.productId === l.productId);
       return { discountPct: l.discountPct, maxDiscountPct: e?.maxDiscountPct === null || e?.maxDiscountPct === undefined ? null : Number(e.maxDiscountPct.toString()), label: l.description };
@@ -155,6 +160,13 @@ export async function quoteApprovalDecision(ctx: AccessContext, doc: DocDetail):
     approvalPct: Number(brand.discountApprovalPct.toString()),
     escalationPct: Number(brand.discountEscalationPct.toString()),
   });
+  // Free-text lines have no price-book maximum: above the brand's amount threshold the discount needs approval too.
+  const rules = await rulesOf(ctx, doc.brandId);
+  if (rules.discountAmountApproval > 0 && doc.lines.some((l) => !l.productId) && doc.discountTotal > rules.discountAmountApproval) {
+    decision.reasons.push(`Discount of ${doc.discountTotal.toFixed(2)} on free-text items is above the brand's amount threshold of ${rules.discountAmountApproval.toFixed(2)}`);
+    decision.needed = true;
+  }
+  return decision;
 }
 
 /**
@@ -224,8 +236,10 @@ export async function acceptQuote(ctx: AccessContext, id: string) {
   if (doc.status === "PENDING_APPROVAL" || doc.status === "DRAFT") throw new ForbiddenError("The quote must be approved before it can be accepted");
   if (!["APPROVED", "SENT"].includes(doc.status)) throw new BadRequestError("Only approved or sent quotes can be accepted");
   if (doc.date && new Date(`${doc.date}T23:59:59Z`) < new Date()) throw new BadRequestError("This quote has expired – revise it first");
-  const other = await scopedDb(ctx).quote.findFirst({ where: { dealId: doc.dealId, status: "ACCEPTED", id: { not: id } }, select: { number: true } });
-  if (other) throw new BadRequestError(`Quote ${other.number} is already accepted for this deal`);
+  if (doc.dealId) {
+    const other = await scopedDb(ctx).quote.findFirst({ where: { dealId: doc.dealId, status: "ACCEPTED", id: { not: id } }, select: { number: true } });
+    if (other) throw new BadRequestError(`Quote ${other.number} is already accepted for this deal`);
+  }
   await setStatus(ctx, "quote", id, "ACCEPTED");
 }
 
@@ -264,6 +278,8 @@ async function copyTo(ctx: AccessContext, source: DocDetail, target: DocType, ex
       notes: source.notes,
       priceBookId: source.priceBookId,
       sourceDocumentId: source.id,
+      billTo: (source.billTo as object) ?? undefined,
+      shipTo: (source.shipTo as object) ?? undefined,
       ...extra,
     },
     select: { id: true },
@@ -279,6 +295,17 @@ export async function convertQuoteToOrder(ctx: AccessContext, quoteId: string) {
   const existing = await scopedDb(ctx).salesOrder.findFirst({ where: { sourceDocumentId: quoteId, status: { not: "CANCELLED" } }, select: { number: true } });
   if (existing) throw new BadRequestError(`Sales order ${existing.number} already exists for this quote`);
   return copyTo(ctx, quote, "salesOrder", { expectedDelivery: addDays(30) });
+}
+
+/** Accepted quote → draft Invoice directly, without a sales order (prompt 23). */
+export async function convertQuoteToInvoice(ctx: AccessContext, quoteId: string) {
+  const quote = await load(ctx, "quote", quoteId);
+  if (quote.status !== "ACCEPTED") throw new BadRequestError("Only an accepted quote can be invoiced");
+  const rules = await rulesOf(ctx, quote.brandId);
+  if (rules.requireOrderBeforeInvoice) throw new ForbiddenError("This brand invoices from sales orders only – create the sales order first");
+  const existing = await scopedDb(ctx).invoice.findFirst({ where: { sourceDocumentId: quoteId, status: { not: "VOID" } }, select: { number: true } });
+  if (existing) throw new BadRequestError(`Invoice ${existing.number} already exists for this quote`);
+  return copyTo(ctx, quote, "invoice", { dueDate: addDays(7) });
 }
 
 /** Confirmed (or later) Sales Order → draft Invoice. */
@@ -320,6 +347,13 @@ export async function allocateOrder(ctx: AccessContext, id: string) {
   const doc = await load(ctx, "salesOrder", id);
   if (doc.status !== "CONFIRMED") throw new BadRequestError("Only confirmed orders can be allocated");
   const db = scopedDb(ctx);
+  if (!doc.dealId) {
+    // A standalone order (prompt 23): no reserved stock to take – the VIN typed on the vehicle line is the allocation.
+    // No stock movement happens; the line is reported as a non-stock line unless a unit with that VIN exists.
+    if (!doc.lines.some((l) => l.vin)) throw new BadRequestError("Enter the VIN on the vehicle line, or link a deal with a reserved vehicle");
+    await setStatus(ctx, "salesOrder", id, "ALLOCATED");
+    return;
+  }
   // Only units of the order's own brand reserved for its deal (the DB trigger refuses any other brand as well).
   const reserved = await posting.allocateUnits(doc.dealId, id, doc.brandId, { userId: ctx.userId || null });
   if (reserved.length === 0) throw new BadRequestError("Reserve a vehicle (VIN) on the deal before allocating the order");
@@ -343,12 +377,15 @@ export async function deliverOrder(ctx: AccessContext, id: string, deliveryDate?
   if (!vin) throw new BadRequestError("The order has no VIN allocated");
   const date = deliveryDate ? new Date(deliveryDate) : new Date();
   if (Number.isNaN(date.getTime())) throw new BadRequestError("Invalid delivery date");
-  const deal = await getDeal(ctx, doc.dealId);
-  const values = { vinChassisNo: deal.vinChassisNo ?? vin, deliveryDate: date.toISOString().slice(0, 10) };
-  const advanced = await advanceDealToStage(ctx, doc.dealId, "DELIVERY", values as never);
-  if (!advanced) {
-    // Already at / past Delivery (or the pipeline has no such stage): still record VIN and date on the deal.
-    await scopedDb(ctx).deal.update({ where: { id: doc.dealId }, data: { vinChassisNo: values.vinChassisNo, deliveryDate: date }, select: { id: true } });
+  // The deal moves to Delivery only when one is linked; a standalone order skips it silently.
+  if (doc.dealId) {
+    const deal = await getDeal(ctx, doc.dealId);
+    const values = { vinChassisNo: deal.vinChassisNo ?? vin, deliveryDate: date.toISOString().slice(0, 10) };
+    const advanced = await advanceDealToStage(ctx, doc.dealId, "DELIVERY", values as never);
+    if (!advanced) {
+      // Already at / past Delivery (or the pipeline has no such stage): still record VIN and date on the deal.
+      await scopedDb(ctx).deal.update({ where: { id: doc.dealId }, data: { vinChassisNo: values.vinChassisNo, deliveryDate: date }, select: { id: true } });
+    }
   }
   await setStatus(ctx, "salesOrder", id, "DELIVERED");
   // Gate pass: the units leave stock (cost of sale is posted once, here or when the invoice was issued).
@@ -373,6 +410,11 @@ export async function issueInvoice(ctx: AccessContext, id: string) {
   const doc = await load(ctx, "invoice", id);
   if (doc.status !== "DRAFT") throw new BadRequestError("Only draft invoices can be issued");
   if (doc.lines.length === 0) throw new BadRequestError("Add at least one line before issuing");
+  const rules = await rulesOf(ctx, doc.brandId);
+  if (rules.requireStockLinkForVehicleInvoice) {
+    const unlinked = await nonStockLines(ctx, doc);
+    if (unlinked.length) throw new ForbiddenError(`This brand needs every vehicle line linked to a stock unit before an invoice is issued: ${unlinked.map((l) => l.vin ?? l.description).join(", ")}`);
+  }
   await setStatus(ctx, "invoice", id, "ISSUED", { issueDate: new Date() });
   if (doc.sourceDocumentId) {
     // Sale issue: the order's allocated units leave stock at their own landed cost (Dr COGS / Cr Inventory).
@@ -402,4 +444,269 @@ export async function addPayment(ctx: AccessContext, invoiceId: string, input: u
   const paid = (doc.amountPaid ?? 0) + data.amount;
   await setStatus(ctx, "invoice", invoiceId, paymentStatus(doc.total, paid), { amountPaid: paid });
   return { id: payment.id, status: paymentStatus(doc.total, paid) };
+}
+
+// ───────────────────────────── standalone documents and links (prompt 23) ─────────────────────────────
+
+/** The dependency rules of a brand (Setup → Modules and Fields → Dependencies). */
+export async function rulesOf(ctx: AccessContext, brandId: string): Promise<DocumentRules> {
+  const b = await scopedDb(ctx).brand.findUnique({ where: { id: brandId }, select: { documentRules: true } });
+  return parseRules(b?.documentRules);
+}
+
+/** A bill-to snapshot from a linked account / contact (the user's view of them – masked fields stay out). */
+async function snapshotFrom(ctx: AccessContext, accountId: string | null, contactId: string | null, fallbackName?: string | null): Promise<Partial<Party> | null> {
+  const db = scopedDb(ctx);
+  const [account, contact] = await Promise.all([
+    accountId ? db.account.findUnique({ where: { id: accountId }, select: { name: true, phone: true, email: true, address: true, city: true, state: true, rcNumber: true } }) : null,
+    contactId ? db.contact.findUnique({ where: { id: contactId }, select: { firstName: true, lastName: true, mobile: true, email: true } }) : null,
+  ]);
+  const person = contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : null;
+  const name = account?.name ?? person ?? fallbackName ?? null;
+  if (!name) return null;
+  const strip = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined && v !== "")) as Partial<Party>;
+  return strip({ name, company: account && person ? account.name : null, phone: contact?.mobile ?? account?.phone, email: contact?.email ?? account?.email, address: account?.address, city: account?.city, state: account?.state });
+}
+
+/** Fills empty snapshot fields from another snapshot – never overwrites what was typed. */
+const fillEmpty = (typed: Partial<Party>, from: Partial<Party> | null): Partial<Party> => {
+  const out: Partial<Party> = { ...typed };
+  for (const [k, v] of Object.entries(from ?? {})) if (v && !out[k as keyof Party]) (out as Record<string, unknown>)[k] = v;
+  return out;
+};
+
+/** The user's region in a brand: their own membership region, if they have exactly one there. */
+function regionFor(ctx: AccessContext, brandId: string): string | null {
+  const regions = [...new Set(ctx.memberships.filter((m) => m.brandId === brandId && m.regionId).map((m) => m.regionId!))];
+  return regions.length === 1 ? regions[0]! : null;
+}
+
+/** Vehicle lines (stock items or lines with a VIN) that are not linked to a stock unit of the document's brand. */
+export async function nonStockLines(ctx: AccessContext, doc: Pick<DocDetail, "brandId" | "lines">) {
+  const vehicle = doc.lines.filter((l) => l.isStockItem || l.vin);
+  if (!vehicle.length) return [];
+  const vins = vehicle.map((l) => l.vin).filter((v): v is string => !!v);
+  const units = vins.length ? await scopedDb(ctx).vehicleUnit.findMany({ where: { brandId: doc.brandId, vin: { in: vins } }, select: { vin: true } }) : [];
+  return vehicle.filter((l) => !l.vin || !units.some((u) => u.vin === l.vin));
+}
+
+/**
+ * Creates a quote, sales order or invoice directly (prompt 23): brand, region, the customer's name and at least one
+ * line are enough. Deal, account, contact, source document and price book are optional links – each must be of the
+ * same brand and visible to the user. Brand rules (Dependencies) can make links mandatory.
+ */
+export async function createDocument(ctx: AccessContext, type: DocType, input: CreateDocumentInput) {
+  const cfg = DOCS[type];
+  const data = createSchema.parse(input);
+  const db = scopedDb(ctx);
+
+  // links first: a deal decides brand and region
+  const deal = data.dealId ? await getDeal(ctx, data.dealId) : null;
+  const brandId = deal?.brandId ?? data.brandId ?? (ctx.brandIds.length === 1 ? ctx.brandIds[0]! : null);
+  if (!brandId) throw new BadRequestError("Choose the brand");
+  if (!ctx.brandIds.includes(brandId)) throw new NotFoundError();
+  if (deal && data.brandId && data.brandId !== deal.brandId) throw new ForbiddenError("The deal belongs to another brand");
+  if (deal && data.regionId && data.regionId !== deal.regionId) throw new BadRequestError("The deal is in another region – a linked document is always in its deal's region");
+  const regionId = deal?.regionId ?? data.regionId ?? regionFor(ctx, brandId);
+  if (!regionId) throw new BadRequestError("Choose the region");
+  assertCan(ctx, cfg.module, "create", { brandId, regionId });
+  const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId }, select: { status: true, documentTerms: true, documentRules: true } });
+  if (brand.status === "INACTIVE") throw new BadRequestError("The brand is inactive");
+  const rules = parseRules(brand.documentRules);
+
+  const accountId = data.accountId ?? deal?.accountId ?? null;
+  const contactId = data.contactId ?? deal?.contactId ?? null;
+  if (data.accountId && !(await db.account.findUnique({ where: { id: data.accountId }, select: { id: true } }))) throw new NotFoundError();
+  if (data.contactId && !(await db.contact.findUnique({ where: { id: data.contactId }, select: { id: true } }))) throw new NotFoundError();
+  let source: DocDetail | null = null;
+  if (data.sourceDocumentId) {
+    if (type === "quote") throw new BadRequestError("A quote has no source document");
+    source = await getDocument(ctx, "quote", data.sourceDocumentId).catch(() => null);
+    if (!source && type === "invoice") source = await getDocument(ctx, "salesOrder", data.sourceDocumentId).catch(() => null);
+    if (!source) throw new NotFoundError();
+    if (source.brandId !== brandId) throw new ForbiddenError("The source document belongs to another brand");
+  }
+
+  // the brand's dependency rules
+  if (rules.requireAccount && !accountId) throw new ForbiddenError("This brand requires an account on its documents");
+  if (rules.requireContact && !contactId) throw new ForbiddenError("This brand requires a contact on its documents");
+  if (rules.requireDeal && !deal) throw new ForbiddenError("This brand requires a deal on its documents");
+  if (rules.requireProduct && data.lines.some((l) => !l.productId)) throw new ForbiddenError("This brand requires a product on every line – free-text items are not allowed");
+  if (type === "salesOrder" && rules.requireQuoteBeforeOrder && source?.type !== "quote") throw new ForbiddenError("This brand creates sales orders from quotes only");
+  if (type === "invoice" && rules.requireOrderBeforeInvoice && source?.type !== "salesOrder") throw new ForbiddenError("This brand creates invoices from sales orders only");
+
+  // lines: product prices from the brand's price book unless one was typed; free-text lines need a price
+  if (data.priceBookId) {
+    const book = await db.priceBook.findUnique({ where: { id: data.priceBookId }, select: { brandId: true } });
+    assertSameBrand(brandId, book?.brandId, "The price book");
+  }
+  const issueDate = data.issueDate ?? new Date();
+  const lines: LineData[] = [];
+  for (const l of data.lines) {
+    let unitPrice = l.unitPrice;
+    let taxRate = l.taxRate;
+    if (l.productId) {
+      const price = await getPrice(ctx, l.productId, issueDate, data.priceBookId); // 404 for a product the user cannot see
+      unitPrice ??= price.price ?? undefined;
+      taxRate ??= price.taxRatePct;
+    }
+    if (unitPrice === undefined) throw new BadRequestError(`Enter a unit price for “${l.description}”`);
+    lines.push({ ...l, unitPrice, taxRate: taxRate ?? 7.5 });
+  }
+  await assertLineProducts(ctx, brandId, lines);
+
+  const linked = await snapshotFrom(ctx, accountId, contactId, deal?.customerName);
+  const billTo = fillEmpty(data.billTo, linked);
+  const totals = computeTotals(lines, data.headerDiscountPct);
+  const typeDate = data.date ?? (type === "quote" ? addDays(14) : type === "salesOrder" ? addDays(30) : addDays(7));
+  const created = await delegate(ctx, cfg).create({
+    data: {
+      dealId: deal?.id ?? null,
+      accountId,
+      contactId,
+      sourceDocumentId: source?.id ?? null,
+      brandId,
+      regionId,
+      ownerId: ctx.userId,
+      currency: data.currency ?? deal?.currency ?? "NGN",
+      issueDate,
+      [cfg.dateField]: typeDate,
+      headerDiscountPct: data.headerDiscountPct,
+      subtotal: totals.subtotal,
+      discountTotal: totals.discountTotal,
+      taxTotal: totals.taxTotal,
+      total: totals.total,
+      terms: data.terms ?? brand.documentTerms,
+      notes: data.notes,
+      priceBookId: data.priceBookId,
+      billTo: billTo as object,
+      shipTo: data.shipTo ? (data.shipTo as object) : undefined,
+    },
+    select: { id: true, number: true },
+  });
+  await writeLines(ctx, cfg, created.id, lines, totals.lineTotals);
+  // the scoped client audits the CREATE of a brand-owned record (with dealId / accountId null for a standalone one)
+  return created as { id: string; number: string };
+}
+
+const LINK_KEYS = ["dealId", "accountId", "contactId", "sourceDocumentId"] as const;
+
+/**
+ * Link later: adds (or removes, with null) a deal, account, contact or source document. Same brand, visible to the
+ * user, no loops. An issued invoice can be linked, but its lines and amounts never change.
+ */
+export async function linkDocument(ctx: AccessContext, type: DocType, id: string, input: LinkInput) {
+  const cfg = DOCS[type];
+  const doc = await load(ctx, type, id);
+  const data = linkSchema.parse(input);
+  const db = scopedDb(ctx);
+  const change: Record<string, string | null> = {};
+
+  if (data.dealId !== undefined) {
+    if (data.dealId) {
+      const deal = await getDeal(ctx, data.dealId).catch(() => null);
+      if (!deal) throw new NotFoundError();
+      if (deal.brandId !== doc.brandId) throw new ForbiddenError("The deal belongs to another brand – documents can only be linked within their brand");
+      if (deal.regionId !== doc.regionId) throw new BadRequestError("The deal is in another region than the document");
+      if (type === "quote" && doc.status === "ACCEPTED") {
+        const other = await db.quote.findFirst({ where: { dealId: deal.id, status: "ACCEPTED", id: { not: id } }, select: { number: true } });
+        if (other) throw new BadRequestError(`Quote ${other.number} is already accepted for this deal`);
+      }
+    }
+    change.dealId = data.dealId ?? null;
+  }
+  if (data.accountId !== undefined) {
+    if (data.accountId && !(await db.account.findUnique({ where: { id: data.accountId }, select: { id: true } }))) throw new NotFoundError();
+    change.accountId = data.accountId ?? null;
+  }
+  if (data.contactId !== undefined) {
+    if (data.contactId && !(await db.contact.findUnique({ where: { id: data.contactId }, select: { id: true } }))) throw new NotFoundError();
+    change.contactId = data.contactId ?? null;
+  }
+  if (data.sourceDocumentId !== undefined) {
+    if (data.sourceDocumentId) {
+      if (type === "quote") throw new BadRequestError("A quote has no source document");
+      if (data.sourceDocumentId === id) throw new BadRequestError("A document cannot be its own source");
+      const src = (await getDocument(ctx, "quote", data.sourceDocumentId).catch(() => null)) ?? (type === "invoice" ? await getDocument(ctx, "salesOrder", data.sourceDocumentId).catch(() => null) : null);
+      if (!src) throw new NotFoundError();
+      if (src.brandId !== doc.brandId) throw new ForbiddenError("The source document belongs to another brand");
+      // no loops: the source must not come from this document
+      if (src.sourceDocumentId === id) throw new BadRequestError("These documents would refer to each other");
+    }
+    change.sourceDocumentId = data.sourceDocumentId ?? null;
+  }
+  if (!Object.keys(change).length && !data.refreshBillTo) throw new BadRequestError("Nothing to link");
+
+  const update: Record<string, unknown> = { ...change };
+  if (data.refreshBillTo) {
+    const snap = await snapshotFrom(ctx, change.accountId !== undefined ? change.accountId : doc.accountId, change.contactId !== undefined ? change.contactId : doc.contactId);
+    if (!snap) throw new BadRequestError("Link an account or a contact to take the bill-to from");
+    update.billTo = snap as object;
+  }
+  await delegate(ctx, cfg).update({ where: { id }, data: update, select: { id: true } });
+  const before = Object.fromEntries(Object.keys(change).map((k) => [k, doc[k as (typeof LINK_KEYS)[number]] ?? null]));
+  await audit({ ctx, action: "UPDATE", entity: cfg.model, entityId: id, brandId: doc.brandId, before: { ...before, ...(data.refreshBillTo ? { billTo: doc.billTo } : {}) }, after: { ...change, ...(data.refreshBillTo ? { billTo: update.billTo } : {}), link: true } });
+  return getDocument(ctx, type, id);
+}
+
+/** "Create customer from this document": an account (and a contact for a person) from the snapshot, then linked. */
+export async function createCustomerFromDocument(ctx: AccessContext, type: DocType, id: string) {
+  const doc = await load(ctx, type, id);
+  if (doc.accountId) throw new BadRequestError("The document already has an account");
+  const b = doc.billTo;
+  if (!b?.name) throw new BadRequestError("The document has no customer name to create an account from");
+  const db = scopedDb(ctx);
+  const { normalizePhone } = await import("@/lib/phone");
+  const phone = b.phone ? normalizePhone(b.phone) : null;
+  // duplicates: an account the user can see with the same phone, e-mail or exact name is linked instead
+  const existing = await db.account.findFirst({ where: { deletedAt: null, OR: [...(phone ? [{ phone }] : []), ...(b.email ? [{ email: b.email }] : []), { name: { equals: b.company || b.name, mode: "insensitive" as const } }] }, select: { id: true, name: true } });
+  const customers = await import("@/server/modules/customers/service");
+  let accountId = existing?.id ?? null;
+  if (!accountId) {
+    const acc = await customers.createAccount(ctx, { name: b.company || b.name, type: b.company ? "CORPORATE" : "INDIVIDUAL", phone: phone ?? undefined, email: b.email ?? undefined, address: b.address ?? undefined, city: b.city ?? undefined, state: b.state ?? undefined } as never);
+    accountId = acc.id;
+  }
+  let contactId: string | null = null;
+  if (b.company && b.name !== b.company) {
+    const [first, ...rest] = b.name.split(/\s+/);
+    const c = await customers.createContact(ctx, { accountId, firstName: rest.length ? first : undefined, lastName: rest.length ? rest.join(" ") : first, mobile: phone ?? undefined, email: b.email ?? undefined } as never);
+    contactId = c.id;
+  }
+  await linkDocument(ctx, type, id, { accountId, ...(contactId ? { contactId } : {}) });
+  return { accountId, contactId, duplicate: !!existing, name: existing?.name ?? b.company ?? b.name };
+}
+
+/** "Create deal from this quote": a deal at stage Quotation with brand, region, customer, amount and product. */
+export async function createDealFromQuote(ctx: AccessContext, quoteId: string) {
+  const quote = await load(ctx, "quote", quoteId);
+  if (quote.dealId) throw new BadRequestError("The quote already has a deal");
+  const { createDeal } = await import("@/server/modules/deals/service");
+  const modelId = quote.lines.find((l) => l.productId)?.productId ?? null;
+  const deal = await createDeal(ctx, { name: `${quote.billTo?.name ?? "Customer"} – ${quote.number}`.slice(0, 200), customerName: quote.billTo?.name ?? undefined, brandId: quote.brandId, regionId: quote.regionId, accountId: quote.accountId ?? undefined, contactId: quote.contactId ?? undefined, amount: quote.total, currency: quote.currency, modelId: modelId ?? undefined } as never);
+  await advanceDealToStage(ctx, deal.id, "QUOTATION").catch(() => false); // Blueprint may require fields: the deal then stays at its first stage
+  await linkDocument(ctx, "quote", quoteId, { dealId: deal.id });
+  return { dealId: deal.id };
+}
+
+/** Dependency rules: how many OPEN documents of a brand would break a rule if it were switched on now. */
+export async function ruleViolations(ctx: AccessContext, brandId: string): Promise<Record<string, number>> {
+  const db = scopedDb(ctx);
+  const open: Record<"quote" | "salesOrder" | "invoice", any> = { quote: { status: { in: ["DRAFT", "PENDING_APPROVAL", "APPROVED", "SENT"] } }, salesOrder: { status: { in: ["DRAFT", "CONFIRMED", "ALLOCATED"] } }, invoice: { status: { in: ["DRAFT", "ISSUED", "PART_PAID"] } } };
+  const count = async (where: Record<string, unknown>) => {
+    let n = 0;
+    for (const t of ["quote", "salesOrder", "invoice"] as const) n += await (db as any)[t].count({ where: { brandId, deletedAt: null, ...open[t], ...where } });
+    return n;
+  };
+  const freeText = await db.documentLine.findMany({ where: { productId: null, OR: [{ quote: { brandId, ...open.quote } }, { salesOrder: { brandId, ...open.salesOrder } }, { invoice: { brandId, ...open.invoice } }] }, select: { quoteId: true, salesOrderId: true, invoiceId: true } });
+  const stockLines = await db.documentLine.findMany({ where: { invoice: { brandId, status: "DRAFT" }, OR: [{ isStockItem: true }, { vin: { not: null } }] }, select: { invoiceId: true, vin: true } });
+  const units = await db.vehicleUnit.findMany({ where: { brandId, vin: { in: stockLines.map((l) => l.vin).filter((v): v is string => !!v) } }, select: { vin: true } });
+  return {
+    requireAccount: await count({ accountId: null }),
+    requireContact: await count({ contactId: null }),
+    requireDeal: await count({ dealId: null }),
+    requireProduct: new Set(freeText.map((l) => l.quoteId ?? l.salesOrderId ?? l.invoiceId)).size,
+    requireQuoteBeforeOrder: await (db as any).salesOrder.count({ where: { brandId, deletedAt: null, ...open.salesOrder, sourceDocumentId: null } }),
+    requireOrderBeforeInvoice: await (db as any).invoice.count({ where: { brandId, deletedAt: null, ...open.invoice, sourceDocumentId: null } }),
+    requireStockLinkForVehicleInvoice: new Set(stockLines.filter((l) => !l.vin || !units.some((u) => u.vin === l.vin)).map((l) => l.invoiceId)).size,
+  };
 }

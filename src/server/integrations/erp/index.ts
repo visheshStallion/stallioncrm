@@ -57,6 +57,7 @@ export async function postDocumentJob(job: Pick<Job, "payload">): Promise<Record
     customerName: d.customerName,
     accountId: d.accountId,
     dealId: d.dealId,
+    customer: { name: d.billTo?.name ?? d.customerName, taxId: d.billTo?.taxId ?? null, phone: d.billTo?.phone ?? null, email: d.billTo?.email ?? null, address: [d.billTo?.address, d.billTo?.city, d.billTo?.state].filter(Boolean).join(", ") || null },
     subtotal: d.subtotal,
     discountTotal: d.discountTotal,
     taxTotal: d.taxTotal,

@@ -17,7 +17,7 @@ export interface RField {
 }
 
 export interface RModule {
-  key: "deals" | "leads" | "quotes" | "activities" | "cases";
+  key: "deals" | "leads" | "quotes" | "documents" | "activities" | "cases";
   label: string;
   /** base table (alias t); soft-deleted rows are always excluded */
   table: string;
@@ -104,6 +104,33 @@ export const REPORT_MODULES: RModule[] = [
       { key: "convertedAt", label: "Converted on", type: "date", sql: `t."convertedAt"` },
       { key: "model", label: "Model of interest", type: "text", sql: `p.name`, joins: ["model"] },
       ...activityCount("Lead"),
+    ],
+  },
+  {
+    // quotes, sales orders and invoices together (prompt 23): link status and non-stock vehicle lines. Each part is
+    // read under row-level security, so the union only ever holds the viewer's documents.
+    key: "documents",
+    label: "Documents (quotes, orders, invoices)",
+    table: `(SELECT id, 'Quote' AS "docType", number, status::text AS status, total, "issueDate", "brandId", "regionId", "ownerId", "createdAt", "deletedAt", "dealId", "accountId", "contactId", "sourceDocumentId", "billTo" FROM "Quote" UNION ALL SELECT id, 'Sales Order' AS "docType", number, status::text AS status, total, "issueDate", "brandId", "regionId", "ownerId", "createdAt", "deletedAt", "dealId", "accountId", "contactId", "sourceDocumentId", "billTo" FROM "SalesOrder" UNION ALL SELECT id, 'Invoice' AS "docType", number, status::text AS status, total, "issueDate", "brandId", "regionId", "ownerId", "createdAt", "deletedAt", "dealId", "accountId", "contactId", "sourceDocumentId", "billTo" FROM "Invoice")`,
+    path: null,
+    defaultSort: "issueDate",
+    joins: { ...baseJoins },
+    defaultColumns: ["docType", "number", "brand", "customer", "linkStatus", "status", "total", "issueDate"],
+    fields: [
+      { key: "docType", label: "Document type", type: "enum", sql: `t."docType"`, options: ["Quote", "Sales Order", "Invoice"] },
+      { key: "number", label: "Number", type: "text", sql: `t.number` },
+      ...common,
+      { key: "status", label: "Status", type: "text", sql: `t.status` },
+      { key: "customer", label: "Customer (bill-to)", type: "text", sql: `coalesce(t."billTo"->>'name', '(none)')` },
+      { key: "linkStatus", label: "Link status", type: "enum", sql: `CASE WHEN t."dealId" IS NULL AND t."accountId" IS NULL AND t."contactId" IS NULL AND t."sourceDocumentId" IS NULL THEN 'Unlinked' ELSE 'Linked' END`, options: ["Linked", "Unlinked"] },
+      { key: "total", label: "Total", type: "money", sql: `t.total` },
+      { key: "issueDate", label: "Issue date", type: "date", sql: `t."issueDate"` },
+      {
+        key: "nonStockLines",
+        label: "Non-stock vehicle lines",
+        type: "number",
+        sql: `(SELECT count(*)::int FROM "DocumentLine" dl WHERE (dl."quoteId" = t.id OR dl."salesOrderId" = t.id OR dl."invoiceId" = t.id) AND (dl."isStockItem" OR dl.vin IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM "VehicleUnit" vu WHERE vu."brandId" = t."brandId" AND vu.vin = dl.vin))`,
+      },
     ],
   },
   {

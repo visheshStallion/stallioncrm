@@ -43,7 +43,7 @@ async function main() {
       // an existing profile keeps the permissions an administrator may have changed
       await prisma.profile.upsert({ where: { name: p.name }, update: {}, create: { name: p.name, scope: p.scope, permissions: p.permissions, fieldPermissions: p.fieldPermissions } });
     }
-    for (const fn of ["app_seed_automation", "app_seed_document_templates", "app_seed_reports", "app_seed_cases", "app_seed_layouts"]) await prisma.$executeRawUnsafe(`SELECT ${fn}()`);
+    for (const fn of ["app_seed_automation", "app_seed_document_templates", "app_seed_reports", "app_seed_document_reports", "app_seed_cases", "app_seed_layouts"]) await prisma.$executeRawUnsafe(`SELECT ${fn}()`);
 
     const profile = await prisma.profile.findUniqueOrThrow({ where: { name: PROFILES.ADMIN } });
     const existing = await prisma.user.findUnique({ where: { email } });

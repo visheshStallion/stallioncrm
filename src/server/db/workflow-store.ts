@@ -94,11 +94,12 @@ export async function recordBrand(model: string, id: string): Promise<{ brandId:
 /** Safety net used by the "inherits brand from deal" rules: true when a document's brand / region match its deal. */
 export async function documentMatchesDeal(model: "Quote" | "SalesOrder", id: string): Promise<boolean> {
   const doc = await (unsafeDb as any)[delegateName(model)].findUnique({ where: { id }, select: { brandId: true, regionId: true, deal: { select: { brandId: true, regionId: true } } } });
-  return !!doc && doc.brandId === doc.deal.brandId && doc.regionId === doc.deal.regionId;
+  // a standalone document (no deal, prompt 23) has nothing to match
+  return !!doc && (!doc.deal || (doc.brandId === doc.deal.brandId && doc.regionId === doc.deal.regionId));
 }
 
 /** Repairs a document whose brand / region diverged from its deal (should be impossible – the DB trigger forbids it). */
 export async function alignDocumentWithDeal(model: "Quote" | "SalesOrder", id: string): Promise<void> {
   const doc = await (unsafeDb as any)[delegateName(model)].findUnique({ where: { id }, select: { deal: { select: { brandId: true, regionId: true, territoryId: true } } } });
-  if (doc) await (unsafeDb as any)[delegateName(model)].update({ where: { id }, data: doc.deal });
+  if (doc?.deal) await (unsafeDb as any)[delegateName(model)].update({ where: { id }, data: doc.deal });
 }

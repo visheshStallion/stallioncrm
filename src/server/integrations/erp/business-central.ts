@@ -19,6 +19,9 @@ export const businessCentral: ErpAdapter = {
       [dateField]: doc.issueDate,
       ...(doc.dueDate && doc.type === "invoice" ? { dueDate: doc.dueDate } : {}),
       customerName: doc.customerName,
+      // customer matching in the ERP: tax id first, then phone, then name (prompt 23 – documents without an account)
+      ...(doc.customer.taxId ? { customerTaxRegistrationNumber: doc.customer.taxId } : {}),
+      ...(doc.customer.phone ? { phoneNumber: doc.customer.phone } : {}),
       currencyCode: doc.currency,
       [doc.type === "invoice" ? "salesInvoiceLines" : "salesOrderLines"]: doc.lines.map((l) => ({
         sequence: l.position,

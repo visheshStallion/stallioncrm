@@ -88,7 +88,10 @@ export async function loadEmailRecord(ctx: AccessContext, parentType: string, pa
       doc.accountId ? db.account.findUnique({ where: { id: doc.accountId }, select: { name: true, email: true, phone: true } }) : null,
       db.user.findUnique({ where: { id: doc.ownerId }, select: { name: true } }),
     ]);
-    const name = contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : (account?.name ?? doc.customerName ?? "");
+    // the bill-to snapshot (prompt 23) is the customer of a document – complete without an account or contact
+    const billTo = ((doc as { billTo?: Record<string, string | null> | null }).billTo ?? {}) as Record<string, string | null>;
+    const name = contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : (billTo.name ?? account?.name ?? doc.customerName ?? "");
+    const [first] = (billTo.name ?? "").split(/s+/);
     const scalars = Object.fromEntries(Object.entries(doc).filter(([, v]) => v === null || ["string", "number", "boolean"].includes(typeof v))) as Record<string, string | number | boolean | null>;
     const group = parentType === "Quote" ? "quote" : parentType === "SalesOrder" ? "salesOrder" : "invoice";
     return {
@@ -97,9 +100,9 @@ export async function loadEmailRecord(ctx: AccessContext, parentType: string, pa
       brandId: doc.brandId,
       regionId: doc.regionId,
       ownerId: doc.ownerId,
-      recipient: { name, firstName: contact?.firstName ?? null, lastName: contact?.lastName ?? null, mobile: contact?.mobile ?? account?.phone ?? null, email: contact?.email ?? account?.email ?? null, contactId: contact?.id ?? null, leadId: null },
-      merge: { contact: { firstName: contact?.firstName ?? name, lastName: contact?.lastName, name }, account: { name: account?.name ?? doc.customerName }, [group]: scalars, document: scalars, brand, owner: { name: owner?.name } },
-      suggestions: suggest([{ name, email: contact?.email }, { name: account?.name ?? "", email: account?.email }]),
+      recipient: { name, firstName: contact?.firstName ?? null, lastName: contact?.lastName ?? null, mobile: contact?.mobile ?? account?.phone ?? billTo.phone ?? null, email: contact?.email ?? account?.email ?? billTo.email ?? null, contactId: contact?.id ?? null, leadId: null },
+      merge: { contact: { firstName: contact?.firstName ?? (billTo.name && !billTo.company ? first : null) ?? name, lastName: contact?.lastName, name }, account: { name: account?.name ?? billTo.company ?? doc.customerName }, billTo, [group]: scalars, document: scalars, brand, owner: { name: owner?.name } },
+      suggestions: suggest([{ name, email: contact?.email }, { name: account?.name ?? "", email: account?.email }, { name: billTo.name ?? name, email: billTo.email }]),
     };
   }
 

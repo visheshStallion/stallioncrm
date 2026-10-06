@@ -127,3 +127,17 @@ ALTER TABLE "Lead" ADD CONSTRAINT "Lead_name_check" CHECK (coalesce(btrim("lastN
 -- The search index covers company names as well.
 DROP INDEX IF EXISTS "Lead_search_trgm";
 CREATE INDEX "Lead_search_trgm" ON "Lead" USING gin ((coalesce("firstName", '') || ' ' || coalesce("lastName", '') || ' ' || coalesce("company", '')) gin_trgm_ops);
+
+-- Standard reports: documents without links, and vehicle lines without a stock unit (prompt 23 §5). Idempotent.
+CREATE OR REPLACE FUNCTION app_seed_document_reports() RETURNS void
+LANGUAGE plpgsql AS $fn$
+BEGIN
+  INSERT INTO "Report" (id, key, name, description, module, folder, definition, "updatedAt") VALUES
+    ('rp_unlinked_docs', 'unlinked-documents-by-brand', 'Unlinked documents by brand', 'Quotes, sales orders and invoices without a deal, account, contact or source document – to follow up.', 'documents', 'GROUP',
+     '{"module":"documents","filters":[{"field":"linkStatus","op":"eq","value":"Unlinked"}],"groupBy":[{"field":"brand"},{"field":"docType"}],"summaries":[{"fn":"count"},{"fn":"sum","field":"total"}],"chart":{"type":"bar"}}', now()),
+    ('rp_non_stock_lines', 'non-stock-vehicle-lines', 'Non-stock vehicle lines', 'Documents with vehicle lines that are not linked to a stock unit of the brand (free-text VIN).', 'documents', 'GROUP',
+     '{"module":"documents","columns":["docType","number","brand","customer","status","nonStockLines","total","issueDate"],"filters":[{"field":"nonStockLines","op":"gt","value":0}],"groupBy":[],"summaries":[],"sort":{"field":"issueDate","dir":"desc"},"chart":{"type":"none"}}', now())
+  ON CONFLICT DO NOTHING;
+END
+$fn$;
+SELECT app_seed_document_reports();

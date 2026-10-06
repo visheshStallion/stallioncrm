@@ -4,7 +4,7 @@ import { NotFoundError } from "@/server/access/errors";
 import { filterWhere, type UiFilters } from "@/server/access/filters";
 import type { AccessContext } from "@/server/access/types";
 import { scopedDb } from "@/server/db";
-import { DOCS, type DocConfig, type DocType } from "./config";
+import { DOCS, type DocConfig, type DocType, type Party } from "./config";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- the three document models share one implementation */
 
@@ -22,6 +22,9 @@ export interface DocLine {
   taxRate: number;
   lineTotal: number;
   vin: string | null;
+  itemCode: string | null;
+  uom: string | null;
+  isStockItem: boolean;
 }
 
 export interface DocRow {
@@ -29,10 +32,16 @@ export interface DocRow {
   type: DocType;
   number: string;
   status: string;
-  dealId: string;
-  dealName: string;
+  /** optional (prompt 23): a document can be created standalone */
+  dealId: string | null;
+  dealName: string | null;
   accountId: string | null;
+  /** the bill-to name of the snapshot, else the linked account / deal customer */
   customerName: string | null;
+  billTo: Partial<Party> | null;
+  shipTo: Partial<Party> | null;
+  /** Linked when the document has a deal, an account, a contact or a source document */
+  linkStatus: "Linked" | "Unlinked";
   contactId: string | null;
   issueDate: string;
   /** validUntil / expectedDelivery / dueDate */
@@ -77,6 +86,8 @@ const headerSelect = (cfg: DocConfig) => ({
   notes: true,
   priceBookId: true,
   sourceDocumentId: true,
+  billTo: true,
+  shipTo: true,
   brandId: true,
   regionId: true,
   ownerId: true,
@@ -91,10 +102,13 @@ function toRow(cfg: DocConfig, d: any): DocRow {
     type: cfg.type,
     number: d.number,
     status: d.status,
-    dealId: d.dealId,
-    dealName: d.deal.name,
+    dealId: d.dealId ?? null,
+    dealName: d.deal?.name ?? null,
     accountId: d.accountId,
-    customerName: d.deal.account?.name ?? d.deal.customerName ?? null,
+    customerName: (d.billTo as Partial<Party> | null)?.name ?? d.deal?.account?.name ?? d.deal?.customerName ?? null,
+    billTo: (d.billTo as Partial<Party> | null) ?? null,
+    shipTo: (d.shipTo as Partial<Party> | null) ?? null,
+    linkStatus: d.dealId || d.accountId || d.contactId || d.sourceDocumentId ? "Linked" : "Unlinked",
     contactId: d.contactId,
     issueDate: day(d.issueDate)!,
     date: day(d[cfg.dateField]),
@@ -124,7 +138,7 @@ export async function listDocuments(
   ctx: AccessContext,
   type: DocType,
   filters: UiFilters = {},
-  opts: { q?: string; status?: string; dealId?: string; mine?: boolean; take?: number; skip?: number } = {},
+  opts: { q?: string; status?: string; dealId?: string; mine?: boolean; linked?: "Linked" | "Unlinked"; take?: number; skip?: number } = {},
 ): Promise<{ rows: DocRow[]; total: number }> {
   const cfg = DOCS[type];
   assertCan(ctx, cfg.module, "read");
@@ -135,7 +149,18 @@ export async function listDocuments(
       opts.status && opts.status in cfg.statuses ? { status: opts.status } : {},
       opts.dealId ? { dealId: opts.dealId } : {},
       opts.mine ? { ownerId: ctx.userId } : {},
-      q ? { OR: [{ number: { contains: q, mode: "insensitive" } }, { deal: { name: { contains: q, mode: "insensitive" } } }, { deal: { customerName: { contains: q, mode: "insensitive" } } }] } : {},
+      opts.linked === "Unlinked" ? { dealId: null, accountId: null, contactId: null, sourceDocumentId: null } : opts.linked === "Linked" ? { OR: [{ dealId: { not: null } }, { accountId: { not: null } }, { contactId: { not: null } }, { sourceDocumentId: { not: null } }] } : {},
+      q
+        ? {
+            OR: [
+              { number: { contains: q, mode: "insensitive" } },
+              { deal: { name: { contains: q, mode: "insensitive" } } },
+              { deal: { customerName: { contains: q, mode: "insensitive" } } },
+              { billTo: { path: ["name"], string_contains: q } },
+              { billTo: { path: ["phone"], string_contains: q.replace(/\s/g, "") } },
+            ],
+          }
+        : {},
     ],
   };
   const [rows, total] = await Promise.all([
@@ -174,6 +199,9 @@ export async function getDocument(ctx: AccessContext, type: DocType, id: string)
       taxRate: Number(l.taxRate.toString()),
       lineTotal: Number(l.lineTotal.toString()),
       vin: l.vin,
+      itemCode: l.itemCode,
+      uom: l.uom,
+      isStockItem: l.isStockItem,
     })),
     payments: payments.map((p) => ({ id: p.id, amount: Number(p.amount.toString()), method: p.method, reference: p.reference, receivedAt: p.receivedAt.toISOString() })),
   };

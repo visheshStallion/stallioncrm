@@ -36,9 +36,17 @@ export async function documentPdfModel(ctx: AccessContext, type: DocType, id: st
     dateLabel: cfg.dateLabel,
     brand: { code: brand.code, name: brand.name, legalEntity: brand.legalEntity || brand.name, address: brand.address, bankDetails: brand.bankDetails, color: brand.color },
     logo: brand.logoData && brand.logoMimeType && ["image/png", "image/jpeg"].includes(brand.logoMimeType) ? { bytes: new Uint8Array(brand.logoData), type: brand.logoMimeType } : null,
+    // the document prints from its bill-to snapshot – complete without an account; a linked account fills the gaps
     customer: {
-      name: account?.name ?? doc.customerName ?? "Customer",
-      lines: [contact ? `Attn: ${[contact.firstName, contact.lastName].filter(Boolean).join(" ")}` : null, account?.address, [account?.city, account?.state].filter(Boolean).join(", ") || null].filter((x): x is string => !!x),
+      name: doc.billTo?.name ?? account?.name ?? doc.customerName ?? "Customer",
+      lines: [
+        doc.billTo?.company && doc.billTo.company !== doc.billTo.name ? doc.billTo.company : null,
+        contact ? `Attn: ${[contact.firstName, contact.lastName].filter(Boolean).join(" ")}` : null,
+        doc.billTo?.address ?? account?.address,
+        [doc.billTo?.city ?? account?.city, doc.billTo?.state ?? account?.state].filter(Boolean).join(", ") || null,
+        [doc.billTo?.phone, doc.billTo?.email].filter(Boolean).join(" · ") || null,
+        doc.billTo?.taxId ? `TIN ${doc.billTo.taxId}` : null,
+      ].filter((x): x is string => !!x),
     },
     doc,
   };
@@ -130,7 +138,7 @@ export async function renderDocumentPdf(m: PdfModel): Promise<Uint8Array> {
   const meta: Array<[string, string]> = [
     ["Issue date", m.doc.issueDate.split("-").reverse().join("/")],
     [m.dateLabel, m.doc.date ? m.doc.date.split("-").reverse().join("/") : "-"],
-    ["Deal", m.doc.dealName],
+    ...(m.doc.dealName ? ([["Deal", m.doc.dealName]] as Array<[string, string]>) : []),
     ["Prepared by", m.doc.ownerName],
   ];
   let my = y;

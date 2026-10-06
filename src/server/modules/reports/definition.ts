@@ -5,7 +5,7 @@ const key = z.string().min(1).max(40);
 
 export const definitionSchema = z
   .object({
-    module: z.enum(["deals", "leads", "quotes", "activities", "cases"]),
+    module: z.enum(["deals", "leads", "quotes", "documents", "activities", "cases"]),
     /** fixed multi-source standard reports */
     special: z.enum(SPECIALS).optional(),
     columns: z.array(key).max(20).default([]),
