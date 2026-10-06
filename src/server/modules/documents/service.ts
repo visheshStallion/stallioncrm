@@ -16,7 +16,8 @@ import { decide, submitForApproval } from "@/server/modules/approvals/service";
 import { advanceDealToStage } from "@/server/modules/deals/service";
 import { DOCS, createSchema, linkSchema, parseRules, paymentSchema, saveSchema, type CreateDocumentInput, type DocConfig, type DocType, type DocumentRules, type LineData, type LinkInput, type Party, type SaveInput } from "./config";
 import { getDocument, type DocDetail } from "./queries";
-import { computeTotals, discountApproval, paymentStatus, type ApprovalDecision } from "./totals";
+import { assertVins, computeLines, normaliseLine, persistLines, type HeaderInput } from "./lines";
+import { discountApproval, paymentStatus, type ApprovalDecision } from "./totals";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- the three document models share one implementation */
 
@@ -41,14 +42,17 @@ async function assertLineProducts(ctx: AccessContext, brandId: string, lines: Li
   for (const id of ids) assertSameBrand(brandId, products.find((p) => p.id === id)?.brandId);
 }
 
-async function writeLines(ctx: AccessContext, cfg: DocConfig, docId: string, lines: LineData[], lineTotals: number[]) {
-  const db = scopedDb(ctx);
-  await db.documentLine.deleteMany({ where: { [cfg.lineKey]: docId } });
-  if (lines.length) {
-    await db.documentLine.createMany({
-      data: lines.map((l, i) => ({ [cfg.lineKey]: docId, position: i + 1, productId: l.productId, description: l.description, qty: l.qty, unitPrice: l.unitPrice, discountPct: l.discountPct, taxRate: l.taxRate, lineTotal: lineTotals[i]!, vin: l.vin, itemCode: l.itemCode ?? null, uom: l.uom ?? null, isStockItem: l.isStockItem ?? !!l.vin })) as any,
-    });
-  }
+/**
+ * The one way lines are written (prompt 24): normalised, VINs checked, every figure computed on the server with the
+ * brand's tax mode and rounding, lines and header totals saved. Returns the computed document.
+ */
+async function applyLines(ctx: AccessContext, type: DocType, docId: string, brandId: string, priceBookId: string | null, raw: LineData[], header: HeaderInput, extra: Record<string, unknown> = {}, opts: { history?: boolean } = {}) {
+  const rules = await rulesOf(ctx, brandId);
+  const lines = raw.map((l) => normaliseLine(l, rules));
+  await assertVins(ctx, type, docId, brandId, lines);
+  const r = await computeLines(ctx, brandId, priceBookId, lines, header, rules);
+  await persistLines(ctx, type, docId, brandId, lines, r, header, extra, opts);
+  return r;
 }
 
 // ───────────────────────────── create / edit ─────────────────────────────
@@ -80,7 +84,6 @@ export async function createQuoteFromDeal(ctx: AccessContext, dealId: string) {
       isStockItem: true,
     });
   }
-  const totals = computeTotals(lines, 0);
   const billTo = await snapshotFrom(ctx, deal.accountId, deal.contactId, deal.customerName);
   const quote = await db.quote.create({
     data: {
@@ -95,14 +98,10 @@ export async function createQuoteFromDeal(ctx: AccessContext, dealId: string) {
       validUntil: addDays(14),
       terms: brand.documentTerms,
       priceBookId: book?.id ?? null,
-      subtotal: totals.subtotal,
-      discountTotal: totals.discountTotal,
-      taxTotal: totals.taxTotal,
-      total: totals.total,
     },
     select: { id: true },
   });
-  await writeLines(ctx, DOCS.quote, quote.id, lines, totals.lineTotals);
+  await applyLines(ctx, "quote", quote.id, deal.brandId, book?.id ?? null, lines, {}, {}, { history: false });
   return quote;
 }
 
@@ -117,24 +116,9 @@ export async function saveDocument(ctx: AccessContext, type: DocType, id: string
     const book = await scopedDb(ctx).priceBook.findUnique({ where: { id: data.priceBookId }, select: { brandId: true } });
     assertSameBrand(doc.brandId, book?.brandId, "The price book");
   }
-  const totals = computeTotals(data.lines, data.headerDiscountPct);
-  await writeLines(ctx, cfg, id, data.lines, totals.lineTotals);
-  await delegate(ctx, cfg).update({
-    where: { id },
-    data: {
-      headerDiscountPct: data.headerDiscountPct,
-      [cfg.dateField]: data.date,
-      terms: data.terms,
-      notes: data.notes,
-      priceBookId: data.priceBookId,
-      subtotal: totals.subtotal,
-      discountTotal: totals.discountTotal,
-      taxTotal: totals.taxTotal,
-      total: totals.total,
-    },
-    select: { id: true },
-  });
-  return { id, ...totals };
+  if ((data.adjustment ?? 0) !== 0 && (data.adjustment ?? 0) !== doc.adjustment) await assertAdjustment(ctx, doc.brandId);
+  const r = await applyLines(ctx, type, id, doc.brandId, data.priceBookId, data.lines, data, { [cfg.dateField]: data.date, terms: data.terms, notes: data.notes, priceBookId: data.priceBookId });
+  return { id, subtotal: r.gross, discountTotal: r.discountTotal, taxTotal: r.taxTotal, total: r.grandTotal, lineTotals: r.lines.map((l) => l.net), grid: r };
 }
 
 // ───────────────────────────── quotes: approval & lifecycle ─────────────────────────────
@@ -257,7 +241,10 @@ export async function expireQuotes(ctx: AccessContext) {
 
 // ───────────────────────────── conversion ─────────────────────────────
 
-async function copyTo(ctx: AccessContext, source: DocDetail, target: DocType, extra: Record<string, unknown>) {
+/** A stored line as input for a new document (conversion). */
+const lineFrom = (l: DocDetail["lines"][number]): LineData => ({ productId: l.productId, description: l.description, itemCode: l.itemCode, uom: l.uom, isStockItem: l.isStockItem, qty: l.qty, unitPrice: l.unitPrice, discountPct: l.discountPct, taxRate: l.taxRate, vin: l.vin, discountType: l.discountType, discountValue: l.discountValue, taxes: l.taxes.map(({ name, rate }) => ({ name, rate })), vins: l.vins });
+
+async function copyTo(ctx: AccessContext, source: DocDetail, target: DocType, extra: Record<string, unknown>, opts?: { lines?: DocDetail["lines"]; qty?: Map<string, number> }) {
   const cfg = DOCS[target];
   assertCan(ctx, cfg.module, "create", source);
   const created = await delegate(ctx, cfg).create({
@@ -269,11 +256,6 @@ async function copyTo(ctx: AccessContext, source: DocDetail, target: DocType, ex
       regionId: source.regionId,
       ownerId: source.ownerId,
       currency: source.currency,
-      headerDiscountPct: source.headerDiscountPct,
-      subtotal: source.subtotal,
-      discountTotal: source.discountTotal,
-      taxTotal: source.taxTotal,
-      total: source.total,
       terms: source.terms,
       notes: source.notes,
       priceBookId: source.priceBookId,
@@ -284,7 +266,8 @@ async function copyTo(ctx: AccessContext, source: DocDetail, target: DocType, ex
     },
     select: { id: true },
   });
-  await writeLines(ctx, cfg, created.id, source.lines, source.lines.map((l) => l.lineTotal));
+  const lines = (opts?.lines ?? source.lines).map((l) => ({ ...lineFrom(l), qty: opts?.qty?.get(l.id) ?? l.qty, sourceLineId: l.id }));
+  await applyLines(ctx, target, created.id, source.brandId, source.priceBookId, lines as LineData[], { headerDiscountType: source.headerDiscountType, headerDiscountValue: source.headerDiscountValue, documentTaxes: source.documentTaxes, adjustment: source.adjustment }, {}, { history: false });
   return created as { id: string };
 }
 
@@ -309,12 +292,22 @@ export async function convertQuoteToInvoice(ctx: AccessContext, quoteId: string)
 }
 
 /** Confirmed (or later) Sales Order → draft Invoice. */
-export async function convertOrderToInvoice(ctx: AccessContext, orderId: string) {
+export async function convertOrderToInvoice(ctx: AccessContext, orderId: string, quantities?: Record<string, number>) {
   const order = await load(ctx, "salesOrder", orderId);
   if (!["CONFIRMED", "ALLOCATED", "DELIVERED"].includes(order.status)) throw new BadRequestError("Confirm the sales order before invoicing it");
-  const existing = await scopedDb(ctx).invoice.findFirst({ where: { sourceDocumentId: orderId, status: { not: "VOID" } }, select: { number: true } });
-  if (existing) throw new BadRequestError(`Invoice ${existing.number} already exists for this order`);
-  return copyTo(ctx, order, "invoice", { dueDate: addDays(7) });
+  // partial invoicing (prompt 24): what remains of each line; a quantity per line id invoices only part of it
+  const remaining = order.lines.map((l) => ({ l, left: Math.round((l.qty - l.invoicedQty) * 100) / 100 })).filter((x) => x.left > 0);
+  if (!remaining.length) throw new BadRequestError("Every line of this order is invoiced already");
+  const qty = new Map<string, number>();
+  for (const { l, left } of remaining) {
+    const want = quantities?.[l.id] ?? left;
+    if (want < 0 || want > left + 1e-9) throw new BadRequestError(`Line “${l.description}”: at most ${left} can still be invoiced`);
+    if (want > 0) qty.set(l.id, want);
+  }
+  if (!qty.size) throw new BadRequestError("Choose at least one quantity to invoice");
+  const inv = await copyTo(ctx, order, "invoice", { dueDate: addDays(7) }, { lines: remaining.filter((x) => qty.has(x.l.id)).map((x) => x.l), qty });
+  for (const [lineId, q] of qty) await scopedDb(ctx).documentLine.update({ where: { id: lineId }, data: { invoicedQty: { increment: q } } });
+  return inv;
 }
 
 // ───────────────────────────── sales orders ─────────────────────────────
@@ -338,6 +331,9 @@ export async function confirmOrder(ctx: AccessContext, id: string) {
   const doc = await load(ctx, "salesOrder", id);
   if (doc.status !== "DRAFT") throw new BadRequestError("Only draft orders can be confirmed");
   if (doc.lines.length === 0) throw new BadRequestError("Add at least one line before confirming");
+  if (doc.lines.some((l) => l.needsApproval) && !(await discountApproved(ctx, "SalesOrder", id, doc.updatedAt))) {
+    throw new ForbiddenError("Some lines have a discount above the price book maximum – request approval before confirming");
+  }
   await setStatus(ctx, "salesOrder", id, "CONFIRMED");
   await emitConfirmed(ctx, "salesOrder", doc);
 }
@@ -351,6 +347,7 @@ export async function allocateOrder(ctx: AccessContext, id: string) {
     // A standalone order (prompt 23): no reserved stock to take – the VIN typed on the vehicle line is the allocation.
     // No stock movement happens; the line is reported as a non-stock line unless a unit with that VIN exists.
     if (!doc.lines.some((l) => l.vin)) throw new BadRequestError("Enter the VIN on the vehicle line, or link a deal with a reserved vehicle");
+    await assertVinsComplete(ctx, id);
     await setStatus(ctx, "salesOrder", id, "ALLOCATED");
     return;
   }
@@ -366,6 +363,7 @@ export async function allocateOrder(ctx: AccessContext, id: string) {
     }
   }
   for (const u of reserved) await dispatchEvent("vehicle.status_changed", u.id, doc.brandId);
+  await assertVinsComplete(ctx, id);
   await setStatus(ctx, "salesOrder", id, "ALLOCATED");
 }
 
@@ -429,6 +427,12 @@ export async function voidInvoice(ctx: AccessContext, id: string) {
   const doc = await load(ctx, "invoice", id);
   if (!["DRAFT", "ISSUED"].includes(doc.status) || (doc.amountPaid ?? 0) > 0) throw new BadRequestError("An invoice with payments cannot be voided");
   await setStatus(ctx, "invoice", id, "VOID");
+  // partial invoicing: the order's lines can be invoiced again
+  const db = scopedDb(ctx);
+  for (const l of doc.lines) {
+    const src = (l as { sourceLineId?: string | null }).sourceLineId;
+    if (src) await db.documentLine.updateMany({ where: { id: src, salesOrderId: { not: null } }, data: { invoicedQty: { decrement: l.qty } } });
+  }
 }
 
 /** Records a receipt (deposit / balance) and moves the invoice to Part-paid or Paid. */
@@ -557,7 +561,7 @@ export async function createDocument(ctx: AccessContext, type: DocType, input: C
 
   const linked = await snapshotFrom(ctx, accountId, contactId, deal?.customerName);
   const billTo = fillEmpty(data.billTo, linked);
-  const totals = computeTotals(lines, data.headerDiscountPct);
+  if ((data.adjustment ?? 0) !== 0) await assertAdjustment(ctx, brandId);
   const typeDate = data.date ?? data[cfg.dateField] ?? (type === "quote" ? addDays(14) : type === "salesOrder" ? addDays(30) : addDays(7));
   const created = await delegate(ctx, cfg).create({
     data: {
@@ -571,11 +575,6 @@ export async function createDocument(ctx: AccessContext, type: DocType, input: C
       currency: data.currency ?? deal?.currency ?? "NGN",
       issueDate,
       [cfg.dateField]: typeDate,
-      headerDiscountPct: data.headerDiscountPct,
-      subtotal: totals.subtotal,
-      discountTotal: totals.discountTotal,
-      taxTotal: totals.taxTotal,
-      total: totals.total,
       terms: data.terms ?? brand.documentTerms,
       notes: data.notes,
       priceBookId: data.priceBookId,
@@ -584,7 +583,7 @@ export async function createDocument(ctx: AccessContext, type: DocType, input: C
     },
     select: { id: true, number: true },
   });
-  await writeLines(ctx, cfg, created.id, lines, totals.lineTotals);
+  await applyLines(ctx, type, created.id, brandId, data.priceBookId, lines, data, {}, { history: false });
   // the scoped client audits the CREATE of a brand-owned record (with dealId / accountId null for a standalone one)
   return created as { id: string; number: string };
 }
@@ -709,4 +708,63 @@ export async function ruleViolations(ctx: AccessContext, brandId: string): Promi
     requireOrderBeforeInvoice: await (db as any).invoice.count({ where: { brandId, deletedAt: null, ...open.invoice, sourceDocumentId: null } }),
     requireStockLinkForVehicleInvoice: new Set(stockLines.filter((l) => !l.vin || !units.some((u) => u.vin === l.vin)).map((l) => l.invoiceId)).size,
   };
+}
+
+// ───────────────────────────── Ordered Items rules (prompt 24) ─────────────────────────────
+
+/** The adjustment (± amount) may be restricted to the brand's managers and administrators. */
+async function assertAdjustment(ctx: AccessContext, brandId: string) {
+  const rules = await rulesOf(ctx, brandId);
+  if (!rules.adjustmentManagersOnly) return;
+  const { managedBrands } = await import("@/server/access/brand-tag");
+  if (!ctx.isAdmin && !managedBrands(ctx).includes(brandId)) throw new ForbiddenError("Only the brand's managers can enter an adjustment");
+}
+
+/** Every vehicle line of an order needs one VIN per unit before allocation (drafts may be saved without). */
+async function assertVinsComplete(ctx: AccessContext, orderId: string) {
+  const lines = await scopedDb(ctx).documentLine.findMany({ where: { salesOrderId: orderId, isStockItem: true }, select: { description: true, qty: true, vins: true, vin: true } });
+  for (const l of lines) {
+    const vins = (l.vins as string[] | null)?.length ? (l.vins as string[]) : l.vin ? [l.vin] : [];
+    const need = Math.ceil(Number(l.qty.toString()));
+    if (vins.length < need) throw new BadRequestError(`“${l.description}” needs ${need} VIN(s) before allocation – ${vins.length} assigned (Assign VINs)`);
+  }
+}
+
+/** An approved DISCOUNT request for the document, newer than its last change. */
+async function discountApproved(ctx: AccessContext, entity: string, id: string, changedAt: string) {
+  const r = await scopedDb(ctx).approvalRequest.findFirst({ where: { entity, entityId: id, kind: "DISCOUNT", status: "APPROVED" }, orderBy: { decidedAt: "desc" }, select: { decidedAt: true, createdAt: true } });
+  return !!r && r.createdAt.getTime() >= new Date(changedAt).getTime() - 1000;
+}
+
+/** A sales order whose lines need a discount approval: the DISCOUNT process decides (Brand Manager / Head of Sales). */
+export async function requestOrderDiscountApproval(ctx: AccessContext, id: string) {
+  const doc = await load(ctx, "salesOrder", id);
+  if (doc.status !== "DRAFT") throw new BadRequestError("Only draft orders can be sent for discount approval");
+  const lines = doc.lines.filter((l) => l.needsApproval);
+  if (!lines.length) throw new BadRequestError("No line needs a discount approval");
+  const effective = Math.max(...lines.map((l) => l.discountPct));
+  const out = await submitForApproval(ctx, { processKey: "DISCOUNT", entity: "SalesOrder", entityId: id, brandId: doc.brandId, regionId: doc.regionId, title: `Sales order ${doc.number}: discount ${effective}%`, summary: lines.map((l) => `${l.description}: ${l.discountPct}%`).join("; "), facts: { discountPct: effective, total: doc.total } });
+  return { status: out.status };
+}
+
+/** A confirmed order back to draft for changes – the brand's managers and administrators only, audited. */
+export async function reopenOrder(ctx: AccessContext, id: string) {
+  const doc = await load(ctx, "salesOrder", id);
+  if (doc.status !== "CONFIRMED") throw new BadRequestError("Only a confirmed (not allocated) order can be reopened");
+  const { managedBrands } = await import("@/server/access/brand-tag");
+  if (!ctx.isAdmin && !managedBrands(ctx).includes(doc.brandId)) throw new ForbiddenError("Only the brand's managers can reopen a confirmed order");
+  if (doc.lines.some((l) => l.invoicedQty > 0)) throw new BadRequestError("The order is invoiced – it cannot be reopened");
+  await setStatus(ctx, "salesOrder", id, "DRAFT");
+  await audit({ ctx, action: "UPDATE", entity: "SalesOrder", entityId: id, brandId: doc.brandId, before: { status: "CONFIRMED" }, after: { status: "DRAFT", reopened: true } });
+}
+
+/** "Assign VINs": one VIN per unit of each vehicle line of a confirmed or draft order. */
+export async function assignVins(ctx: AccessContext, id: string, input: Record<string, string[]>) {
+  const doc = await load(ctx, "salesOrder", id);
+  if (!["DRAFT", "CONFIRMED"].includes(doc.status)) throw new BadRequestError("VINs are assigned before allocation");
+  const rules = await rulesOf(ctx, doc.brandId);
+  const lines = doc.lines.map((l) => normaliseLine({ ...lineFrom(l), id: l.id, vins: input[l.id] ?? l.vins } as LineData, rules));
+  await assertVins(ctx, "salesOrder", id, doc.brandId, lines);
+  for (const l of lines) await scopedDb(ctx).documentLine.update({ where: { id: l.id! }, data: { vins: l.vins, vin: l.vins[0] ?? null, isStockItem: l.isStockItem || l.vins.length > 0 } });
+  await audit({ ctx, action: "UPDATE", entity: "SalesOrder", entityId: id, brandId: doc.brandId, after: { vins: Object.fromEntries(lines.map((l) => [l.id, l.vins])) } });
 }

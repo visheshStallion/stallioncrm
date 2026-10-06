@@ -86,12 +86,29 @@ export const lineSchema = z.object({
   discountPct: z.preprocess(empty, z.coerce.number().min(0).max(100).optional()).transform((v) => v ?? 0),
   taxRate: z.preprocess(empty, z.coerce.number().min(0).max(100).optional()).transform((v) => v ?? 7.5),
   vin: z.preprocess(empty, z.string().trim().toUpperCase().max(40).optional()).transform((v) => v ?? null),
+  // ── Ordered Items grid (prompt 24); without them the legacy discountPct / taxRate are used ──
+  /** an existing line's id: the line is kept (its change history continues) */
+  id: z.preprocess(empty, z.string().max(40).optional()),
+  discountType: z.enum(["PERCENT", "AMOUNT"]).optional(),
+  discountValue: z.preprocess(empty, z.coerce.number().min(0).max(1e13).optional()),
+  taxes: z.array(z.object({ name: z.string().trim().min(1).max(40), rate: z.coerce.number().min(0).max(100) })).max(5).optional(),
+  /** one VIN per unit (vehicle lines); `vin` stays the first one */
+  vins: z.array(z.string().trim().toUpperCase().min(5).max(40)).max(500).optional(),
 });
 export type LineData = z.infer<typeof lineSchema>;
+export const MAX_LINES = 200;
+
+const headerFields = {
+  headerDiscountType: z.enum(["PERCENT", "AMOUNT"]).optional(),
+  headerDiscountValue: z.preprocess(empty, z.coerce.number().min(0).max(1e13).optional()),
+  documentTaxes: z.array(z.object({ name: z.string().trim().min(1).max(40), rate: z.coerce.number().min(0).max(100) })).max(5).optional(),
+  adjustment: z.preprocess(empty, z.coerce.number().min(-1e12).max(1e12).optional()),
+};
 
 export const saveSchema = z.object({
-  lines: z.array(lineSchema).max(100),
+  lines: z.array(lineSchema).max(200, "At most 200 lines per document"),
   headerDiscountPct: z.preprocess(empty, z.coerce.number().min(0).max(100).optional()).transform((v) => v ?? 0),
+  ...headerFields,
   date: z.preprocess(empty, z.coerce.date().optional()).transform((v) => v ?? null),
   terms: z.preprocess(empty, z.string().trim().max(4000).optional()).transform((v) => v ?? null),
   notes: z.preprocess(empty, z.string().trim().max(4000).optional()).transform((v) => v ?? null),
@@ -136,8 +153,9 @@ export const createSchema = z.object({
   regionId: z.preprocess(empty, z.string().optional()),
   billTo: partySchema,
   shipTo: partySchema.partial().nullish(),
-  lines: z.array(createLineSchema).min(1, "Add at least one line").max(100),
+  lines: z.array(createLineSchema).min(1, "Add at least one line").max(200, "At most 200 lines per document"),
   headerDiscountPct: z.preprocess(empty, z.coerce.number().min(0).max(100).optional()).transform((v) => v ?? 0),
+  ...headerFields,
   /** invoice: invoice date (defaults to today); every type: its own date (valid until / delivery / due) */
   issueDate: z.preprocess(empty, z.coerce.date().optional()),
   date: z.preprocess(empty, z.coerce.date().optional()).transform((v) => v ?? null),
@@ -185,6 +203,14 @@ export const documentRulesSchema = z.object({
   ...(Object.fromEntries(Object.keys(DOCUMENT_RULES).map((k) => [k, z.boolean().default(false)])) as Record<DocumentRule, z.ZodDefault<z.ZodBoolean>>),
   /** discounts on documents with free-text lines (no price book maximum): approval above this amount, 0 = off */
   discountAmountApproval: z.coerce.number().min(0).max(1e13).default(0),
+  // ── Ordered Items (prompt 24) ──
+  /** taxes offered in the grid; the first is applied to new lines */
+  taxes: z.array(z.object({ name: z.string().trim().min(1).max(40), rate: z.coerce.number().min(0).max(100) })).max(5).default([{ name: "VAT", rate: 7.5 }]),
+  /** LINE: each line carries its taxes; DOCUMENT: taxes are applied once on the document */
+  taxMode: z.enum(["LINE", "DOCUMENT"]).default("LINE"),
+  roundingMode: z.enum(["HALF_UP", "HALF_EVEN"]).default("HALF_UP"),
+  /** who may enter an adjustment: everyone who edits the document, or managers (brand manager / admin) only */
+  adjustmentManagersOnly: z.boolean().default(false),
 });
 export type DocumentRules = z.output<typeof documentRulesSchema>;
 export const parseRules = (raw: unknown): DocumentRules => documentRulesSchema.parse(raw && typeof raw === "object" ? raw : {});

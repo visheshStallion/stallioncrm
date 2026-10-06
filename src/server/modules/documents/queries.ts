@@ -25,6 +25,18 @@ export interface DocLine {
   itemCode: string | null;
   uom: string | null;
   isStockItem: boolean;
+  // ── Ordered Items (prompt 24) ──
+  amount: number;
+  discountType: "PERCENT" | "AMOUNT";
+  discountValue: number;
+  discountAmount: number;
+  taxes: Array<{ name: string; rate: number; amount: number }>;
+  taxAmount: number;
+  total: number;
+  vins: string[];
+  needsApproval: boolean;
+  invoicedQty: number;
+  sourceLineId: string | null;
 }
 
 export interface DocRow {
@@ -48,6 +60,10 @@ export interface DocRow {
   date: string | null;
   currency: string;
   headerDiscountPct: number;
+  headerDiscountType: "PERCENT" | "AMOUNT";
+  headerDiscountValue: number;
+  documentTaxes: Array<{ name: string; rate: number; amount: number }>;
+  adjustment: number;
   subtotal: number;
   discountTotal: number;
   taxTotal: number;
@@ -77,6 +93,10 @@ const headerSelect = (cfg: DocConfig) => ({
   [cfg.dateField]: true,
   currency: true,
   headerDiscountPct: true,
+  headerDiscountType: true,
+  headerDiscountValue: true,
+  documentTaxes: true,
+  adjustment: true,
   subtotal: true,
   discountTotal: true,
   taxTotal: true,
@@ -114,6 +134,10 @@ function toRow(cfg: DocConfig, d: any): DocRow {
     date: day(d[cfg.dateField]),
     currency: d.currency,
     headerDiscountPct: num(d.headerDiscountPct) ?? 0,
+    headerDiscountType: d.headerDiscountType === "AMOUNT" ? "AMOUNT" : "PERCENT",
+    headerDiscountValue: num(d.headerDiscountValue) ?? 0,
+    documentTaxes: Array.isArray(d.documentTaxes) ? d.documentTaxes : [],
+    adjustment: num(d.adjustment) ?? 0,
     subtotal: num(d.subtotal) ?? 0,
     discountTotal: num(d.discountTotal) ?? 0,
     taxTotal: num(d.taxTotal) ?? 0,
@@ -202,6 +226,17 @@ export async function getDocument(ctx: AccessContext, type: DocType, id: string)
       itemCode: l.itemCode,
       uom: l.uom,
       isStockItem: l.isStockItem,
+      amount: Number(l.amount.toString()),
+      discountType: l.discountType === "AMOUNT" ? "AMOUNT" : "PERCENT",
+      discountValue: Number(l.discountValue.toString()),
+      discountAmount: Number(l.discountAmount.toString()),
+      taxes: Array.isArray(l.taxes) ? (l.taxes as Array<{ name: string; rate: number; amount: number }>) : [],
+      taxAmount: Number(l.taxAmount.toString()),
+      total: Number(l.total.toString()),
+      vins: Array.isArray(l.vins) ? (l.vins as string[]) : l.vin ? [l.vin] : [],
+      needsApproval: l.needsApproval,
+      invoicedQty: Number(l.invoicedQty.toString()),
+      sourceLineId: l.sourceLineId,
     })),
     payments: payments.map((p) => ({ id: p.id, amount: Number(p.amount.toString()), method: p.method, reference: p.reference, receivedAt: p.receivedAt.toISOString() })),
   };

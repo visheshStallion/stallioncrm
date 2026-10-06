@@ -913,32 +913,39 @@ enum InvoiceStatus {
 }
 
 model Quote {
-  id                String      @id @default(cuid())
+  id                  String      @id @default(cuid())
   /// {docPrefix}-{QT|SO|INV}-{YYYY}-{00001}; assigned by the DB trigger app_document_number() (gap-free per brand / type / year)
-  number            String      @unique @default("")
-  dealId            String?
-  deal              Deal?       @relation(fields: [dealId], references: [id])
-  accountId         String?
-  contactId         String?
-  issueDate         DateTime    @default(now()) @db.Date
-  currency          String      @default("NGN")
+  number              String      @unique @default("")
+  dealId              String?
+  deal                Deal?       @relation(fields: [dealId], references: [id])
+  accountId           String?
+  contactId           String?
+  issueDate           DateTime    @default(now()) @db.Date
+  currency            String      @default("NGN")
   /// header discount in percent, applied after line discounts
-  headerDiscountPct Decimal     @default(0) @db.Decimal(5, 2)
-  subtotal          Decimal     @default(0) @db.Decimal(14, 2)
-  discountTotal     Decimal     @default(0) @db.Decimal(14, 2)
-  taxTotal          Decimal     @default(0) @db.Decimal(14, 2)
-  total             Decimal     @default(0) @db.Decimal(14, 2)
-  terms             String?
-  notes             String?
-  priceBookId       String?
+  /// document discount (prompt 24): PERCENT or AMOUNT of the sub total; headerDiscountPct keeps the effective %
+  headerDiscountType  String      @default("PERCENT")
+  headerDiscountValue Decimal     @default(0) @db.Decimal(18, 2)
+  /// document-level taxes [{ name, rate, amount }] when the brand taxes at document level
+  documentTaxes       Json        @default("[]")
+  /// free ± amount (rounding, delivery fee …)
+  adjustment          Decimal     @default(0) @db.Decimal(18, 2)
+  headerDiscountPct   Decimal     @default(0) @db.Decimal(5, 2)
+  subtotal            Decimal     @default(0) @db.Decimal(14, 2)
+  discountTotal       Decimal     @default(0) @db.Decimal(14, 2)
+  taxTotal            Decimal     @default(0) @db.Decimal(14, 2)
+  total               Decimal     @default(0) @db.Decimal(14, 2)
+  terms               String?
+  notes               String?
+  priceBookId         String?
   /// customer snapshot (prompt 23): { name, company, phone, email, address, city, state, taxId } – the document prints
   /// from it, so it is complete without an account; pre-filled from a linked account / contact
-  billTo            Json?
-  shipTo            Json?
+  billTo              Json?
+  shipTo              Json?
   /// the document this one was converted from (quote → order → invoice)
-  sourceDocumentId  String?
-  status            QuoteStatus @default(DRAFT)
-  validUntil        DateTime?   @db.Date
+  sourceDocumentId    String?
+  status              QuoteStatus @default(DRAFT)
+  validUntil          DateTime?   @db.Date
 
   // ── brand-owned base mixin (brand and region are inherited from the deal) ──
   brandId     String
@@ -962,34 +969,41 @@ model Quote {
 }
 
 model SalesOrder {
-  id                String      @id @default(cuid())
+  id                  String      @id @default(cuid())
   /// last time the document was e-mailed to the customer (prompt 21)
-  sentAt            DateTime?
+  sentAt              DateTime?
   /// {docPrefix}-{QT|SO|INV}-{YYYY}-{00001}; assigned by the DB trigger app_document_number() (gap-free per brand / type / year)
-  number            String      @unique @default("")
-  dealId            String?
-  deal              Deal?       @relation(fields: [dealId], references: [id])
-  accountId         String?
-  contactId         String?
-  issueDate         DateTime    @default(now()) @db.Date
-  currency          String      @default("NGN")
+  number              String      @unique @default("")
+  dealId              String?
+  deal                Deal?       @relation(fields: [dealId], references: [id])
+  accountId           String?
+  contactId           String?
+  issueDate           DateTime    @default(now()) @db.Date
+  currency            String      @default("NGN")
   /// header discount in percent, applied after line discounts
-  headerDiscountPct Decimal     @default(0) @db.Decimal(5, 2)
-  subtotal          Decimal     @default(0) @db.Decimal(14, 2)
-  discountTotal     Decimal     @default(0) @db.Decimal(14, 2)
-  taxTotal          Decimal     @default(0) @db.Decimal(14, 2)
-  total             Decimal     @default(0) @db.Decimal(14, 2)
-  terms             String?
-  notes             String?
-  priceBookId       String?
+  /// document discount (prompt 24): PERCENT or AMOUNT of the sub total; headerDiscountPct keeps the effective %
+  headerDiscountType  String      @default("PERCENT")
+  headerDiscountValue Decimal     @default(0) @db.Decimal(18, 2)
+  /// document-level taxes [{ name, rate, amount }] when the brand taxes at document level
+  documentTaxes       Json        @default("[]")
+  /// free ± amount (rounding, delivery fee …)
+  adjustment          Decimal     @default(0) @db.Decimal(18, 2)
+  headerDiscountPct   Decimal     @default(0) @db.Decimal(5, 2)
+  subtotal            Decimal     @default(0) @db.Decimal(14, 2)
+  discountTotal       Decimal     @default(0) @db.Decimal(14, 2)
+  taxTotal            Decimal     @default(0) @db.Decimal(14, 2)
+  total               Decimal     @default(0) @db.Decimal(14, 2)
+  terms               String?
+  notes               String?
+  priceBookId         String?
   /// customer snapshot (prompt 23): { name, company, phone, email, address, city, state, taxId } – the document prints
   /// from it, so it is complete without an account; pre-filled from a linked account / contact
-  billTo            Json?
-  shipTo            Json?
+  billTo              Json?
+  shipTo              Json?
   /// the document this one was converted from (quote → order → invoice)
-  sourceDocumentId  String?
-  status            OrderStatus @default(DRAFT)
-  expectedDelivery  DateTime?   @db.Date
+  sourceDocumentId    String?
+  status              OrderStatus @default(DRAFT)
+  expectedDelivery    DateTime?   @db.Date
 
   // ── brand-owned base mixin (brand and region are inherited from the deal) ──
   brandId     String
@@ -1013,35 +1027,42 @@ model SalesOrder {
 }
 
 model Invoice {
-  id                String        @id @default(cuid())
+  id                  String        @id @default(cuid())
   /// last time the document was e-mailed to the customer (prompt 21)
-  sentAt            DateTime?
+  sentAt              DateTime?
   /// {docPrefix}-{QT|SO|INV}-{YYYY}-{00001}; assigned by the DB trigger app_document_number() (gap-free per brand / type / year)
-  number            String        @unique @default("")
-  dealId            String?
-  deal              Deal?         @relation(fields: [dealId], references: [id])
-  accountId         String?
-  contactId         String?
-  issueDate         DateTime      @default(now()) @db.Date
-  currency          String        @default("NGN")
+  number              String        @unique @default("")
+  dealId              String?
+  deal                Deal?         @relation(fields: [dealId], references: [id])
+  accountId           String?
+  contactId           String?
+  issueDate           DateTime      @default(now()) @db.Date
+  currency            String        @default("NGN")
   /// header discount in percent, applied after line discounts
-  headerDiscountPct Decimal       @default(0) @db.Decimal(5, 2)
-  subtotal          Decimal       @default(0) @db.Decimal(14, 2)
-  discountTotal     Decimal       @default(0) @db.Decimal(14, 2)
-  taxTotal          Decimal       @default(0) @db.Decimal(14, 2)
-  total             Decimal       @default(0) @db.Decimal(14, 2)
-  terms             String?
-  notes             String?
-  priceBookId       String?
+  /// document discount (prompt 24): PERCENT or AMOUNT of the sub total; headerDiscountPct keeps the effective %
+  headerDiscountType  String        @default("PERCENT")
+  headerDiscountValue Decimal       @default(0) @db.Decimal(18, 2)
+  /// document-level taxes [{ name, rate, amount }] when the brand taxes at document level
+  documentTaxes       Json          @default("[]")
+  /// free ± amount (rounding, delivery fee …)
+  adjustment          Decimal       @default(0) @db.Decimal(18, 2)
+  headerDiscountPct   Decimal       @default(0) @db.Decimal(5, 2)
+  subtotal            Decimal       @default(0) @db.Decimal(14, 2)
+  discountTotal       Decimal       @default(0) @db.Decimal(14, 2)
+  taxTotal            Decimal       @default(0) @db.Decimal(14, 2)
+  total               Decimal       @default(0) @db.Decimal(14, 2)
+  terms               String?
+  notes               String?
+  priceBookId         String?
   /// customer snapshot (prompt 23): { name, company, phone, email, address, city, state, taxId } – the document prints
   /// from it, so it is complete without an account; pre-filled from a linked account / contact
-  billTo            Json?
-  shipTo            Json?
+  billTo              Json?
+  shipTo              Json?
   /// the document this one was converted from (quote → order → invoice)
-  sourceDocumentId  String?
-  status            InvoiceStatus @default(DRAFT)
-  dueDate           DateTime?     @db.Date
-  amountPaid        Decimal       @default(0) @db.Decimal(14, 2)
+  sourceDocumentId    String?
+  status              InvoiceStatus @default(DRAFT)
+  dueDate             DateTime?     @db.Date
+  amountPaid          Decimal       @default(0) @db.Decimal(14, 2)
 
   // ── brand-owned base mixin (brand and region are inherited from the deal) ──
   brandId     String
@@ -1067,30 +1088,52 @@ model Invoice {
 
 /// Line of exactly one document. RLS: visible when its document is.
 model DocumentLine {
-  id           String      @id @default(cuid())
-  quoteId      String?
-  quote        Quote?      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  salesOrderId String?
-  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
-  invoiceId    String?
-  invoice      Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  position     Int
+  id             String      @id @default(cuid())
+  quoteId        String?
+  quote          Quote?      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  salesOrderId   String?
+  salesOrder     SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  invoiceId      String?
+  invoice        Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position       Int
   /// must be a product of the document's brand
-  productId    String?
-  product      Product?    @relation(fields: [productId], references: [id])
-  description  String
-  qty          Decimal     @db.Decimal(12, 2)
-  unitPrice    Decimal     @db.Decimal(14, 2)
-  discountPct  Decimal     @default(0) @db.Decimal(5, 2)
-  taxRate      Decimal     @default(7.5) @db.Decimal(5, 2)
+  productId      String?
+  product        Product?    @relation(fields: [productId], references: [id])
+  description    String
+  qty            Decimal     @db.Decimal(12, 2)
+  unitPrice      Decimal     @db.Decimal(14, 2)
+  discountPct    Decimal     @default(0) @db.Decimal(5, 2)
+  taxRate        Decimal     @default(7.5) @db.Decimal(5, 2)
   /// qty × unitPrice less the line discount (before header discount and tax)
-  lineTotal    Decimal     @db.Decimal(14, 2)
-  vin          String?
+  lineTotal      Decimal     @db.Decimal(14, 2)
+  vin            String?
   /// free-text lines (no product): optional item code and unit of measure
-  itemCode     String?
-  uom          String?
+  itemCode       String?
+  uom            String?
   /// a vehicle / stock item line: stock movements only when it is linked to a stock unit of the brand
-  isStockItem  Boolean     @default(false)
+  isStockItem    Boolean     @default(false)
+  // ── Ordered Items grid (prompt 24) ──
+  /// qty × unitPrice
+  amount         Decimal     @default(0) @db.Decimal(18, 2)
+  /// PERCENT (discountValue is %) or AMOUNT (discountValue is money)
+  discountType   String      @default("PERCENT")
+  discountValue  Decimal     @default(0) @db.Decimal(18, 2)
+  discountAmount Decimal     @default(0) @db.Decimal(18, 2)
+  /// [{ name, rate, amount }] – the taxes of the line (line-level tax mode)
+  taxes          Json        @default("[]")
+  taxAmount      Decimal     @default(0) @db.Decimal(18, 2)
+  /// amount − discount + tax
+  total          Decimal     @default(0) @db.Decimal(18, 2)
+  /// one VIN per unit for vehicle lines
+  vins           Json        @default("[]")
+  /// the discount is above the price book's maximum for the product
+  needsApproval  Boolean     @default(false)
+  /// sales order lines: quantity already invoiced (partial invoicing)
+  invoicedQty    Decimal     @default(0) @db.Decimal(12, 2)
+  /// the line of the source document this one was copied from (conversion)
+  sourceLineId   String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @default(now()) @updatedAt
 
   @@index([quoteId])
   @@index([salesOrderId])
