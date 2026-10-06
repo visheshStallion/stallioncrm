@@ -28,6 +28,7 @@ const leadSelect = {
   id: true,
   firstName: true,
   lastName: true,
+  company: true,
   mobile: true,
   email: true,
   city: true,
@@ -65,7 +66,8 @@ export interface LeadRow {
   id: string;
   name: string;
   firstName: string | null;
-  lastName: string;
+  lastName: string | null;
+  company: string | null;
   mobile: string | null;
   email: string | null;
   city: string | null;
@@ -95,8 +97,12 @@ export interface LeadRow {
   updatedAt: string;
 }
 
-export const leadName = (l: { firstName: string | null; lastName: string }) =>
-  [l.firstName, l.lastName].filter(Boolean).join(" ");
+/** A person (first + last name), a company enquiry (company), or both: “Ada Okafor (Acme Logistics)”. */
+export const leadName = (l: { firstName: string | null; lastName: string | null; company?: string | null }) => {
+  const person = [l.firstName, l.lastName].filter(Boolean).join(" ");
+  if (person && l.company) return `${person} (${l.company})`;
+  return person || l.company || "(no name)";
+};
 
 function toRow(ctx: AccessContext, l: LeadRecord): LeadRow {
   const masked = fieldMask(ctx, "leads", {
@@ -109,6 +115,7 @@ function toRow(ctx: AccessContext, l: LeadRecord): LeadRow {
     name: leadName(l),
     firstName: l.firstName,
     lastName: l.lastName,
+    company: l.company,
     mobile: (masked.mobile as string | null | undefined) ?? null,
     email: (masked.email as string | null | undefined) ?? null,
     city: l.city,
@@ -160,6 +167,7 @@ export function leadWhere(ctx: AccessContext, f: LeadFilters): Prisma.LeadWhereI
       ? {
           OR: [
             { lastName: { contains: q, mode: "insensitive" } },
+            { company: { contains: q, mode: "insensitive" } },
             { firstName: { contains: q, mode: "insensitive" } },
             { email: { contains: q, mode: "insensitive" } },
             { mobile: { contains: q.replace(/\s/g, "") } },
@@ -203,7 +211,7 @@ export async function getLead(ctx: AccessContext, id: string): Promise<LeadRow> 
 export async function searchLeads(ctx: AccessContext, q: string, take = 20) {
   const rows = await scopedDb(ctx).lead.findMany({
     where: leadWhere(ctx, { q }),
-    select: { id: true, firstName: true, lastName: true, city: true, status: true, brandId: true, regionId: true },
+    select: { id: true, firstName: true, lastName: true, company: true, city: true, status: true, brandId: true, regionId: true },
     orderBy: { updatedAt: "desc" },
     take,
   });

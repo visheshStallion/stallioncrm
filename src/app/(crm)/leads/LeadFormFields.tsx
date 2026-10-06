@@ -32,7 +32,8 @@ export interface LeadFormLookups {
 export interface LeadFormValues {
   id?: string;
   firstName?: string | null;
-  lastName?: string;
+  lastName?: string | null;
+  company?: string | null;
   mobile?: string | null;
   email?: string | null;
   city?: string | null;
@@ -141,8 +142,11 @@ export function LeadFormFields({
         <Field label="First name" htmlFor="firstName">
           <Input id="firstName" name="firstName" defaultValue={values.firstName ?? ""} />
         </Field>
-        <Field label="Last name" htmlFor="lastName" required>
-          <Input id="lastName" name="lastName" defaultValue={values.lastName ?? ""} required />
+        <Field label="Last name (or company)" htmlFor="lastName" required>
+          <Input id="lastName" name="lastName" defaultValue={values.lastName ?? ""} />
+        </Field>
+        <Field label="Company" htmlFor="company">
+          <Input id="company" name="company" defaultValue={values.company ?? ""} />
         </Field>
         <Field label="City" htmlFor="city">
           <Input id="city" name="city" defaultValue={values.city ?? ""} />

@@ -77,7 +77,9 @@ export const phoneSchema = z
 
 const leadFields = {
   firstName: text(80),
-  lastName: z.string().trim().min(1, "Last name is required").max(80),
+  // a person (last name) or a company enquiry (company) – one of the two is required
+  lastName: text(80),
+  company: text(160),
   mobile: phoneSchema,
   email: z.preprocess(emptyToUndef, z.string().trim().toLowerCase().email().optional()).transform((v) => v ?? null),
   city: text(80),
@@ -102,6 +104,7 @@ export const createLeadSchema = z
     status: z.enum(SETTABLE_STATUSES).default("NEW"),
     unqualifiedReason: text(300),
   })
+  .refine((d) => d.lastName || d.company, { message: "Enter a last name or a company", path: ["lastName"] })
   .refine((d) => d.mobile || d.email, { message: "Mobile or email is required", path: ["mobile"] })
   .refine((d) => d.status !== "UNQUALIFIED" || d.unqualifiedReason, {
     message: "Give a reason when marking a lead unqualified",

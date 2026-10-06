@@ -17,6 +17,7 @@ const str = (fd: FormData, k: string) => (fd.get(k) ?? "").toString().trim();
 const leadInput = (fd: FormData) => ({
   firstName: str(fd, "firstName"),
   lastName: str(fd, "lastName"),
+  company: str(fd, "company"),
   mobile: str(fd, "mobile"),
   email: str(fd, "email"),
   city: str(fd, "city"),

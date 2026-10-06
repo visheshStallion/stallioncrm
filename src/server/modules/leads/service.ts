@@ -208,7 +208,8 @@ export async function convertLead(ctx: AccessContext, id: string, input: Convert
       data: {
         accountId,
         firstName: lead.firstName,
-        lastName: lead.lastName,
+        // a company enquiry without a person becomes a contact named after the company
+        lastName: lead.lastName || lead.company || "Contact",
         mobile: lead.mobile,
         email: lead.email,
         city: lead.city,

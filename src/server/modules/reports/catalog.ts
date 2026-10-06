@@ -94,7 +94,7 @@ export const REPORT_MODULES: RModule[] = [
     joins: { ...baseJoins, model: `LEFT JOIN "Product" p ON p.id = t."modelOfInterestId"` },
     defaultColumns: ["name", "brand", "region", "owner", "status", "source", "createdAt"],
     fields: [
-      { key: "name", label: "Lead name", type: "text", sql: `trim(coalesce(t."firstName", '') || ' ' || t."lastName")` },
+      { key: "name", label: "Lead name", type: "text", sql: `trim(coalesce(t."firstName", '') || ' ' || coalesce(t."lastName", t."company", ''))` },
       ...common,
       { key: "status", label: "Status", type: "enum", sql: `t.status`, options: ["NEW", "CONTACTED", "QUALIFIED", "UNQUALIFIED", "CONVERTED"] },
       { key: "rating", label: "Rating", type: "enum", sql: `t.rating`, options: ["HOT", "WARM", "COLD"] },

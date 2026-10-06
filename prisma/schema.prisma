@@ -43,6 +43,9 @@ model Brand {
   documentTerms         String?
   /// Discount above this % needs Brand Manager approval; above the escalation % Head of Sales (BUSINESS_CONTEXT §10)
   discountApprovalPct   Decimal             @default(3) @db.Decimal(5, 2)
+  /// document dependency rules and thresholds (prompt 23): { requireAccount, requireContact, requireDeal, requireProduct,
+  /// requireQuoteBeforeOrder, requireOrderBeforeInvoice, requireStockLinkForVehicleInvoice, discountAmountApproval }
+  documentRules         Json                @default("{}")
   discountEscalationPct Decimal             @default(7) @db.Decimal(5, 2)
   brandManagerId        String?
   brandManager          User?               @relation("BrandManager", fields: [brandManagerId], references: [id])
@@ -761,7 +764,9 @@ enum LeadRating {
 model Lead {
   id                     String          @id @default(cuid())
   firstName              String?
-  lastName               String
+  lastName               String?
+  /// a company enquiry: last name OR company is required
+  company                String?
   /// E.164, Nigeria (+234) default
   mobile                 String?
   email                  String?
@@ -911,8 +916,8 @@ model Quote {
   id                String      @id @default(cuid())
   /// {docPrefix}-{QT|SO|INV}-{YYYY}-{00001}; assigned by the DB trigger app_document_number() (gap-free per brand / type / year)
   number            String      @unique @default("")
-  dealId            String
-  deal              Deal        @relation(fields: [dealId], references: [id])
+  dealId            String?
+  deal              Deal?       @relation(fields: [dealId], references: [id])
   accountId         String?
   contactId         String?
   issueDate         DateTime    @default(now()) @db.Date
@@ -926,6 +931,10 @@ model Quote {
   terms             String?
   notes             String?
   priceBookId       String?
+  /// customer snapshot (prompt 23): { name, company, phone, email, address, city, state, taxId } – the document prints
+  /// from it, so it is complete without an account; pre-filled from a linked account / contact
+  billTo            Json?
+  shipTo            Json?
   /// the document this one was converted from (quote → order → invoice)
   sourceDocumentId  String?
   status            QuoteStatus @default(DRAFT)
@@ -958,8 +967,8 @@ model SalesOrder {
   sentAt            DateTime?
   /// {docPrefix}-{QT|SO|INV}-{YYYY}-{00001}; assigned by the DB trigger app_document_number() (gap-free per brand / type / year)
   number            String      @unique @default("")
-  dealId            String
-  deal              Deal        @relation(fields: [dealId], references: [id])
+  dealId            String?
+  deal              Deal?       @relation(fields: [dealId], references: [id])
   accountId         String?
   contactId         String?
   issueDate         DateTime    @default(now()) @db.Date
@@ -973,6 +982,10 @@ model SalesOrder {
   terms             String?
   notes             String?
   priceBookId       String?
+  /// customer snapshot (prompt 23): { name, company, phone, email, address, city, state, taxId } – the document prints
+  /// from it, so it is complete without an account; pre-filled from a linked account / contact
+  billTo            Json?
+  shipTo            Json?
   /// the document this one was converted from (quote → order → invoice)
   sourceDocumentId  String?
   status            OrderStatus @default(DRAFT)
@@ -1005,8 +1018,8 @@ model Invoice {
   sentAt            DateTime?
   /// {docPrefix}-{QT|SO|INV}-{YYYY}-{00001}; assigned by the DB trigger app_document_number() (gap-free per brand / type / year)
   number            String        @unique @default("")
-  dealId            String
-  deal              Deal          @relation(fields: [dealId], references: [id])
+  dealId            String?
+  deal              Deal?         @relation(fields: [dealId], references: [id])
   accountId         String?
   contactId         String?
   issueDate         DateTime      @default(now()) @db.Date
@@ -1020,6 +1033,10 @@ model Invoice {
   terms             String?
   notes             String?
   priceBookId       String?
+  /// customer snapshot (prompt 23): { name, company, phone, email, address, city, state, taxId } – the document prints
+  /// from it, so it is complete without an account; pre-filled from a linked account / contact
+  billTo            Json?
+  shipTo            Json?
   /// the document this one was converted from (quote → order → invoice)
   sourceDocumentId  String?
   status            InvoiceStatus @default(DRAFT)
@@ -1069,6 +1086,11 @@ model DocumentLine {
   /// qty × unitPrice less the line discount (before header discount and tax)
   lineTotal    Decimal     @db.Decimal(14, 2)
   vin          String?
+  /// free-text lines (no product): optional item code and unit of measure
+  itemCode     String?
+  uom          String?
+  /// a vehicle / stock item line: stock movements only when it is linked to a stock unit of the brand
+  isStockItem  Boolean     @default(false)
 
   @@index([quoteId])
   @@index([salesOrderId])

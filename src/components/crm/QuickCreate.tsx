@@ -123,9 +123,13 @@ export function QuickCreateMenu({ items, lookups }: { items: QuickCreateItem[]; 
           <BrandRegion lookups={lookups} />
           <div className="space-y-1">
             <Label htmlFor="qc-lastName">
-              <Req>Last name</Req>
+              <Req>Last name</Req> <span className="text-xs font-normal text-text-muted">(or company)</span>
             </Label>
-            <Input id="qc-lastName" name="lastName" required />
+            <Input id="qc-lastName" name="lastName" />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="qc-company">Company</Label>
+            <Input id="qc-company" name="company" />
           </div>
           <div className="space-y-1">
             <Label htmlFor="qc-firstName">First name</Label>
