@@ -55,6 +55,10 @@ const EXEMPT: Record<string, string> = {
   "/api/v1/salesOrders/[id]/pdf": "see salesOrders/[id]",
   "/api/v1/invoices/[id]": "see salesOrders/[id]; Invoice visibility is asserted in tests/isolation",
   "/api/v1/invoices/[id]/pdf": "see salesOrders/[id]",
+  "/api/v1/invoices/[id]/link": "link later (prompt 23): another brand's invoice → 404 in tests/e2e/standalone.spec.ts and tests/integration/standalone.test.ts",
+  "/api/v1/salesOrders/[id]/link": "see invoices/[id]/link",
+  "/api/v1/sales-orders/[id]": "alias of salesOrders/[id] (same handler)",
+  "/api/v1/sales-orders/[id]/link": "alias of salesOrders/[id]/link (same handler)",
   "/api/v1/invoices/[id]/payment-links": "asserted in tests/integration/api-integrations.test.ts (another brand → 404)",
   "/api/v1/attachments/[id]": "no API creates an attachment for the scan; download of a hidden attachment is asserted in tests/isolation/matrix.test.ts",
 };
