@@ -15,18 +15,18 @@ test("Create Invoice from the list with only the customer's name and one free-te
   await page.goto("/invoices");
   await page.getByRole("link", { name: "Create Invoice" }).click();
   await expect(page).toHaveURL(/\/invoices\/new$/);
-  const form = page.getByTestId("new-document");
-  // brand and region are pre-filled for a user of one brand and one region
-  await expect(form.getByLabel("Brand", { exact: true })).not.toHaveValue("");
-  await expect(form.getByLabel("Region", { exact: true })).not.toHaveValue("");
-  await expect(form.getByLabel("Invoice date")).not.toHaveValue("");
-  await form.getByLabel("Customer name").fill(`Standalone Buyer ${stamp}`);
-  await form.getByLabel("Phone").fill(`+23480${String(stamp).slice(-8)}`);
+  // the Create Invoice page (prompt 26): brand pre-filled for a user of one brand; a typed customer is enough
+  const form = page.getByTestId("invoice-form");
+  await expect(page.locator("#inv-brand")).not.toHaveValue("");
+  await expect(page.locator("#inv-date")).not.toHaveValue("");
+  await form.getByLabel("Subject").fill(`Floor mats ${stamp}`);
+  await page.locator("#inv-account").fill(`Standalone Buyer ${stamp}`);
+  await page.locator("#inv-phone").fill(`+23480${String(stamp).slice(-8)}`);
   await form.getByLabel("Row 1, Product Name").fill("Floor mats");
   await form.getByLabel("Row 1, Quantity").fill("2");
   await form.getByLabel("Row 1, List Price").fill("50000");
   await expect(page.getByTestId("grand-total")).toHaveText("107,500.00");
-  await page.getByTestId("new-document-save").click();
+  await page.getByTestId("inv-save").click();
   await expect(page).toHaveURL(/\/invoices\/(?!new$)[a-z0-9]+$/);
   invoiceUrl = new URL(page.url()).pathname;
   await expect(page.getByTestId("record-header")).toContainText(/-INV-\d{4}-\d{5}/);

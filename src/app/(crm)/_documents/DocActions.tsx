@@ -6,7 +6,7 @@ import { toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { addPaymentAction, convertAction, createQuoteAction, decideApprovalAction, transitionAction } from "@/server/modules/documents/actions";
+import { addPaymentAction, convertAction, createQuoteAction, decideApprovalAction, transitionAction, creditNoteAction } from "@/server/modules/documents/actions";
 
 type Result = { ok: true; data: { message?: string; redirect?: string } } | { ok: false; error: { message: string } };
 
@@ -117,5 +117,45 @@ export function PaymentForm({ invoiceId, balance }: { invoiceId: string; balance
         Record payment
       </Button>
     </div>
+  );
+}
+
+/** Credit note on an issued invoice: amount (at most what can still be credited) and a reason. */
+export function CreditNoteButton({ invoiceId, max }: { invoiceId: string; max: number }) {
+  const { run, pending } = useRun();
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  return (
+    <>
+      <Button variant="outline" onClick={() => setOpen(true)} data-testid="credit-note">
+        Create Credit Note
+      </Button>
+      {open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Credit note" data-testid="credit-note-dialog">
+          <button type="button" aria-label="Close" className="crm-overlay" onClick={() => setOpen(false)} />
+          <div className="crm-modal w-full max-w-md space-y-3 p-4">
+            <h2 className="text-[15px] font-semibold">Credit note</h2>
+            <p className="text-xs text-text-muted">Corrections after issue are made with a credit note – the invoice itself never changes. At most {max.toLocaleString("en-NG", { minimumFractionDigits: 2 })} can still be credited.</p>
+            <label className="block text-[13px]">
+              Amount
+              <Input type="number" min={0} max={max} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1" />
+            </label>
+            <label className="block text-[13px]">
+              Reason
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1" maxLength={500} />
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button disabled={pending || !(Number(amount) > 0) || reason.trim().length < 3} onClick={() => (setOpen(false), run(() => creditNoteAction(invoiceId, { amount, reason }) as Promise<Result>))} data-testid="credit-note-save">
+                Create
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

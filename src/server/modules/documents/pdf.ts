@@ -45,7 +45,8 @@ export async function documentPdfModel(ctx: AccessContext, type: DocType, id: st
         doc.billTo?.address ?? account?.address,
         [doc.billTo?.city ?? account?.city, doc.billTo?.state ?? account?.state].filter(Boolean).join(", ") || null,
         [doc.billTo?.phone, doc.billTo?.email].filter(Boolean).join(" · ") || null,
-        doc.billTo?.taxId ? `TIN ${doc.billTo.taxId}` : null,
+        doc.invoice?.tinNumber || doc.billTo?.taxId ? `TIN ${doc.invoice?.tinNumber || doc.billTo?.taxId}` : null,
+        doc.invoice?.customerPoRef ? `Your PO: ${doc.invoice.customerPoRef}` : null,
       ].filter((x): x is string => !!x),
     },
     doc,
@@ -188,10 +189,15 @@ export async function renderDocumentPdf(m: PdfModel): Promise<Uint8Array> {
     ["Subtotal", money(m.doc.subtotal, m.doc.currency), false],
     ["Discount", `- ${money(m.doc.discountTotal, m.doc.currency)}`, false],
     ["VAT", money(m.doc.taxTotal, m.doc.currency), false],
-    ["Total", money(m.doc.total, m.doc.currency), true],
   ];
-  if (m.doc.amountPaid !== null && m.doc.amountPaid > 0) {
-    totals.push(["Paid", money(m.doc.amountPaid, m.doc.currency), false], ["Balance due", money(m.doc.total - m.doc.amountPaid, m.doc.currency), true]);
+  // invoices (prompt 26): Other Charges in the total; Excise Duty always printed when above 0; credit notes lower the balance
+  const inv = m.doc.invoice;
+  if (inv && inv.otherCharges > 0) totals.push(["Other Charges", money(inv.otherCharges, m.doc.currency), false]);
+  if (inv && inv.exciseDuty > 0) totals.push(["Excise Duty", money(inv.exciseDuty, m.doc.currency), false]);
+  totals.push(["Total", money(m.doc.total, m.doc.currency), true]);
+  if (inv && inv.creditedAmount > 0) totals.push(["Credited", `- ${money(inv.creditedAmount, m.doc.currency)}`, false]);
+  if (m.doc.amountPaid !== null && (m.doc.amountPaid > 0 || (inv?.creditedAmount ?? 0) > 0)) {
+    totals.push(["Paid", money(m.doc.amountPaid, m.doc.currency), false], ["Balance due", money(inv?.balanceDue ?? m.doc.total - m.doc.amountPaid, m.doc.currency), true]);
   }
   for (const [k, v, strong] of totals) {
     text(k, W - M - 200, y, { f: strong ? bold : font, size: strong ? 10 : 9 });

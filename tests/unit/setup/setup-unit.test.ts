@@ -39,7 +39,7 @@ describe("setup catalogue", () => {
       if (e.category === "security") expect(e.delegable ?? false, `${e.key}: security is never delegable`).toBe(false);
       if (e.brandAdminReady) expect(e.tiers.includes("BRAND_ADMIN"), e.key).toBe(true);
     }
-    expect(SETUP_CATALOGUE.filter((e) => e.brandAdminReady).map((e) => e.key).sort()).toEqual(["brand-members", "brand-thresholds", "document-dependencies", "document-templates", "letterhead", "print-templates", "purchase-order-settings", "templates-hub"]);
+    expect(SETUP_CATALOGUE.filter((e) => e.brandAdminReady).map((e) => e.key).sort()).toEqual(["brand-members", "brand-thresholds", "document-dependencies", "document-templates", "invoice-settings", "letterhead", "print-templates", "purchase-order-settings", "templates-hub"]);
   });
 
   it("docs/SETUP_CATALOGUE.md is generated from the catalogue (run `pnpm setup:catalogue`)", () => {
@@ -90,7 +90,7 @@ describe("setup tiers", () => {
     expect(setupBrandIds(PERSONAS.admin)).toBeNull();
     expect(() => assertSetup(PERSONAS.superAdmin, "no-such-function")).toThrow();
     const seen = visibleCatalogue(PERSONAS.brandAdmin).flatMap((c) => c.items.map((i) => i.key)).sort();
-    expect(seen).toEqual(["brand-members", "brand-thresholds", "document-dependencies", "document-templates", "letterhead", "personal-settings", "print-templates", "purchase-order-settings", "templates-hub"]);
+    expect(seen).toEqual(["brand-members", "brand-thresholds", "document-dependencies", "document-templates", "invoice-settings", "letterhead", "personal-settings", "print-templates", "purchase-order-settings", "templates-hub"]);
     expect(visibleCatalogue(PERSONAS.salesExec).flatMap((c) => c.items.map((i) => i.key))).toEqual(["personal-settings"]);
   });
 });

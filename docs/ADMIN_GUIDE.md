@@ -197,6 +197,7 @@ standard stages and stages that contain deals cannot be removed).
 
 ## Quotes, sales orders & invoices
 
+- **Invoices** have their own page – see *Creating and issuing an invoice*.
 - **Create a quote** from a deal (*Create Quote*). It takes the deal's brand, region, customer, model, quantity and the
   current price book price; brand and region cannot be changed on the document. Numbers are issued automatically per
   brand: `HMNL-QT-2026-00001`, `HMNL-SO-…`, `HMNL-INV-…`.
@@ -213,6 +214,45 @@ standard stages and stages that contain deals cannot be removed).
 - **PDF**: every document prints on the brand's template – logo, legal entity, address, bank details and terms from
   *Setup → Brands*.
 - Users of other brands cannot open, print or list these documents.
+
+### Creating and issuing an invoice
+
+*Invoices → New* (or **+ → Invoice**, *Create Invoice* on a sales order, *Clone* on an invoice) opens the Create Invoice
+page: **Invoice Information**, **Address Information**, **Invoiced Items**, **Terms and Conditions** and **Description**.
+Mandatory fields have a red bar on the left edge: Brand / Company, Subject, Account Name and the Invoiced Items section.
+
+- **Owner** is you; **Invoice Date** is today and **Due Date** the invoice date plus the brand's payment terms (both in
+  your date format). **Status** starts as *Created*; the number (`HMNL-INV-2026-00001`) is given on save.
+- **Account Name**: pick an account – or type a new customer's name; the invoice then keeps the customer on itself
+  (*Create account* on the invoice turns it into an account later). A brand can require a linked account. **Contact
+  Name** lists the account's contacts, **Deal Name** the brand's deals for the account; **Phone** and **TIN** are
+  filled from the account and can be changed. A brand can require the TIN on invoices to companies.
+- **Sales Order**: choose a confirmed order and confirm *Copy details and items* – customer, contact, deal, phone,
+  TIN, addresses, currency, terms and **only the quantities not invoiced yet** are copied. Invoice part of it now and
+  the rest later; an order line can never be invoiced more than ordered.
+- **Purchase Order** is the customer's own PO reference (printed on the invoice). **Excise Duty** is always printed
+  when above 0 and added to the Grand Total only when the brand says so; **Add Other Charges** (delivery,
+  registration, plates, documentation) appears as "Other Charges" in the totals and is part of the Grand Total.
+  **Sales Commission** is for commission reports only.
+- **Currency** is NGN with Exchange Rate 1 (locked); other currencies take the rate from *Setup → Currencies* and only
+  users allowed to edit exchange rates can change it.
+- **Invoiced Items** is the shared grid (see below). A vehicle line can be saved without its VIN, but the invoice is
+  issued only when every unit has one (typed on the line or allocated on the sales order).
+- **Save**, **Save and New** (keeps brand, owner and currency), **Cancel** (asks before discarding), **Ctrl+S**.
+
+After saving, the invoice page shows the totals with **Amount Paid**, **Credited** and **Balance Due**, and the amount in
+words. The status moves on with its buttons:
+
+- **Issue** – a discount above the brand's approval threshold first goes to the Brand Manager (*Pending Approval* →
+  *Approve* / *Send back*). Issuing is for the Brand Manager, the brand accountant and administrators; it locks the
+  number, lines and amounts, takes allocated vehicles out of stock and sends the invoice to the brand's ERP company.
+- **Send** (e-mail with the PDF) marks it *Sent*; **Record payment** (cash, transfer, POS, cheque, finance, online
+  link) makes it *Partially Paid* or *Paid*; past its due date with a balance it becomes *Overdue* (checked nightly).
+- **Create Credit Note** (amount and reason, numbered `HMNL-CN-2026-00001`) is the only correction of an issued
+  invoice; it lowers the balance. **Void** asks for a reason, is recorded and tells the ERP; invoices with payments or
+  credit notes cannot be voided, and nothing is ever deleted.
+- **Settings** (*Setup → Invoices*): payment terms, TIN for companies, Excise Duty and Other Charges in the total, and
+  custom form views ("Create a custom form page" / "Edit Page Layout" on the form) that hide fields for a use case.
 
 ### Adding multiple products to orders
 

@@ -22,6 +22,8 @@ export interface GridLine {
   isStockItem: boolean;
   /** stored lines: needs a discount approval (server decision) */
   needsApproval?: boolean;
+  /** invoices: the sales-order line this line invoices (partial invoicing) */
+  sourceLineId?: string | null;
 }
 export interface GridHeader {
   discountType: DiscountType;
@@ -43,7 +45,7 @@ export function gridFromLines(
   header: { headerDiscountType: DiscountType; headerDiscountValue: number; documentTaxes: Array<{ name: string; rate: number }>; adjustment: number },
 ): GridValue {
   return {
-    lines: lines.map((l) => ({ key: l.id, id: l.id, productId: l.productId ?? "", description: l.description, details: l.details ?? "", itemCode: l.itemCode ?? "", uom: l.uom ?? "", qty: String(l.qty), unitPrice: String(l.unitPrice), discountType: l.discountType, discountValue: String(l.discountValue), taxes: l.taxes.map(({ name, rate }) => ({ name, rate })), vins: l.vins, isStockItem: l.isStockItem, needsApproval: l.needsApproval })),
+    lines: lines.map((l) => ({ key: l.id, id: l.id, productId: l.productId ?? "", description: l.description, details: l.details ?? "", itemCode: l.itemCode ?? "", uom: l.uom ?? "", qty: String(l.qty), unitPrice: String(l.unitPrice), discountType: l.discountType, discountValue: String(l.discountValue), taxes: l.taxes.map(({ name, rate }) => ({ name, rate })), vins: l.vins, isStockItem: l.isStockItem, needsApproval: l.needsApproval, sourceLineId: (l as { sourceLineId?: string | null }).sourceLineId ?? null })),
     header: { discountType: header.headerDiscountType, discountValue: String(header.headerDiscountValue), taxes: header.documentTaxes.map(({ name, rate }) => ({ name, rate })), adjustment: String(header.adjustment) },
   };
 }
@@ -53,7 +55,7 @@ export function gridPayload(v: GridValue) {
   return {
     lines: v.lines
       .filter((l) => l.description.trim() || l.productId)
-      .map((l) => ({ id: l.id, productId: l.productId, description: l.description, details: l.details, itemCode: l.itemCode, uom: l.uom, qty: l.qty, unitPrice: l.unitPrice, discountType: l.discountType, discountValue: l.discountValue, taxes: l.taxes, vins: l.vins, isStockItem: l.isStockItem })),
+      .map((l) => ({ id: l.id, productId: l.productId, description: l.description, details: l.details, itemCode: l.itemCode, uom: l.uom, qty: l.qty, unitPrice: l.unitPrice, discountType: l.discountType, discountValue: l.discountValue, taxes: l.taxes, vins: l.vins, isStockItem: l.isStockItem, ...(l.sourceLineId ? { sourceLineId: l.sourceLineId } : {}) })),
     headerDiscountType: v.header.discountType,
     headerDiscountValue: v.header.discountValue,
     documentTaxes: v.header.taxes,

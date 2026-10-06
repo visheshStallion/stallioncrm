@@ -20,7 +20,7 @@ import { expireQuotes } from "@/server/modules/documents/service";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
 import { getUiFilters, requireContext } from "@/server/request";
-import { ApprovalDecision, DocButtons, PaymentForm, type DocButton } from "./DocActions";
+import { ApprovalDecision, CreditNoteButton, DocButtons, PaymentForm, type DocButton } from "./DocActions";
 import { gridFromLines } from "@/components/crm/line-grid";
 import { DocumentLines, OrderTools } from "./DocumentLines";
 import { LinkPanel } from "./LinkPanel";
@@ -155,6 +155,8 @@ export async function DocumentListPage({ type, searchParams }: { type: DocType; 
   );
 }
 
+const canIssueAny = (ctx: Awaited<ReturnType<typeof requireContext>>) => !!ctx.isAdmin || hasPermission(ctx, "invoices", "approve") || hasPermission(ctx, "inventoryFinance", "approve");
+
 /** Which status buttons the viewer gets (the server re-checks every transition). */
 function buttonsFor(type: DocType, status: string, canEdit: boolean, canCreateNext: boolean): DocButton[] {
   if (!canEdit) return [];
@@ -208,15 +210,22 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
   const brand = dir.brands.find((b) => b.id === doc.brandId);
   const region = dir.regions.find((r) => r.id === doc.regionId);
   const canEdit = can(ctx, cfg.module, "edit", doc) && brandCfg.status !== "INACTIVE";
-  const editable = canEdit && cfg.editable.includes(doc.status);
+  // invoices are edited on the Create Invoice page (prompt 26) – its charges and header fields live there
+  const editable = canEdit && cfg.editable.includes(doc.status) && type !== "invoice";
+  const { canIssueInvoices } = await import("@/server/modules/documents/service");
+  const issuer = type === "invoice" && canIssueInvoices(ctx);
+  const inv = doc.invoice;
+  const creditNotes = type === "invoice" ? await scopedDb(ctx).creditNote.findMany({ where: { invoiceId: doc.id }, orderBy: { createdAt: "asc" }, select: { id: true, number: true, amount: true, reason: true, createdAt: true } }) : [];
+  const invRules = type === "invoice" ? (await import("@/server/modules/documents/config")).parseRules((await scopedDb(ctx).brand.findUnique({ where: { id: doc.brandId }, select: { documentRules: true } }))?.documentRules) : null;
   const nextModule = type === "quote" ? "salesOrders" : "invoices";
-  const buttons = buttonsFor(type, doc.status, canEdit, can(ctx, nextModule, "create", doc));
+  const buttons = buttonsFor(type, doc.status, canEdit || (type === "invoice" && canIssueAny(ctx)), can(ctx, nextModule, "create", doc));
 
   const { gridSettings } = await import("@/server/modules/documents/lookups");
   const settings = await gridSettings(ctx, doc.brandId);
   const { managedBrands } = await import("@/server/access/brand-tag");
   const canDecide = !!approval && (approval.approverId === ctx.userId || (ctx.scope === "ALL" && hasPermission(ctx, "quotes", "approve")));
-  const balance = type === "invoice" ? doc.total - (doc.amountPaid ?? 0) : 0;
+  const balance = type === "invoice" ? (inv?.balanceDue ?? doc.total - (doc.amountPaid ?? 0)) : 0;
+  const payable = ["ISSUED", "SENT", "PART_PAID", "OVERDUE"].includes(doc.status) && (canEdit || issuer);
 
   return (
     <div>
@@ -234,7 +243,22 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
                 PDF
               </a>
             </Button>
+            {type === "invoice" && doc.status === "DRAFT" && canEdit ? (
+              <Button asChild variant="outline">
+                <Link href={`/invoices/${doc.id}/edit`} data-testid="inv-edit">
+                  Edit
+                </Link>
+              </Button>
+            ) : null}
+            {type === "invoice" && can(ctx, "invoices", "create", doc) ? (
+              <Button asChild variant="outline">
+                <Link href={`/invoices/new?clone=${doc.id}`} data-testid="inv-clone">
+                  Clone
+                </Link>
+              </Button>
+            ) : null}
             <DocButtons type={type} id={doc.id} buttons={buttons} />
+            {issuer && ["ISSUED", "SENT", "PART_PAID", "PAID", "OVERDUE"].includes(doc.status) && doc.total - (inv?.creditedAmount ?? 0) > 0.005 ? <CreditNoteButton invoiceId={doc.id} max={Math.round((doc.total - (inv?.creditedAmount ?? 0)) * 100) / 100} /> : null}
             {type === "salesOrder" ? (
               <OrderTools
                 id={doc.id}
@@ -287,8 +311,22 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
           <Field label="Links" value={<StatusPill tone={doc.linkStatus === "Linked" ? "neutral" : "warning"}>{doc.linkStatus}</StatusPill>} />
           {doc.sourceDocumentId ? <Field label="Created from" value={<SourceLink id={doc.sourceDocumentId} />} /> : null}
           <Field label="Region" value={<RegionBadge region={region} />} />
-          <Field label="Issue date" value={formatDate(doc.issueDate, prefs.dateFormat)} />
+          <Field label={type === "invoice" ? "Invoice Date" : "Issue date"} value={formatDate(doc.issueDate, prefs.dateFormat)} />
           <Field label={cfg.dateLabel} value={formatDate(doc.date, prefs.dateFormat)} />
+          {inv ? (
+            <>
+              <Field label="Subject" value={inv.subject ?? "—"} />
+              <Field label="Purchase Order" value={inv.customerPoRef ?? "—"} />
+              <Field label="TIN Number" value={inv.tinNumber ?? "—"} />
+              <Field label="Phone Number" value={inv.phone ?? "—"} />
+              <Field label="Currency" value={doc.currency === "NGN" ? "NGN" : `${doc.currency} · ₦ ${inv.exchangeRate} per ${doc.currency}`} />
+              {inv.otherCharges > 0 ? <Field label="Other Charges" value={money(inv.otherCharges, doc.currency)} /> : null}
+              {inv.exciseDuty > 0 ? <Field label="Excise Duty" value={money(inv.exciseDuty, doc.currency)} /> : null}
+              {inv.salesCommission > 0 ? <Field label="Sales Commission" value={money(inv.salesCommission, "NGN")} /> : null}
+              {inv.issuedAt ? <Field label="Issued" value={formatDateTime(inv.issuedAt, prefs.dateFormat)} /> : null}
+              {inv.voidReason ? <Field label="Void reason" value={<span data-testid="void-reason">{inv.voidReason}</span>} /> : null}
+            </>
+          ) : null}
         </FieldSection>
 
         <RelatedListCard id="lines" title="Line items" count={doc.lines.length}>
@@ -302,6 +340,23 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
             header={{ date: doc.date, terms: doc.terms, notes: doc.notes }}
             dateLabel={cfg.dateLabel}
             settings={settings}
+            extraRows={
+              inv
+                ? [
+                    ...(inv.otherCharges > 0 ? [{ label: "Other Charges", amount: inv.otherCharges, inTotal: true, testId: "total-other-charges" }] : []),
+                    ...(inv.exciseDuty > 0 ? [{ label: "Excise Duty", amount: inv.exciseDuty, inTotal: !!invRules?.exciseInTotal, testId: "total-excise" }] : []),
+                  ]
+                : undefined
+            }
+            afterTotals={
+              inv && doc.status !== "DRAFT"
+                ? [
+                    { label: "Amount Paid", amount: doc.amountPaid ?? 0, testId: "total-paid" },
+                    ...(inv.creditedAmount > 0 ? [{ label: "Credited", amount: inv.creditedAmount, testId: "total-credited" }] : []),
+                    { label: "Balance Due", amount: balance, testId: "total-balance", strong: true },
+                  ]
+                : undefined
+            }
           />
         </RelatedListCard>
 
@@ -312,10 +367,27 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
                 <span>
                   Paid <strong className="tabular-nums">{money(doc.amountPaid ?? 0, doc.currency)}</strong>
                 </span>
+                {inv && inv.creditedAmount > 0 ? (
+                  <span>
+                    Credited <strong className="tabular-nums">{money(inv.creditedAmount, doc.currency)}</strong>
+                  </span>
+                ) : null}
                 <span>
                   Balance <strong className="tabular-nums" data-testid="invoice-balance">{money(balance, doc.currency)}</strong>
                 </span>
               </div>
+              {creditNotes.length ? (
+                <ul className="divide-y divide-border text-[13px]" data-testid="credit-notes">
+                  {creditNotes.map((c) => (
+                    <li key={c.id} className="flex gap-3 py-1.5">
+                      <span className="w-40 font-medium">{c.number}</span>
+                      <span className="w-28">{formatDate(c.createdAt.toISOString(), prefs.dateFormat)}</span>
+                      <span className="flex-1 text-text-muted">{c.reason}</span>
+                      <span className="tabular-nums">−{money(Number(c.amount), doc.currency)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <ul className="divide-y divide-border text-[13px]" data-testid="payments-list">
                 {doc.payments.map((p) => (
                   <li key={p.id} className="flex gap-3 py-1.5">
@@ -327,8 +399,8 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
                 ))}
                 {doc.payments.length === 0 ? <li className="py-1 text-text-muted">No payments recorded.</li> : null}
               </ul>
-              {canEdit && ["ISSUED", "SENT", "PART_PAID", "OVERDUE"].includes(doc.status) ? <PaymentForm invoiceId={doc.id} balance={Math.round(balance * 100) / 100} /> : null}
-              <PaymentLinks ctx={ctx} invoiceId={doc.id} brandId={doc.brandId} canCreate={canEdit && ["ISSUED", "SENT", "PART_PAID", "OVERDUE"].includes(doc.status)} balance={Math.round(balance * 100) / 100} />
+              {payable ? <PaymentForm invoiceId={doc.id} balance={Math.round(balance * 100) / 100} /> : null}
+              <PaymentLinks ctx={ctx} invoiceId={doc.id} brandId={doc.brandId} canCreate={payable} balance={Math.round(balance * 100) / 100} />
             </div>
           </RelatedListCard>
         ) : null}

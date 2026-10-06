@@ -5,8 +5,8 @@
 Every configuration and control function of Setup (`/setup`), by category, with who may open it and how far it is
 built. The list follows the brief of prompt 19; it has **not** been checked against the live Zoho CRM account.
 
-**120 functions: 32 done, 29 in progress, 59 planned.** Of the 53 go-live (P1) functions,
-28 are done, 23 are in progress and 2 are planned.
+**121 functions: 33 done, 29 in progress, 59 planned.** Of the 54 go-live (P1) functions,
+29 are done, 23 are in progress and 2 are planned.
 
 - **Status** – *Done*: working. *In progress*: the core works, the note says what is missing. *Planned*: the page
   exists and says "Coming soon".
@@ -69,6 +69,7 @@ built. The list follows the brief of prompt 19; it has **not** been checked agai
 | Function | What it does | Pri | Tier | Status | Page | Notes |
 |---|---|---|---|---|---|---|
 | Teamspace | Module groupings and navigation per team | P3 | ADMIN | Planned | `/setup/teamspaces` |  |
+| Invoices | Create Invoice page per brand: payment terms, TIN required for companies, Excise Duty and Other Charges in the Grand Total and custom form views | P1 | ADMIN, BA | Done | `/setup/invoice-settings` |  |
 | Purchase Orders | Create Purchase Order page per brand: carriers, default terms, excise in the total, typed PO numbers, receiving warehouse, approval limit and custom form views | P1 | ADMIN, BA | Done | `/setup/purchase-orders` |  |
 | Dependencies | Which links quotes, sales orders and invoices need per brand: account, contact, deal, product, quote before order, order before invoice, stock link for vehicles | P1 | ADMIN, BA | Done | `/setup/document-dependencies` |  |
 | Modules and Fields | Custom fields, field types, mandatory and unique, picklist values | P1 | ADMIN | In progress | `/admin/customization` | No custom modules, module renaming, lookup filters, picklist dependencies or global picklists. Built by prompt 12 |

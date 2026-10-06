@@ -30,6 +30,10 @@ export interface LineItemsGridProps {
   requireProduct?: boolean;
   /** the List Price column header (purchase orders: cost) */
   priceLabel?: string;
+  /** rows between Adjustment and Grand Total (invoices: Other Charges, Excise Duty); `inTotal` adds them to the Grand Total */
+  extraRows?: Array<{ label: string; amount: number; inTotal: boolean; testId?: string }>;
+  /** shown under the totals after save (invoices: Amount Paid, Credited, Balance Due) */
+  afterTotals?: Array<{ label: string; amount: number; testId?: string; strong?: boolean }>;
 }
 
 const TITLES: Record<LineItemsGridProps["documentType"], string> = { quote: "Quoted Items", salesOrder: "Ordered Items", invoice: "Invoiced Items", purchaseOrder: "Purchase Items" };
@@ -426,6 +430,7 @@ export function LineItemsGrid(p: LineItemsGridProps) {
     [lines, header, p.taxMode, p.products],
   );
 
+  const grand = Math.round((calc.grandTotal + (p.extraRows ?? []).reduce((s, r) => s + (r.inTotal ? r.amount : 0), 0)) * 100) / 100;
   const emit = (next: GridLine[], h: GridHeader = header) => p.onChange?.({ lines: next, header: h });
   const set = (key: string, patch: Partial<GridLine>) => emit(lines.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const defaultTaxes = p.taxMode === "LINE" ? p.taxOptions.slice(0, 1) : [];
@@ -510,8 +515,8 @@ export function LineItemsGrid(p: LineItemsGridProps) {
 
   return (
     <section className="space-y-3" data-testid="line-items-grid" aria-label={TITLES[p.documentType]} ref={topRef}>
-      {/* the Purchase Items title is mandatory (red bar), the Ordered Items title is not – as in the references */}
-      <h2 className={p.documentType === "purchaseOrder" ? "crm-grid-title crm-grid-title-required" : "crm-grid-title"}>{TITLES[p.documentType]}</h2>
+      {/* the Purchase / Invoiced Items titles are mandatory (red bar), the Ordered Items title is not – as in the references */}
+      <h2 className={p.documentType === "purchaseOrder" || p.documentType === "invoice" ? "crm-grid-title crm-grid-title-required" : "crm-grid-title"}>{TITLES[p.documentType]}</h2>
       {lines.length > 50 ? (
         <p className="text-xs text-text-muted" data-testid="line-counter">
           {lines.length} / {MAX_GRID_LINES} lines
@@ -791,14 +796,28 @@ export function LineItemsGrid(p: LineItemsGridProps) {
                 <input id="grid-adjustment" className="crm-grid-input w-full text-right" type="number" step="0.01" value={header.adjustment} readOnly={ro || !p.canAdjust} title={!p.canAdjust && !ro ? "Only the brand's managers can enter an adjustment" : undefined} onChange={(e) => emit(lines, { ...header, adjustment: e.target.value })} />
               </dd>
             </div>
+            {(p.extraRows ?? []).map((r) => (
+              <div key={r.label} data-testid={r.testId}>
+                <dt>
+                  {r.label}({sym}){r.inTotal ? null : <span className="ml-1 text-[11px] text-text-muted">not in total</span>}
+                </dt>
+                <dd className="tabular-nums">{fmt(r.amount)}</dd>
+              </div>
+            ))}
             <div className="crm-grid-grand">
               <dt>Grand Total({sym})</dt>
-              <dd data-testid="grand-total">{fmt(calc.grandTotal)}</dd>
+              <dd data-testid="grand-total">{fmt(grand)}</dd>
             </div>
+            {(p.afterTotals ?? []).map((r) => (
+              <div key={r.label} data-testid={r.testId} className={r.strong ? "crm-grid-grand" : undefined}>
+                <dt>{r.label}({sym})</dt>
+                <dd className="tabular-nums">{fmt(r.amount)}</dd>
+              </div>
+            ))}
           </dl>
-          {calc.grandTotal > 0 && p.currency === "NGN" ? (
+          {grand > 0 && p.currency === "NGN" ? (
             <p className="mt-1 text-right text-xs text-text-muted" data-testid="amount-in-words">
-              {amountInWords(calc.grandTotal)}
+              {amountInWords(grand)}
             </p>
           ) : null}
         </div>

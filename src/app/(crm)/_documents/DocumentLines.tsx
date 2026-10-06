@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { LineItemsGrid, gridPayload, type GridValue } from "@/components/crm/LineItemsGrid";
+import { LineItemsGrid, gridPayload, type GridValue, type LineItemsGridProps } from "@/components/crm/LineItemsGrid";
 import { toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,9 @@ export function DocumentLines(p: {
   header: { date: string | null; terms: string | null; notes: string | null };
   dateLabel: string;
   settings: GridSettings;
+  /** invoices: Other Charges / Excise Duty rows and Amount Paid / Balance Due under the totals */
+  extraRows?: LineItemsGridProps["extraRows"];
+  afterTotals?: LineItemsGridProps["afterTotals"];
 }) {
   const router = useRouter();
   const [grid, setGrid] = useState(p.initial);
@@ -74,6 +77,8 @@ export function DocumentLines(p: {
         canAdjust={p.settings.canAdjust}
         showVins={p.type !== "quote"}
         requireProduct={p.settings.requireProduct}
+        extraRows={p.extraRows}
+        afterTotals={p.afterTotals}
       />
       {p.editable ? (
         <div className="grid gap-4 md:grid-cols-[220px_1fr_1fr_auto] md:items-end">
