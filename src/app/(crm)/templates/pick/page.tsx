@@ -20,7 +20,7 @@ export default async function PickTemplatePage({ searchParams }: { searchParams:
   const q = await searchParams;
   const ctx = await requireContext();
   if (q.module && !rtModule(q.module)) notFound();
-  const modules = RT_MODULES.filter((m) => (!q.module || m.key === q.module) && hasPermission(ctx, m.permission, "create") && (q.module || !m.needs));
+  const modules = RT_MODULES.filter((m) => (!q.module || m.key === q.module) && hasPermission(ctx, m.permission, "create"));
   if (q.module && !modules.length) notFound();
   const hub = await hubList(ctx, { tab: "record" });
   const meta = new Map(hub.rows.map((r) => [r.id, r]));
@@ -45,7 +45,7 @@ export default async function PickTemplatePage({ searchParams }: { searchParams:
         title={one ? `Create ${one.label} from template` : "Create from template"}
         left={
           one ? (
-            <Link href={one.needs ? (q.dealId ? `/deals/${q.dealId}` : "/deals") : `/${one.key}`} className="text-sm text-primary hover:underline">
+            <Link href={q.dealId ? `/deals/${q.dealId}` : `/${one.key}`} className="text-sm text-primary hover:underline">
               ← Back
             </Link>
           ) : undefined
@@ -59,7 +59,6 @@ export default async function PickTemplatePage({ searchParams }: { searchParams:
           Search
         </button>
       </form>
-      {one?.needs === "dealId" && !q.dealId ? <p className="mb-3 rounded-lg border border-border bg-surface p-3 text-sm">A quotation belongs to a deal: open the deal and choose “Quote from template”.</p> : null}
       {total === 0 ? (
         <p className="rounded-lg border border-dashed border-border-strong bg-surface p-8 text-center text-sm text-text-muted" data-testid="pick-empty">
           No published template{one ? ` for ${one.plural.toLowerCase()}` : ""} yet.{" "}
@@ -92,14 +91,12 @@ export default async function PickTemplatePage({ searchParams }: { searchParams:
                     </div>
                     {t.description ? <p className="text-xs text-text-muted">{t.description}</p> : null}
                   </div>
-                  {g.module.needs === "dealId" ? (
-                    q.dealId ? (
-                      <ActionForm action={createQuoteFromTemplateAction}>
-                        <input type="hidden" name="templateId" value={t.id} />
-                        <input type="hidden" name="dealId" value={q.dealId} />
-                        <SubmitButton size="sm">Create quotation</SubmitButton>
-                      </ActionForm>
-                    ) : null
+                  {g.module.key === "quotes" && q.dealId ? (
+                    <ActionForm action={createQuoteFromTemplateAction}>
+                      <input type="hidden" name="templateId" value={t.id} />
+                      <input type="hidden" name="dealId" value={q.dealId} />
+                      <SubmitButton size="sm">Create quotation</SubmitButton>
+                    </ActionForm>
                   ) : (
                     <Link href={`${g.module.newHref}?template=${t.id}`} className="crm-btn crm-btn-primary" data-testid="pick-use">
                       Use

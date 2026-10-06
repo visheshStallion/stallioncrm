@@ -16,7 +16,7 @@ export default async function SaveAsTemplatePage({ searchParams }: { searchParam
   const q = await searchParams;
   const ctx = await requireContext();
   const mod = rtModule(q.module ?? "");
-  if (!mod || mod.needs || !q.id) notFound();
+  if (!mod || mod.document || !q.id) notFound();
   if (!hasPermission(ctx, mod.permission, "create")) forbidden();
   return (
     <div className="mx-auto max-w-xl">

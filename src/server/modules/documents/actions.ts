@@ -84,3 +84,73 @@ export async function addPaymentAction(invoiceId: string, input: { amount: strin
     return { message: res.status === "PAID" ? "Payment recorded – invoice paid" : "Payment recorded" };
   });
 }
+
+// ───────────────────────────── standalone documents (prompt 23) ─────────────────────────────
+
+/** Creates a quote, sales order or invoice from the standalone form (one JSON payload). */
+export async function createDocumentAction(type: string, payload: Record<string, unknown>, templateId?: string | null) {
+  return safeAction(async () => {
+    if (!isDocType(type)) throw new BadRequestError("Unknown document type");
+    const ctx = await requireContext();
+    const { createWithTemplate } = await import("@/server/modules/rectpl/service");
+    const made = await createWithTemplate(ctx, DOCS[type].module, templateId || null, payload, (input) => svc.createDocument(ctx, type, input as never));
+    revalidatePath(DOCS[type].path);
+    return { id: made.record.id, message: `${DOCS[type].label} ${made.record.number} created`, redirect: made.next ?? `${DOCS[type].path}/${made.record.id}` };
+  });
+}
+
+/** Link later (or unlink with null). */
+export async function linkDocumentAction(type: string, id: string, input: Record<string, unknown>) {
+  return safeAction(async () => {
+    if (!isDocType(type)) throw new BadRequestError("Unknown document type");
+    await svc.linkDocument(await requireContext(), type, id, input as never);
+    revalidatePath(`${DOCS[type].path}/${id}`);
+    return { message: "Links saved" };
+  });
+}
+
+export async function createCustomerFromDocumentAction(type: string, id: string) {
+  return safeAction(async () => {
+    if (!isDocType(type)) throw new BadRequestError("Unknown document type");
+    const res = await svc.createCustomerFromDocument(await requireContext(), type, id);
+    revalidatePath(`${DOCS[type].path}/${id}`);
+    return { message: res.duplicate ? `Linked to the existing customer ${res.name}` : `Customer ${res.name} created and linked` };
+  });
+}
+
+export async function createDealFromQuoteAction(id: string) {
+  return safeAction(async () => {
+    const res = await svc.createDealFromQuote(await requireContext(), id);
+    revalidatePath(`/quotes/${id}`);
+    return { message: "Deal created and linked", redirect: `/deals/${res.dealId}` };
+  });
+}
+
+/** Quote → Invoice directly. */
+export async function quoteToInvoiceAction(id: string) {
+  return safeAction(async () => {
+    const inv = await svc.convertQuoteToInvoice(await requireContext(), id);
+    return { message: "Invoice created", redirect: `/invoices/${inv.id}` };
+  });
+}
+
+// lookups of the form
+export async function searchCustomersAction(q: string) {
+  return safeAction(async () => (await import("./lookups")).searchCustomers(await requireContext(), q));
+}
+export async function customerByPhoneAction(phone: string) {
+  return safeAction(async () => (await import("./lookups")).customerByPhone(await requireContext(), phone));
+}
+export async function linkTargetsAction(brandId: string, kind: "deal" | "quote" | "salesOrder", q: string) {
+  return safeAction(async () => (await import("./lookups")).linkTargets(await requireContext(), brandId, kind, q));
+}
+export async function brandProductsAction(brandId: string) {
+  return safeAction(async () => {
+    const ctx = await requireContext();
+    const l = await import("./lookups");
+    return { products: await l.brandProducts(ctx, brandId), canSaveAsProduct: l.canSaveAsProduct(ctx, brandId) };
+  });
+}
+export async function saveLineAsProductAction(brandId: string, input: { name: string; price: number; vehicle: boolean }) {
+  return safeAction(async () => (await import("./lookups")).saveLineAsProduct(await requireContext(), brandId, input));
+}

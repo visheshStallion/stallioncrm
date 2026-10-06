@@ -35,7 +35,7 @@ beforeAll(async () => {
 
 describe("New Template → Select Module", () => {
   it("lists the modules of the template type the user can read, in the fixed order; unreadable modules are hidden", () => {
-    expect(hub.modulesFor(admin, "record").map((m) => m.key)).toEqual(["leads", "contacts", "accounts", "deals", "quotes", "cases"]);
+    expect(hub.modulesFor(admin, "record").map((m) => m.key)).toEqual(["leads", "contacts", "accounts", "deals", "quotes", "salesOrders", "invoices", "cases"]);
     expect(hub.modulesFor(admin, "email").map((m) => m.key)).toEqual(["leads", "contacts", "accounts", "deals", "quotes", "salesOrders", "invoices", "cases"]);
     expect(hub.modulesFor(admin, "sms").map((m) => m.key)).toEqual(["leads", "deals", "cases"]);
     const all = hub.modulesFor(admin, "document").map((m) => m.key);
@@ -63,7 +63,7 @@ describe("record templates", () => {
     await expect(rec.createRecordTemplate(ba, { module: "leads", brandId: id.brand("SNMNL"), visibility: "SHARED_BRAND" }, body)).rejects.toThrow(/not found/i);
     await expect(rec.createRecordTemplate(ba, { module: "leads", brandId: null, visibility: "PUBLIC_GROUP" }, body)).rejects.toThrow(/administrators/);
     await expect(rec.createRecordTemplate(hmnlExec, { module: "leads", brandId: id.brand("HMNL"), visibility: "SHARED_BRAND" }, body)).rejects.toThrow(/brand's manager/);
-    await expect(rec.createRecordTemplate(ba, { module: "invoices", brandId: id.brand("HMNL"), visibility: "SHARED_BRAND" }, body)).rejects.toThrow(/not available for this module/);
+    await expect(rec.createRecordTemplate(ba, { module: "inventoryDocuments", brandId: id.brand("HMNL"), visibility: "SHARED_BRAND" }, body)).rejects.toThrow(/not available for this module/);
 
     const t = await rec.createRecordTemplate(ba, { module: "leads", brandId: id.brand("HMNL"), visibility: "SHARED_BRAND" }, body);
     walkIn = t.id;

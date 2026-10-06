@@ -558,7 +558,7 @@ export async function createDocument(ctx: AccessContext, type: DocType, input: C
   const linked = await snapshotFrom(ctx, accountId, contactId, deal?.customerName);
   const billTo = fillEmpty(data.billTo, linked);
   const totals = computeTotals(lines, data.headerDiscountPct);
-  const typeDate = data.date ?? (type === "quote" ? addDays(14) : type === "salesOrder" ? addDays(30) : addDays(7));
+  const typeDate = data.date ?? data[cfg.dateField] ?? (type === "quote" ? addDays(14) : type === "salesOrder" ? addDays(30) : addDays(7));
   const created = await delegate(ctx, cfg).create({
     data: {
       dealId: deal?.id ?? null,

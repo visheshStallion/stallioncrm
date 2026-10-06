@@ -141,6 +141,10 @@ export const createSchema = z.object({
   /** invoice: invoice date (defaults to today); every type: its own date (valid until / delivery / due) */
   issueDate: z.preprocess(empty, z.coerce.date().optional()),
   date: z.preprocess(empty, z.coerce.date().optional()).transform((v) => v ?? null),
+  /** the type's own date under its own name (record templates): validUntil / expectedDelivery / dueDate */
+  validUntil: z.preprocess(empty, z.coerce.date().optional()),
+  expectedDelivery: z.preprocess(empty, z.coerce.date().optional()),
+  dueDate: z.preprocess(empty, z.coerce.date().optional()),
   currency: z.preprocess(empty, z.string().trim().length(3).optional()),
   terms: text(4000),
   notes: text(4000),

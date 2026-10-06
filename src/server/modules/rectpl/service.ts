@@ -176,7 +176,7 @@ export async function getRecordTemplate(ctx: AccessContext, id: string) {
     hasLines: !!mod.hasLines,
     hasChildren: !!mod.parentType,
     newHref: mod.newHref,
-    needs: mod.needs ?? null,
+    document: mod.document ?? null,
     needsApproval: canEdit(ctx, t) && !canPublish(ctx, t),
     versions: t.versions.map((v) => ({ version: v.version, changedAt: v.changedAt, changedBy: names.get(v.changedById ?? "") ?? "" })),
     usedThisMonth: await store.usesSince(t.id, new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
@@ -306,7 +306,7 @@ export async function restoreRecordTemplateVersion(ctx: AccessContext, id: strin
  */
 export async function saveRecordAsTemplate(ctx: AccessContext, moduleKey: string, recordId: string, name: string) {
   const mod = rtModule(moduleKey);
-  if (!mod || mod.needs) throw new BadRequestError("Records of this module cannot be saved as a template");
+  if (!mod || mod.document) throw new BadRequestError("Records of this module cannot be saved as a template");
   assertCan(ctx, mod.permission, "create");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic delegate access; the scoped client hides other brands' records
   const row = (await (scopedDb(ctx) as any)[mod.delegate].findUnique({ where: { id: recordId } })) as Record<string, unknown> | null;
@@ -403,7 +403,7 @@ export async function afterCreate(ctx: AccessContext, ref: TemplateRef | null, r
   }
   await audit({ ctx, action: "CREATE", entity: "RecordTemplateUse", entityId: recordId, brandId, after: { templateId: ref.templateId, version: ref.version, module: ref.module, tasks } });
   // the optional e-mail / document of the template: the composer opens for the user to review and send
-  const parent = { leads: "Lead", deals: "Deal", cases: "Case", contacts: "Contact", accounts: "Account", quotes: "Quote" }[ref.module];
+  const parent = { leads: "Lead", deals: "Deal", cases: "Case", contacts: "Contact", accounts: "Account", quotes: "Quote", salesOrders: "SalesOrder", invoices: "Invoice" }[ref.module];
   const next = parent && (ref.emailTemplateId || ref.documentTemplateId) ? `/email/compose?type=${parent}&id=${recordId}${ref.emailTemplateId ? `&tpl=${ref.emailTemplateId}` : ""}${ref.documentTemplateId ? `&doc=${encodeURIComponent(`doc:${ref.documentTemplateId}`)}` : ""}` : null;
   return { tasks, next };
 }
@@ -427,17 +427,32 @@ export async function createFromTemplate(ctx: AccessContext, moduleKey: string, 
   const mod = rtModule(moduleKey);
   if (!mod) throw new NotFoundError();
   assertCan(ctx, mod.permission, "create");
-  if (mod.key === "quotes") return createQuoteFromTemplate(ctx, templateId, overrides);
+  if (mod.document) return createDocumentFromTemplate(ctx, mod.key, mod.document, templateId, overrides);
   const { input, ref } = await applyTemplate(ctx, mod.key, templateId, overrides);
   const record = await mod.create(ctx, input);
   const after = await afterCreate(ctx, ref, record.id);
   return { id: record.id, href: mod.recordHref(record.id), templateId: ref!.templateId, templateVersion: ref!.version, ...after };
 }
 
-/** A quote of a deal with the template's line items (priced from the CURRENT price book), terms and validity. */
-async function createQuoteFromTemplate(ctx: AccessContext, templateId: string, overrides: Record<string, unknown>) {
+/**
+ * A quote, sales order or invoice from a template: the template's line items priced from the CURRENT price book,
+ * terms, notes and dates. Standalone it needs the customer (`billTo`); a quote for a deal (`dealId` only) takes the
+ * customer from the deal as before.
+ */
+async function createDocumentFromTemplate(ctx: AccessContext, moduleKey: string, type: "quote" | "salesOrder" | "invoice", templateId: string, overrides: Record<string, unknown>) {
   const dealId = typeof overrides.dealId === "string" ? overrides.dealId : "";
-  if (!dealId) throw new BadRequestError("A quotation is created for a deal: give the dealId");
+  if (type !== "quote" || !dealId || overrides.billTo) {
+    const t = await resolveForUse(ctx, templateId, moduleKey);
+    if (!overrides.billTo) throw new BadRequestError("Give the customer: billTo with at least a name (or a dealId for a quotation)");
+    const products = t.lineItems.length ? await scopedDb(ctx).product.findMany({ where: { id: { in: t.lineItems.map((l) => l.productId) } }, select: { id: true, name: true } }) : [];
+    const lines = Array.isArray(overrides.lines) && overrides.lines.length ? overrides.lines : t.lineItems.filter((l) => products.some((p) => p.id === l.productId)).map((l) => ({ productId: l.productId, description: products.find((p) => p.id === l.productId)!.name, qty: l.qty, discountPct: l.discountPct }));
+    const rest: Record<string, unknown> = { ...overrides };
+    const { createDocument } = await import("@/server/modules/documents/service");
+    const created = await createDocument(ctx, type, { ...t.values, ...rest, brandId: t.brandId ?? rest.brandId, lines } as never);
+    const ref: TemplateRef = { templateId: t.id, version: t.version, name: t.name, module: moduleKey, children: [], emailTemplateId: t.emailTemplateId, documentTemplateId: t.documentTemplateId };
+    const after = await afterCreate(ctx, ref, created.id);
+    return { id: created.id, href: `${rtModule(moduleKey)!.newHref.replace(/\/new$/, "")}/${created.id}`, templateId: t.id, templateVersion: t.version, ...after };
+  }
   const t = await resolveForUse(ctx, templateId, "quotes");
   const docs = await import("@/server/modules/documents/service");
   const { getDocument } = await import("@/server/modules/documents/queries");

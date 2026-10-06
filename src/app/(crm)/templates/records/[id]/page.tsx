@@ -50,7 +50,7 @@ export default async function RecordTemplatePage({ params, searchParams }: { par
         }
       />
       <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface p-3" data-testid="rt-actions">
-        {t.status === "PUBLISHED" && !t.needs ? (
+        {t.status === "PUBLISHED" ? (
           <Link href={`${t.newHref}?template=${t.id}`} className="crm-btn crm-btn-primary" data-testid="rt-use">
             Create a {lookups.label.toLowerCase()} with it
           </Link>
@@ -104,7 +104,6 @@ export default async function RecordTemplatePage({ params, searchParams }: { par
         ) : null}
         <span className="ml-auto text-xs text-text-muted" data-testid="rt-usage">
           {t.usageCount ? `${t.usageCount} record${t.usageCount === 1 ? "" : "s"} created from it · ${t.usedThisMonth} this month` : "No record was created from it yet"}
-          {t.needs === "dealId" ? " · used with “Quote from template” on a deal" : ""}
         </span>
       </div>
 

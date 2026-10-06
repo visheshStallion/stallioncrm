@@ -3,8 +3,8 @@
  *
  * The fields are read from the module's own CREATE SCHEMA (zod) – a template can hold exactly what the create service
  * accepts, nothing else – and a record is always created by the module's own create service, with the user's access.
- * Sales orders, invoices and purchase orders are not here: in this CRM they are never created blank (an order comes
- * from a quote, an invoice from an order), so there is no blank form to pre-fill.
+ * Quotes, sales orders and invoices can be created standalone (prompt 23), so they have record templates too: terms,
+ * notes, dates, header discount and line items (priced from the current price book). Purchase orders are not here.
  */
 import "server-only";
 import { z } from "zod";
@@ -34,8 +34,8 @@ export interface RtModule {
   schema: () => Promise<z.ZodTypeAny>;
   /** fields that are never part of a template (identity of one customer or one record) */
   personal: string[];
-  /** quotes: a deal is needed to create one */
-  needs?: "dealId";
+  /** documents (quotes, sales orders, invoices): created through the documents service with a bill-to */
+  document?: "quote" | "salesOrder" | "invoice";
   hasLines?: boolean;
   create: (ctx: AccessContext, input: Record<string, unknown>) => Promise<{ id: string }>;
 }
@@ -113,17 +113,53 @@ export const RT_MODULES: RtModule[] = [
     label: "Quotation",
     plural: "Quotes",
     permission: "quotes",
-    newHref: "/quotes",
+    newHref: "/quotes/new",
     recordHref: (id) => `/quotes/${id}`,
     parentType: null,
     delegate: "quote",
-    // a quote is created from a deal; a template adds terms, notes, validity and line items
+    // standalone documents (prompt 23): a template adds terms, notes, the date, a header discount and line items
     schema: async () => z.object({ terms: z.string().max(5000).optional(), notes: z.string().max(2000).optional(), validUntil: z.coerce.date().optional(), headerDiscountPct: z.coerce.number().min(0).max(100).optional() }),
     personal: [],
-    needs: "dealId",
+    document: "quote",
     hasLines: true,
     create: async () => {
-      throw new Error("quotes are created by createQuoteFromTemplate");
+      throw new Error("documents are created by createDocumentFromTemplate");
+    },
+  },
+  {
+    key: "salesOrders",
+    label: "Sales Order",
+    plural: "Sales Orders",
+    permission: "salesOrders",
+    newHref: "/salesOrders/new",
+    recordHref: (id) => `/salesOrders/${id}`,
+    parentType: null,
+    delegate: "salesOrder",
+    // standalone documents (prompt 23): a template adds terms, notes, the date, a header discount and line items
+    schema: async () => z.object({ terms: z.string().max(5000).optional(), notes: z.string().max(2000).optional(), expectedDelivery: z.coerce.date().optional(), headerDiscountPct: z.coerce.number().min(0).max(100).optional() }),
+    personal: [],
+    document: "salesOrder",
+    hasLines: true,
+    create: async () => {
+      throw new Error("documents are created by createDocumentFromTemplate");
+    },
+  },
+  {
+    key: "invoices",
+    label: "Invoice",
+    plural: "Invoices",
+    permission: "invoices",
+    newHref: "/invoices/new",
+    recordHref: (id) => `/invoices/${id}`,
+    parentType: null,
+    delegate: "invoice",
+    // standalone documents (prompt 23): a template adds terms, notes, the date, a header discount and line items
+    schema: async () => z.object({ terms: z.string().max(5000).optional(), notes: z.string().max(2000).optional(), dueDate: z.coerce.date().optional(), headerDiscountPct: z.coerce.number().min(0).max(100).optional() }),
+    personal: [],
+    document: "invoice",
+    hasLines: true,
+    create: async () => {
+      throw new Error("documents are created by createDocumentFromTemplate");
     },
   },
 ];

@@ -38,7 +38,7 @@ test("hub: tabs, a favourite, and New Template → Select Module (searchable, ke
   const dialog = page.getByRole("dialog", { name: "Create Record Template" });
   await expect(dialog).toBeVisible();
   await dialog.getByTestId("module-select").click();
-  await expect(dialog.getByTestId("module-options").getByRole("option")).toHaveText(["Leads", "Contacts", "Accounts", "Deals", "Quotes", "Cases"]);
+  await expect(dialog.getByTestId("module-options").getByRole("option")).toHaveText(["Leads", "Contacts", "Accounts", "Deals", "Quotes", "Sales Orders", "Invoices", "Cases"]);
   await dialog.getByTestId("module-select").fill("dea");
   await expect(dialog.getByTestId("module-options").getByRole("option")).toHaveText(["Deals"]);
   await page.keyboard.press("Enter");
