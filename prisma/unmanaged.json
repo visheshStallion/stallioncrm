@@ -33,6 +33,8 @@
     "InventoryDocument_brandId_fkey",
     "JournalEntry_brandId_fkey",
     "InventorySettings_brandId_fkey",
-    "PushSubscription_userId_fkey"
+    "PushSubscription_userId_fkey",
+    "VendorContact_brandId_fkey",
+    "VendorContact_vendorId_fkey"
   ]
 }

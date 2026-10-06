@@ -54,7 +54,7 @@ export default async function InvDocumentsPage({ searchParams }: { searchParams:
         actions={
           !cfg.system && hasPermission(ctx, cfg.area, "create") ? (
             <Button asChild>
-              <Link href={`/inventory/documents/new?type=${type}`}>New {cfg.label.toLowerCase()}</Link>
+              <Link href={type === "PO" ? "/purchaseOrders/new" : `/inventory/documents/new?type=${type}`}>New {cfg.label.toLowerCase()}</Link>
             </Button>
           ) : null
         }
@@ -73,7 +73,7 @@ export default async function InvDocumentsPage({ searchParams }: { searchParams:
           <option value="">All statuses</option>
           {cfg.statuses.map((s) => (
             <option key={s} value={s}>
-              {statusLabel(s)}
+              {statusLabel(s, type)}
             </option>
           ))}
         </Select>
@@ -167,7 +167,7 @@ export default async function InvDocumentsPage({ searchParams }: { searchParams:
                 <tr key={d.id} className="border-b border-border last:border-0" data-testid="data-row">
                   <td className="px-3 py-2">{brand(d.brandId) ? <BrandBadge brand={brand(d.brandId)!} /> : null}</td>
                   <td className="px-3 py-2">
-                    <Link href={`/inventory/documents/${d.id}`} className="font-medium text-primary hover:underline">
+                    <Link href={type === "PO" ? `/purchaseOrders/${d.id}` : `/inventory/documents/${d.id}`} className="font-medium text-primary hover:underline">
                       {d.number}
                     </Link>
                   </td>
@@ -175,7 +175,7 @@ export default async function InvDocumentsPage({ searchParams }: { searchParams:
                   <td className="px-3 py-2">{d.vendorName ?? (d.toBrandId ? `→ ${brand(d.toBrandId)?.code ?? ""}` : "—")}</td>
                   <td className="px-3 py-2">{d.reference ?? "—"}</td>
                   <td className="px-3 py-2">
-                    <StatusPill tone={docTone(d.status)}>{statusLabel(d.status)}</StatusPill>
+                    <StatusPill tone={docTone(d.status)}>{statusLabel(d.status, type)}</StatusPill>
                   </td>
                   {cost && cfg.costed ? (
                     <td className="px-3 py-2 text-right tabular-nums">

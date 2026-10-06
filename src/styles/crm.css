@@ -1621,4 +1621,184 @@
     font-weight: 700;
     color: var(--c-text);
   }
+
+  /* ───────────────────────────── Create Purchase Order page (prompt 25) ───────────────────────────── */
+  .crm-po-subheader {
+    position: sticky;
+    top: var(--h-header);
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 56px;
+    margin: 0 0 16px;
+    padding: 0 16px;
+    background: var(--c-subheader);
+    border-bottom: 1px solid var(--c-border);
+  }
+  .crm-po-subheader h1 {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .crm-po-card {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: 8px;
+    padding: 8px 20px 20px;
+  }
+  .crm-po-section + .crm-po-section {
+    margin-top: 24px;
+  }
+  .crm-po-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 16px 0 12px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .crm-po-fields {
+    display: grid;
+    grid-template-columns: 1fr;
+    column-gap: 40px;
+    row-gap: 20px;
+  }
+  @media (min-width: 1024px) {
+    .crm-po-fields {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .crm-po-field {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+    align-items: center;
+  }
+  @media (min-width: 640px) {
+    .crm-po-field {
+      grid-template-columns: 160px minmax(0, 390px);
+      gap: 16px;
+    }
+    .crm-po-field > label,
+    .crm-po-field > .crm-po-label {
+      text-align: right;
+    }
+  }
+  .crm-po-field > label,
+  .crm-po-label {
+    font-size: 13px;
+    color: var(--c-text-muted);
+  }
+  .crm-po-input {
+    width: 100%;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--c-border-strong);
+    border-radius: 6px;
+    background: var(--c-surface);
+    color: var(--c-text);
+    font-size: 13px;
+  }
+  .crm-po-input:focus {
+    outline: none;
+    border-color: var(--c-primary);
+    box-shadow: var(--focus-ring);
+  }
+  .crm-po-input[readonly],
+  .crm-po-input:disabled {
+    background: var(--c-surface-alt);
+    color: var(--c-text-muted);
+  }
+  textarea.crm-po-input {
+    height: auto;
+    min-height: 90px;
+    padding: 8px 10px;
+    resize: vertical;
+  }
+  /* mandatory: a 3px red bar on the left edge of the input (not an asterisk) */
+  .crm-po-req {
+    box-shadow: inset 3px 0 0 #d93025;
+  }
+  .crm-po-req:focus {
+    box-shadow: inset 3px 0 0 #d93025, var(--focus-ring);
+  }
+  .crm-po-addon {
+    display: flex;
+    align-items: stretch;
+  }
+  .crm-po-addon > .crm-po-input {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .crm-po-addon > .crm-po-prefix + .crm-po-input {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+  }
+  .crm-po-iconbtn,
+  .crm-po-prefix {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 34px;
+    padding: 0 8px;
+    border: 1px solid var(--c-border-strong);
+    background: var(--c-surface-alt);
+    color: var(--c-text-muted);
+    font-size: 13px;
+  }
+  .crm-po-iconbtn {
+    margin-left: -1px;
+    border-radius: 0 6px 6px 0;
+    cursor: pointer;
+  }
+  .crm-po-iconbtn:hover {
+    color: var(--c-primary);
+  }
+  .crm-po-prefix {
+    margin-right: -1px;
+    border-radius: 6px 0 0 6px;
+  }
+  .crm-po-menu {
+    position: absolute;
+    z-index: 30;
+    margin-top: 4px;
+    min-width: 100%;
+    max-height: 260px;
+    overflow: auto;
+    border: 1px solid var(--c-border);
+    border-radius: 6px;
+    background: var(--c-surface);
+    box-shadow: var(--shadow-modal);
+    padding: 4px 0;
+  }
+  .crm-po-menu button {
+    display: block;
+    width: 100%;
+    padding: 6px 12px;
+    text-align: left;
+    font-size: 13px;
+  }
+  .crm-po-menu button:hover,
+  .crm-po-menu button[aria-selected="true"] {
+    background: var(--c-row-hover);
+  }
+  .crm-po-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    margin-top: 16px;
+    padding: 8px 16px;
+    background: var(--c-surface);
+    border-top: 1px solid var(--c-border);
+  }
 }

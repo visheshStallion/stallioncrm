@@ -117,6 +117,7 @@ export const SETUP_CATALOGUE: SetupEntry[] = [
   e({ key: "notification-channels", category: "channels", label: "Notification channels", description: "In-app, e-mail digest and web push", priority: "P2", tiers: ["ADMIN"], status: "PARTIAL", statusNote: "Each user sets their own preferences; there are no organisation defaults", href: "/notifications", external: true, reuse: "14" }),
 
   // ───────────────────────────── 2.5 Customization ─────────────────────────────
+  e({ key: "purchase-order-settings", category: "customization", label: "Purchase Orders", description: "Create Purchase Order page per brand: carriers, default terms, excise in the total, typed PO numbers, receiving warehouse, approval limit and custom form views", priority: "P1", tiers: ["ADMIN", "BRAND_ADMIN"], status: "DONE", href: "/setup/purchase-orders", brandAdminReady: true }),
   e({ key: "document-dependencies", category: "customization", label: "Dependencies", description: "Which links quotes, sales orders and invoices need per brand: account, contact, deal, product, quote before order, order before invoice, stock link for vehicles", priority: "P1", tiers: ["ADMIN", "BRAND_ADMIN"], status: "DONE", href: "/setup/document-dependencies", brandAdminReady: true }),
   e({ key: "modules-fields", category: "customization", label: "Modules and Fields", description: "Custom fields, field types, mandatory and unique, picklist values", priority: "P1", tiers: ["ADMIN"], status: "PARTIAL", statusNote: "No custom modules, module renaming, lookup filters, picklist dependencies or global picklists", href: "/admin/customization", reuse: "12" }),
   e({ key: "layouts", category: "customization", label: "Layouts & Layout Rules", description: "Layouts per module and brand, section order, show / hide / require rules", priority: "P1", tiers: ["ADMIN", "BRAND_ADMIN"], status: "PARTIAL", statusNote: "Administrators only", href: "/admin/customization", reuse: "12" }),
@@ -233,7 +234,7 @@ export const SETUP_STANDARD_ORDER: Record<string, string[]> = {
   general: ["personal-settings", "users", "company-details", "appointments", "motivator"],
   security: ["profiles", "roles", "compliance", "trusted-domain", "support-access", "sso", "password-policy", "ad-sync", "login-history", "audit-log"],
   channels: ["email-config", "telephony", "whatsapp", "sms", "web-forms", "social", "chat", "portals"],
-  customization: ["modules-fields", "document-dependencies", "pipelines", "wizards", "kiosk", "canvas", "home-customization", "templates-hub", "teamspaces"],
+  customization: ["modules-fields", "document-dependencies", "purchase-order-settings", "pipelines", "wizards", "kiosk", "canvas", "home-customization", "templates-hub", "teamspaces"],
   automation: ["workflow-rules", "actions-library", "assignment-rules", "scoring-rules", "cadences"],
   process: ["blueprint", "connected-workflow"],
   experience: ["signals", "journeys"],

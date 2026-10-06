@@ -54,5 +54,6 @@ export const QUICK_CREATE: QuickCreateItem[] = [
   { key: "quote", label: "Quote", module: "quotes", mode: "link", href: "/quotes/new" },
   { key: "salesOrder", label: "Sales Order", module: "salesOrders", mode: "link", href: "/salesOrders/new" },
   { key: "invoice", label: "Invoice", module: "invoices", mode: "link", href: "/invoices/new" },
+  { key: "purchaseOrder", label: "Purchase Order", module: "inventory", mode: "link", href: "/purchaseOrders/new" },
   { key: "template", label: "From a template…", module: "leads", mode: "link", href: "/templates/pick" },
 ];

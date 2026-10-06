@@ -2222,6 +2222,8 @@ model Vendor {
   phone        String?
   currency     String   @default("NGN")
   paymentTerms String?
+  /// postal address (a PO can copy it as billing address)
+  address      String?
   taxId        String?
   /// sensitive: inventory finance only
   bankDetails  String?
@@ -2367,6 +2369,33 @@ model InventoryDocument {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // ── purchase order page (prompt 25); expectedDate is the PO's Due Date, docDate its PO Date ──
+  /// Purchase Order Owner (a user with access to the brand)
+  ownerId             String?
+  subject             String?
+  requisitionNumber   String?
+  vendorContactId     String?
+  /// courier / B/L / container number
+  trackingNumber      String?
+  carrier             String?
+  exciseDuty          Decimal   @default(0) @db.Decimal(16, 2)
+  salesCommission     Decimal   @default(0) @db.Decimal(16, 2)
+  /// {street, city, state, code, country}
+  billTo              Json?
+  shipTo              Json?
+  terms               String?
+  description         String?
+  /// the custom form view the PO was created with (InventorySettings.poFormViews)
+  formViewId          String?
+  // Purchase Items grid (prompt 24 line model): header discount, document taxes, adjustment and the totals
+  headerDiscountType  String    @default("PERCENT")
+  headerDiscountValue Decimal   @default(0) @db.Decimal(16, 2)
+  documentTaxes       Json      @default("[]")
+  adjustment          Decimal   @default(0) @db.Decimal(16, 2)
+  subTotal            Decimal   @default(0) @db.Decimal(16, 2)
+  discountTotal       Decimal   @default(0) @db.Decimal(16, 2)
+  taxTotal            Decimal   @default(0) @db.Decimal(16, 2)
+
   lines InventoryDocumentLine[]
 
   @@index([brandId, type, status])
@@ -2391,6 +2420,20 @@ model InventoryDocumentLine {
   batchNo       String?
   /// colour, charge type, counted quantity, target product of an inter-brand transfer …
   data          Json              @default("{}")
+  // ── Purchase Items grid (prompt 25, prompt 24 line model); unitCost is the List Price, lineTotal the net amount ──
+  details        String?
+  itemCode       String?
+  uom            String?
+  discountType   String  @default("PERCENT")
+  discountValue  Decimal @default(0) @db.Decimal(16, 2)
+  discountAmount Decimal @default(0) @db.Decimal(16, 2)
+  taxes          Json    @default("[]")
+  taxAmount      Decimal @default(0) @db.Decimal(16, 2)
+  amount         Decimal @default(0) @db.Decimal(16, 2)
+  total          Decimal @default(0) @db.Decimal(16, 2)
+  isStockItem    Boolean @default(false)
+  /// optional VINs the vendor announced (captured for real on the goods receipt)
+  expectedVins   Json    @default("[]")
 
   @@index([documentId])
   @@index([vehicleUnitId])
@@ -2443,7 +2486,33 @@ model InventorySettings {
   /// FIFO | WEIGHTED_AVERAGE for parts and accessories
   partsValuation          String    @default("WEIGHTED_AVERAGE")
   pdiTemplate             String[]  @default([])
+  // ── purchase orders (prompt 25) ──
+  /// default Terms and Conditions of a new PO
+  poTerms                 String?
+  /// Excise Duty is added to the PO's Grand Total
+  addExciseToTotal        Boolean   @default(false)
+  /// users may type an external PO number instead of the generated one (unique)
+  allowManualPoNumber     Boolean   @default(false)
+  /// default Shipping address of a new PO
+  receivingWarehouseId    String?
+  /// Carrier picklist
+  carriers                String[]  @default(["FedEx", "DHL", "UPS", "GIG Logistics", "Red Star Express", "Shipping line", "Own transport", "Other"])
+  /// custom form views of the PO page: [{id, name, hidden: string[]}]
+  poFormViews             Json      @default("[]")
   updatedAt               DateTime  @updatedAt
+}
+
+/// A person at a vendor (the PO's Contact Name). RLS: brand tag.
+model VendorContact {
+  id        String   @id @default(cuid())
+  brandId   String
+  vendorId  String
+  name      String
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+
+  @@index([vendorId])
 }
 
 // ───────────────────────── Mobile, search & notifications (prompt 14) ─────────────────────────

@@ -8,7 +8,7 @@ import { hasPermission } from "@/server/access/can";
 import { ForbiddenError, NotFoundError } from "@/server/access/errors";
 import type { AccessContext } from "@/server/access/types";
 import { scopedDb } from "@/server/db";
-import { getInvDocument, isSalesView } from "./queries";
+import { isSalesView } from "./queries";
 
 /** Code 39: each character is 9 elements (bar, space, bar …), `1` = wide. `*` is the start / stop character. */
 const CODE39: Record<string, string> = {
@@ -70,10 +70,17 @@ export async function vinLabelsPdf(ctx: AccessContext, unitIds: string[]): Promi
 
 /** Purchase order on the brand's legal entity. Needs access to the document (and to its prices). */
 export async function purchaseOrderPdf(ctx: AccessContext, id: string): Promise<{ bytes: Uint8Array; number: string }> {
-  const doc = await getInvDocument(ctx, id);
-  if (doc.type !== "PO") throw new NotFoundError();
+  // the PO page's record (prompt 25): subject, contact, carrier, the Purchase Items grid and its totals
+  const { getPurchaseOrder } = await import("./purchase-orders");
+  const doc = await getPurchaseOrder(ctx, id);
   const db = scopedDb(ctx);
-  const [brand, vendor, warehouse] = await Promise.all([db.brand.findUniqueOrThrow({ where: { id: doc.brandId }, select: { code: true, name: true, legalEntity: true, address: true } }), doc.vendorId ? db.vendor.findUnique({ where: { id: doc.vendorId } }) : null, doc.warehouseId ? db.warehouse.findUnique({ where: { id: doc.warehouseId }, select: { name: true, address: true } }) : null]);
+  const [brand, row, vendor, warehouse] = await Promise.all([
+    db.brand.findUniqueOrThrow({ where: { id: doc.brandId }, select: { code: true, name: true, legalEntity: true, address: true } }),
+    db.inventoryDocument.findUniqueOrThrow({ where: { id }, select: { subTotal: true, adjustment: true, lines: { orderBy: { position: "asc" }, select: { discountAmount: true, taxAmount: true, total: true, lineTotal: true } } } }),
+    doc.vendor ? db.vendor.findUnique({ where: { id: doc.vendor.id }, select: { name: true, contactName: true, paymentTerms: true, address: true } }) : null,
+    doc.warehouse ? db.warehouse.findUnique({ where: { id: doc.warehouse.id }, select: { name: true, address: true } }) : null,
+  ]);
+  const cost = doc.total !== null;
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Purchase order ${doc.number}`);
   pdf.setAuthor(brand.legalEntity ?? brand.name);
@@ -84,45 +91,77 @@ export async function purchaseOrderPdf(ctx: AccessContext, id: string): Promise<
   let page = pdf.addPage([W, H]);
   const text = (s: string, x: number, y: number, size = 9, f = font) => page.drawText(ansi(s), { x, y, size, font: f, color: rgb(0.12, 0.16, 0.22) });
   const right = (s: string, x: number, y: number, size = 9, f = font) => text(s, x - f.widthOfTextAtSize(ansi(s), size), y, size, f);
-  const amount = (n: number | undefined) => (n === undefined ? "" : n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const amount = (n: number | null | undefined) => (n === null || n === undefined ? "" : n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const addr = (a: Record<string, string>) => [a.street, a.city, a.state, a.code, a.country].filter(Boolean).join(", ");
   let y = H - M;
   text(brand.legalEntity ?? brand.name, M, y - 12, 13, bold);
   if (brand.address) text(brand.address.slice(0, 90), M, y - 26, 8);
   right("PURCHASE ORDER", W - M, y - 14, 16, bold);
   right(doc.number, W - M, y - 30, 10, bold);
-  right(`Date ${doc.docDate}${doc.expectedDate ? `   Expected ${doc.expectedDate}` : ""}`, W - M, y - 42, 8);
-  y -= 70;
+  right(`Date ${doc.poDate}${doc.dueDate ? `   Due ${doc.dueDate}` : ""}`, W - M, y - 42, 8);
+  y -= 62;
+  text(`Subject: ${doc.subject}`.slice(0, 100), M, y, 9, bold);
+  y -= 18;
   text("VENDOR", M, y, 7, bold);
   text(vendor?.name ?? "-", M, y - 12, 10, bold);
-  if (vendor?.contactName) text(vendor.contactName, M, y - 24, 8);
-  if (vendor?.paymentTerms) text(`Terms: ${vendor.paymentTerms}`, M, y - 34, 8);
-  text("DELIVER TO", W / 2, y, 7, bold);
+  const contact = doc.contact?.name ?? vendor?.contactName;
+  if (contact) text(`Attn: ${contact}`, M, y - 24, 8);
+  if (vendor?.address) text(vendor.address.slice(0, 60), M, y - 34, 8);
+  if (vendor?.paymentTerms) text(`Payment terms: ${vendor.paymentTerms}`, M, y - 44, 8);
+  text("SHIP TO", W / 2, y, 7, bold);
   text(warehouse?.name ?? "-", W / 2, y - 12, 10, bold);
-  if (warehouse?.address) text(warehouse.address.slice(0, 60), W / 2, y - 24, 8);
-  if (doc.reference) text(`Vendor reference: ${doc.reference}`, W / 2, y - 34, 8);
-  y -= 58;
+  const ship = addr(doc.shipTo) || warehouse?.address || "";
+  if (ship) text(ship.slice(0, 60), W / 2, y - 24, 8);
+  const info = [doc.carrier ? `Carrier: ${doc.carrier}` : "", doc.trackingNumber ? `Tracking: ${doc.trackingNumber}` : "", doc.requisitionNumber ? `Req.: ${doc.requisitionNumber}` : ""].filter(Boolean).join("   ");
+  if (info) text(info.slice(0, 70), W / 2, y - 34, 8);
+  y -= 68;
   page.drawRectangle({ x: M, y: y - 4, width: W - 2 * M, height: 16, color: rgb(0.94, 0.95, 0.97) });
   text("#", M + 4, y, 8, bold);
-  text("Item", M + 24, y, 8, bold);
-  right("Qty", W - M - 190, y, 8, bold);
-  right(`Unit cost (${doc.currency})`, W - M - 90, y, 8, bold);
-  right("Amount", W - M - 4, y, 8, bold);
+  text("Item", M + 22, y, 8, bold);
+  right("Qty", W - M - 300, y, 8, bold);
+  if (cost) {
+    right(`Price (${doc.currency})`, W - M - 225, y, 8, bold);
+    right("Discount", W - M - 150, y, 8, bold);
+    right("Tax", W - M - 80, y, 8, bold);
+    right("Total", W - M - 4, y, 8, bold);
+  }
   y -= 18;
-  for (const l of doc.lines) {
-    if (y < 90) {
+  for (const [i, l] of doc.lines.entries()) {
+    if (y < 120) {
       page = pdf.addPage([W, H]);
       y = H - M;
     }
-    text(String(l.position), M + 4, y);
-    text(l.description.slice(0, 70), M + 24, y);
-    right(String(l.qty), W - M - 190, y);
-    right(amount(l.unitCost), W - M - 90, y);
-    right(amount(l.lineTotal), W - M - 4, y);
-    y -= 14;
+    const r = row.lines[i];
+    text(String(i + 1), M + 4, y);
+    text(l.description.slice(0, 48), M + 22, y);
+    if (l.details) text(l.details.replace(/\s+/g, " ").slice(0, 60), M + 22, y - 10, 7);
+    right(String(l.qty), W - M - 300, y);
+    if (cost && r) {
+      right(amount(l.unitPrice), W - M - 225, y);
+      right(amount(Number(r.discountAmount)), W - M - 150, y);
+      right(amount(Number(r.taxAmount)), W - M - 80, y);
+      right(amount(Number(r.total) || Number(r.lineTotal)), W - M - 4, y);
+    }
+    y -= l.details ? 24 : 14;
   }
-  page.drawLine({ start: { x: W - M - 200, y: y + 4 }, end: { x: W - M, y: y + 4 }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
-  right(`Total ${doc.currency}`, W - M - 90, y - 10, 10, bold);
-  right(amount(doc.total), W - M - 4, y - 10, 10, bold);
-  if (doc.notes) text(doc.notes.slice(0, 110), M, y - 34, 8);
+  if (cost) {
+    page.drawLine({ start: { x: W - M - 220, y: y + 4 }, end: { x: W - M, y: y + 4 }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
+    // line discounts and taxes are in the line totals; the summary shows what the grid's totals card shows
+    const rows: Array<[string, number]> = [["Sub Total", Number(row.subTotal)], ["Adjustment", Number(row.adjustment)]];
+    if (doc.exciseDuty) rows.push(["Excise Duty", doc.exciseDuty]);
+    for (const [label, v] of rows) {
+      if (!v && label !== "Sub Total") continue;
+      right(label, W - M - 90, y - 10, 8);
+      right(amount(v), W - M - 4, y - 10, 8);
+      y -= 12;
+    }
+    right(`Grand Total ${doc.currency}`, W - M - 90, y - 12, 10, bold);
+    right(amount(doc.total), W - M - 4, y - 12, 10, bold);
+    y -= 20;
+  }
+  if (doc.terms) {
+    text("TERMS AND CONDITIONS", M, y - 16, 7, bold);
+    doc.terms.split(/\r?\n/).slice(0, 8).forEach((t, i) => text(t.slice(0, 110), M, y - 28 - i * 10, 8));
+  }
   return { bytes: await pdf.save(), number: doc.number };
 }

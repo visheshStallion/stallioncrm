@@ -10,7 +10,7 @@ import type { ModuleKey } from "./modules";
 import type { AccessContext } from "./types";
 
 /** Models with a `brandId` that are filtered to the user's brands. New ones need app_enable_brand_tag_rls(). */
-export const BRAND_TAGGED_MODELS: ReadonlySet<string> = new Set(["Product", "PriceBook", "Campaign", "Warehouse", "Vendor", "VehicleUnit", "VehicleStatusHistory", "StockMovement", "StockBalance", "InventoryDocument", "JournalEntry", "InventorySettings"]);
+export const BRAND_TAGGED_MODELS: ReadonlySet<string> = new Set(["Product", "PriceBook", "Campaign", "Warehouse", "Vendor", "VendorContact", "VehicleUnit", "VehicleStatusHistory", "StockMovement", "StockBalance", "InventoryDocument", "JournalEntry", "InventorySettings"]);
 
 export function isBrandTaggedModel(model: string | undefined): boolean {
   return !!model && BRAND_TAGGED_MODELS.has(model);

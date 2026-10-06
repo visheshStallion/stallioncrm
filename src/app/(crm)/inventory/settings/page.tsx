@@ -144,6 +144,10 @@ export default async function InventorySettingsPage({ searchParams }: { searchPa
               <Label htmlFor="v-terms">Payment terms</Label>
               <Input id="v-terms" name="paymentTerms" maxLength={120} className="h-8 w-40" />
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="v-address">Address</Label>
+              <Input id="v-address" name="address" maxLength={300} className="h-8 w-64" />
+            </div>
             {finance ? (
               <div className="space-y-1">
                 <Label htmlFor="v-bank">Bank details (finance only)</Label>

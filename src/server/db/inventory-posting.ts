@@ -180,7 +180,7 @@ export function postReceipt(docId: string, brandId: string, actor: Actor): Promi
 async function refreshPurchaseOrder(t: Tx, parentId: string, brandId: string) {
   let po = await t.inventoryDocument.findUnique({ where: { id: parentId }, include: { lines: true } });
   if (po?.type === "SHIPMENT" && po.parentId) po = await t.inventoryDocument.findUnique({ where: { id: po.parentId }, include: { lines: true } });
-  if (!po || po.type !== "PO" || po.brandId !== brandId || !["ISSUED", "PARTIALLY_RECEIVED"].includes(po.status)) return;
+  if (!po || po.type !== "PO" || po.brandId !== brandId || !["ISSUED", "SENT", "PARTIALLY_RECEIVED"].includes(po.status)) return;
   const children = await t.inventoryDocument.findMany({ where: { brandId, OR: [{ parentId: po.id }, { type: "GRN", parentId: { in: (await t.inventoryDocument.findMany({ where: { parentId: po.id, type: "SHIPMENT" }, select: { id: true } })).map((s) => s.id) } }] }, select: { id: true, type: true, status: true } });
   const grnIds = children.filter((c) => c.type === "GRN" && c.status === "RECEIVED").map((c) => c.id);
   const received = await t.inventoryDocumentLine.groupBy({ by: ["productId"], where: { documentId: { in: grnIds } }, _sum: { qty: true } });

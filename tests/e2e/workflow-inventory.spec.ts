@@ -25,23 +25,27 @@ test("procurement to available stock: PO → shipment → clearing → receipt w
   const warehouses = await data<Array<{ id: string; code: string; name: string }>>(await page.request.get("/api/v1/inventory/warehouses"));
   const yard = warehouses.find((w) => w.code === "LAG-YARD")!;
 
-  await page.goto("/inventory/documents/new?type=PO");
-  await page.waitForLoadState("networkidle");
-  await page.locator("#vendorId").selectOption({ index: 1 });
-  await page.locator("#warehouseId").selectOption(yard.id);
-  await page.locator("#currency").selectOption("USD");
-  await page.locator("#exchangeRate").fill("1500");
-  await page.locator("#p-0").selectOption(model.id);
-  await page.locator("#q-0").fill("2");
-  await page.locator("#uc-0").fill("20000");
-  await expect(page.getByTestId("doc-editor-total")).toContainText("40,000.00");
-  await page.getByRole("button", { name: "Create purchase order" }).click();
-  await expect(page).toHaveURL(/\/inventory\/documents\/c[a-z0-9]{20,}$/);
+  // the Create Purchase Order page (prompt 25): vendor, subject, ship to the yard, one line of 2 units
+  await page.goto("/purchaseOrders/new");
+  const form = page.getByTestId("po-form");
+  await form.getByLabel("Subject").fill(`Two units ${stamp}`);
+  await form.getByRole("button", { name: "Look up vendor name" }).click();
+  await page.getByRole("listbox", { name: "Vendor Name options" }).getByRole("option").first().click();
+  await page.locator("#po-currency").selectOption("NGN"); // the vendor invoices in its own currency; this order is in naira
+  await page.getByTestId("copy-address").click();
+  await page.getByRole("menuitem", { name: "Shipping from warehouse…" }).click();
+  await page.getByRole("menuitem", { name: yard.name }).click();
+  await form.getByLabel("Row 1, Product Name").click();
+  await page.getByTestId("product-options").getByRole("option", { name: new RegExp(model.name) }).first().click();
+  await form.getByLabel("Row 1, Quantity").fill("2");
+  await form.getByLabel("Row 1, List Price").fill("30000000");
+  await page.getByTestId("po-save").click();
+  await expect(page).toHaveURL(/\/purchaseOrders\/c[a-z0-9]{20,}$/);
   const poId = page.url().split("/").pop()!;
   await expect(page.getByTestId("doc-number")).toHaveText(/^HMNL-PO-\d{4}-\d{5}$/);
-  await expect(page.getByTestId("doc-total")).toContainText("40,000.00");
+  await expect(page.getByTestId("doc-total")).toContainText("64,500,000.00"); // 60m + 7.5 % VAT
   await page.getByTestId("doc-actions").getByRole("button", { name: "Submit" }).click();
-  await expect(page.getByTestId("doc-status")).toHaveText("Issued"); // 60m NGN is below the approval limit
+  await expect(page.getByTestId("doc-status")).toHaveText("Approved"); // below the approval limit
   expect((await page.request.get(`/api/v1/inventory/documents/${poId}/pdf`)).headers()["content-type"]).toBe("application/pdf");
 
   // ── shipment with the VINs, through the port

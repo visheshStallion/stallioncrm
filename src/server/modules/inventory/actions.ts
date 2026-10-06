@@ -44,7 +44,8 @@ export async function transitionAction(_prev: unknown, fd: FormData): Promise<Ac
   return safeAction(async () => {
     const res = await svc.transition(await requireContext(), str(fd, "id"), str(fd, "action"), { amount: str(fd, "amount"), note: str(fd, "note") });
     refresh();
-    return { message: `Done – ${res.status.toLowerCase().replace(/_/g, " ")}` };
+    revalidatePath("/purchaseOrders", "layout");
+    return { message: ("message" in res && typeof res.message === "string" && res.message) || `Done – ${res.status.toLowerCase().replace(/_/g, " ")}` };
   });
 }
 
@@ -120,7 +121,7 @@ export async function saveWarehouseAction(_prev: unknown, fd: FormData): Promise
 
 export async function saveVendorAction(_prev: unknown, fd: FormData): Promise<ActionResult<Outcome>> {
   return safeAction(async () => {
-    await svc.saveVendor(await requireContext(), str(fd, "id") || null, { brandId: str(fd, "brandId"), type: str(fd, "type"), name: str(fd, "name"), contactName: str(fd, "contactName"), email: str(fd, "email"), phone: str(fd, "phone"), currency: str(fd, "currency"), paymentTerms: str(fd, "paymentTerms"), taxId: str(fd, "taxId"), bankDetails: str(fd, "bankDetails"), active: str(fd, "id") ? fd.get("active") === "on" : true });
+    await svc.saveVendor(await requireContext(), str(fd, "id") || null, { brandId: str(fd, "brandId"), type: str(fd, "type"), name: str(fd, "name"), contactName: str(fd, "contactName"), email: str(fd, "email"), phone: str(fd, "phone"), currency: str(fd, "currency"), paymentTerms: str(fd, "paymentTerms"), address: str(fd, "address"), taxId: str(fd, "taxId"), bankDetails: str(fd, "bankDetails"), active: str(fd, "id") ? fd.get("active") === "on" : true });
     refresh();
     return { message: "Vendor saved" };
   });

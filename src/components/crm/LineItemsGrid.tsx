@@ -222,7 +222,7 @@ function ProductInput({ line, products, brandId, row, onPick, onText, readOnly, 
 }
 
 /** VINs of a vehicle line: chips, a VIN input and "Pick from stock". One VIN per unit. */
-function VinField({ line, brandId, row, onChange, readOnly }: { line: GridLine; brandId: string; row: number; onChange: (vins: string[]) => void; readOnly: boolean }) {
+function VinField({ line, brandId, row, onChange, readOnly, expected = false }: { line: GridLine; brandId: string; row: number; onChange: (vins: string[]) => void; readOnly: boolean; expected?: boolean }) {
   const [text, setText] = useState("");
   const [picking, setPicking] = useState(false);
   const [units, setUnits] = useState<Array<{ vin: string; colour: string | null; location: string | null }>>([]);
@@ -254,15 +254,17 @@ function VinField({ line, brandId, row, onChange, readOnly }: { line: GridLine; 
           </span>
         ))}
         <span className="text-[11px] text-text-muted">
-          VIN {line.vins.length}/{max}
+          {expected ? "Expected VINs (optional)" : "VIN"} {line.vins.length}/{max}
         </span>
       </div>
       {readOnly || line.vins.length >= max ? null : (
         <div className="flex gap-1">
-          <input className="crm-grid-input h-7 min-w-0 flex-1 font-mono text-xs uppercase" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add(text))} placeholder="VIN" aria-label={`Row ${row}, VIN`} />
-          <button type="button" className="crm-btn crm-btn-secondary h-7 px-2 text-xs" onClick={() => void pick()} title="Pick from stock">
-            <PackageSearch className="h-3.5 w-3.5" aria-hidden /> Stock
-          </button>
+          <input className="crm-grid-input h-7 min-w-0 flex-1 font-mono text-xs uppercase" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add(text))} placeholder="VIN" aria-label={`Row ${row}, ${expected ? "Expected VIN" : "VIN"}`} />
+          {expected ? null : (
+            <button type="button" className="crm-btn crm-btn-secondary h-7 px-2 text-xs" onClick={() => void pick()} title="Pick from stock">
+              <PackageSearch className="h-3.5 w-3.5" aria-hidden /> Stock
+            </button>
+          )}
         </div>
       )}
       {picking ? (
@@ -508,7 +510,8 @@ export function LineItemsGrid(p: LineItemsGridProps) {
 
   return (
     <section className="space-y-3" data-testid="line-items-grid" aria-label={TITLES[p.documentType]} ref={topRef}>
-      <h2 className="crm-grid-title">{TITLES[p.documentType]}</h2>
+      {/* the Purchase Items title is mandatory (red bar), the Ordered Items title is not – as in the references */}
+      <h2 className={p.documentType === "purchaseOrder" ? "crm-grid-title crm-grid-title-required" : "crm-grid-title"}>{TITLES[p.documentType]}</h2>
       {lines.length > 50 ? (
         <p className="text-xs text-text-muted" data-testid="line-counter">
           {lines.length} / {MAX_GRID_LINES} lines
@@ -614,7 +617,7 @@ export function LineItemsGrid(p: LineItemsGridProps) {
                       onText={(s) => set(l.key, { description: s, productId: l.productId && s !== productOf(l.productId)?.name ? "" : l.productId })}
                     />
                     <textarea className="crm-grid-textarea" placeholder="Description" value={l.details} readOnly={ro} onChange={(e) => set(l.key, { details: e.target.value })} aria-label={`Row ${i + 1}, Description`} data-col="details" />
-                    {p.showVins && (l.isStockItem || pr?.vehicle || l.vins.length) ? <VinField line={l} brandId={p.brandId} row={i + 1} readOnly={ro} onChange={(vins) => set(l.key, { vins, isStockItem: true })} /> : null}
+                    {p.showVins && (l.isStockItem || pr?.vehicle || l.vins.length) ? <VinField line={l} brandId={p.brandId} row={i + 1} readOnly={ro} expected={p.documentType === "purchaseOrder"} onChange={(vins) => set(l.key, { vins, isStockItem: true })} /> : null}
                     {needs ? (
                       <p className="mt-1 text-[11px] font-semibold text-[#7a4f05]" data-testid="needs-approval">
                         Needs approval
@@ -721,7 +724,7 @@ export function LineItemsGrid(p: LineItemsGridProps) {
                       <input className="crm-grid-input w-full" type="number" min={0} value={l.discountValue} onChange={(e) => set(l.key, { discountValue: e.target.value })} />
                     </label>
                   </div>
-                  {p.showVins && (l.isStockItem || productOf(l.productId)?.vehicle) ? <VinField line={l} brandId={p.brandId} row={i + 1} readOnly={false} onChange={(vins) => set(l.key, { vins, isStockItem: true })} /> : null}
+                  {p.showVins && (l.isStockItem || productOf(l.productId)?.vehicle) ? <VinField line={l} brandId={p.brandId} row={i + 1} readOnly={false} expected={p.documentType === "purchaseOrder"} onChange={(vins) => set(l.key, { vins, isStockItem: true })} /> : null}
                   <button type="button" className="crm-btn crm-btn-primary w-full" onClick={() => setSheet(null)}>
                     Done
                   </button>

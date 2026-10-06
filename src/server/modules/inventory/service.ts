@@ -61,7 +61,7 @@ export async function saveVendor(ctx: AccessContext, id: string | null, input: u
   const db = scopedDb(ctx);
   // bank details and tax id belong to the finance tier: others cannot set or overwrite them
   const finance = hasPermission(ctx, "inventoryFinance", "read");
-  const values = { type: data.type, name: data.name, contactName: data.contactName ?? null, email: data.email ?? null, phone: data.phone ?? null, currency: data.currency, paymentTerms: data.paymentTerms ?? null, active: data.active, ...(finance ? { taxId: data.taxId ?? null, bankDetails: data.bankDetails ?? null } : {}) };
+  const values = { type: data.type, name: data.name, contactName: data.contactName ?? null, email: data.email ?? null, phone: data.phone ?? null, currency: data.currency, paymentTerms: data.paymentTerms ?? null, address: data.address ?? null, active: data.active, ...(finance ? { taxId: data.taxId ?? null, bankDetails: data.bankDetails ?? null } : {}) };
   if (id) {
     const before = await db.vendor.findUnique({ where: { id } });
     if (!before) throw new NotFoundError();
@@ -116,7 +116,8 @@ async function trustedCosts(db: Db, brandId: string, parentId: string | null | u
     if (!doc || doc.brandId !== brandId) break;
     if (doc.type === "PO") {
       rate = num(doc.exchangeRate);
-      for (const l of doc.lines) if (l.productId) fromOrder.set(l.productId, num(l.unitCost));
+      // the net price per unit (after the line discount) is what the goods cost
+      for (const l of doc.lines) if (l.productId) fromOrder.set(l.productId, num(l.qty) > 0 && num(l.lineTotal) > 0 ? num(l.lineTotal) / num(l.qty) : num(l.unitCost));
       break;
     }
     id = doc.parentId;
@@ -256,7 +257,8 @@ const SHIPMENT_UNIT_STATUS: Record<string, VehicleStatus | null> = { SHIPPED: "I
 /** Actions a status offers (the UI shows these buttons; `transition` enforces them again). */
 export function availableActions(type: InvDocType, status: string): string[] {
   const map: Partial<Record<InvDocType, Record<string, string[]>>> = {
-    PO: { DRAFT: ["submit"], PENDING_APPROVAL: ["approve", "reject"], ISSUED: ["close", "cancel"], PARTIALLY_RECEIVED: ["close"] },
+    // prompt 25: Created → (Pending Approval →) Approved → Sent to Vendor → received by GRN → Closed; cancel from Created / Approved
+    PO: { DRAFT: ["submit", "cancel"], PENDING_APPROVAL: ["approve", "reject"], ISSUED: ["send", "reopen", "cancel", "close"], SENT: ["close"], PARTIALLY_RECEIVED: ["close"] },
     SHIPMENT: { ORDERED: ["advance"], SHIPPED: ["advance"], AT_PORT: ["advance"], CLEARING: ["advance"], CLEARED: ["advance"] },
     GRN: { DRAFT: ["receive"] },
     BILL: { DRAFT: ["open", "void"], OPEN: ["pay"], PARTIALLY_PAID: ["pay"] },
@@ -270,7 +272,7 @@ export function availableActions(type: InvDocType, status: string): string[] {
   return map[type]?.[status] ?? [];
 }
 
-export const ACTION_LABELS: Record<string, string> = { submit: "Submit", approve: "Approve", reject: "Send back", close: "Close", cancel: "Cancel", advance: "Next stage", receive: "Receive", open: "Open", void: "Void", pay: "Record payment", allocate: "Allocate to vehicles", ship: "Ship", post: "Post adjustment", start: "Start counting", reconcile: "Reconcile", apply: "Mark applied" };
+export const ACTION_LABELS: Record<string, string> = { send: "Send to vendor", reopen: "Reopen", submit: "Submit", approve: "Approve", reject: "Send back", close: "Close", cancel: "Cancel", advance: "Next stage", receive: "Receive", open: "Open", void: "Void", pay: "Record payment", allocate: "Allocate to vehicles", ship: "Ship", post: "Post adjustment", start: "Start counting", reconcile: "Reconcile", apply: "Mark applied" };
 
 async function brandManager(ctx: AccessContext, brandId: string): Promise<string[]> {
   const brand = await scopedDb(ctx).brand.findUnique({ where: { id: brandId }, select: { brandManagerId: true } });
@@ -321,7 +323,18 @@ export async function transition(ctx: AccessContext, id: string, action: string,
         return setStatus("ISSUED");
       }
       if (action === "approve" || action === "reject") return approveOrReject("inventory", () => setStatus("ISSUED", { data: { ...json(doc.data), approvedBy: ctx.user.name } as Prisma.InputJsonValue }));
+      if (action === "reopen") {
+        // lines and amounts are locked once approved: a Brand Manager / administrator can reopen it (recorded)
+        if (!ctx.isAdmin && !managedBrands(ctx).includes(brandId)) throw new ForbiddenError("Only the Brand Manager or an administrator can reopen an approved purchase order");
+        if (await db.inventoryDocument.findFirst({ where: { parentId: id }, select: { id: true } })) throw new BadRequestError("Goods are already being shipped or received against this order");
+        return setStatus("DRAFT", { data: { ...json(doc.data), reopenedBy: ctx.user.name } as Prisma.InputJsonValue });
+      }
       assertBrand(ctx, "inventory", "edit", brandId);
+      if (action === "send") {
+        const { sendPurchaseOrder } = await import("./po-send");
+        const sent = await sendPurchaseOrder(ctx, id);
+        return { ...(await setStatus("SENT", { data: { ...json(doc.data), sentTo: sent.to, sentAt: new Date().toISOString() } as Prisma.InputJsonValue })), message: sent.to ? `Sent to ${sent.to}` : "Marked as sent – the vendor has no e-mail address" };
+      }
       return setStatus(action === "close" ? "CLOSED" : "CANCELLED");
     }
     case "SHIPMENT": {

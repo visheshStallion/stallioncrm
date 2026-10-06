@@ -1,6 +1,6 @@
 import { PrintButton } from "@/components/crm/PrintActions";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { BrandBadge } from "@/components/BrandBadge";
 import { StatusPill } from "@/components/crm/primitives";
@@ -48,6 +48,8 @@ export default async function InvDocumentPage({ params, searchParams }: { params
     if (isAccessError(e)) notFound();
     throw e;
   });
+  // purchase orders have their own page (prompt 25)
+  if (doc.type === "PO") redirect(edit ? `/purchaseOrders/${id}/edit` : `/purchaseOrders/${id}`);
   const cfg = INV_DOCS[doc.type];
   const [dir, prefs, warehouses] = await Promise.all([getDirectory(ctx), getPreferences(ctx), listWarehouses(ctx, doc.brandId)]);
   const df = prefs.dateFormat;
@@ -94,11 +96,6 @@ export default async function InvDocumentPage({ params, searchParams }: { params
             </Button>
           ) : null}
           <PrintButton />
-          {doc.type === "PO" && doc.status !== "DRAFT" ? (
-            <a href={`/api/v1/inventory/documents/${doc.id}/pdf`} className="text-sm text-primary underline">
-              PDF
-            </a>
-          ) : null}
           {actions
             .filter((a) => a !== "pay" && a !== "reconcile")
             .map((a) => (

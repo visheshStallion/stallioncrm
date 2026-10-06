@@ -20,6 +20,7 @@ export default async function InventoryLayout({ children }: { children: ReactNod
         { href: "/inventory", label: "Dashboard" },
         { href: "/inventory/units", label: "Vehicles" },
         { href: "/inventory/parts", label: "Parts & accessories" },
+        { href: "/inventory/documents?type=PO", label: "Purchase Orders" },
         { href: "/inventory/documents", label: "Documents" },
         ...(canSeeCost(ctx) ? [{ href: "/inventory/journals", label: "Journals" }] : []),
         { href: "/inventory/reports", label: "Reports" },

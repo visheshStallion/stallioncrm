@@ -38,9 +38,9 @@ movement in its **ledger**. A unit cannot become *available* without a passed PD
 
 ## 3. From purchase to stock
 
-1. **Purchase order** (Documents → Purchase orders → New): vendor, warehouse, currency (USD / EUR / JPY / CNY with
-   the exchange rate, or NGN), items and prices. *Submit* – above the brand's limit it waits for the Brand Manager.
-   The PDF is on the brand's legal entity.
+1. **Purchase order** (*Inventory → Purchase Orders → New*, or **+ → Purchase Order**) – see *Creating a purchase
+   order* below. *Submit* – above the brand's limit it waits for the Brand Manager. The PDF is on the brand's legal
+   entity.
 2. **Shipment** (*Create shipment* on the order): bill of lading, vessel, port, ETA and – when known – the VINs.
    *Next stage* moves it Ordered → Shipped → At port → Clearing → Cleared → Delivered; the vehicles follow
    (in transit, at port, in clearing).
@@ -53,6 +53,41 @@ movement in its **ledger**. A unit cannot become *available* without a passed PD
    enters it; the accountant presses *Allocate* – each vehicle's cost goes up by its share.
 6. **PDI** (vehicle → *Start PDI*): tick the brand's checklist. Everything ticked → *available*; otherwise the
    unit goes *on hold* with the findings.
+
+### Creating a purchase order
+
+The page has four parts, like the CRM it replaces: **Purchase Order Information**, **Address Information**,
+**Purchase Items** and **Terms / Description**. Mandatory fields have a red bar on the left edge: Brand / Company,
+Subject, Vendor Name and the Purchase Items section.
+
+- **Owner** is you; change it to anyone with access to the brand. **PO Number** is generated on save
+  (`HMNL-PO-2026-00001`); a brand can allow a typed external number (*Setup → Purchase Orders*).
+- **Vendor Name** lists the brand's vendors only (**+ New vendor** if you may create one). **Contact Name** then lists
+  that vendor's people (**+ New contact**). **Carrier** comes from the brand's list; **Tracking Number** is the
+  courier / B/L / container number; **Requisition Number** your internal reference.
+- **PO Date** is today, **Due Date** must not be before it – both in your date format (*Personal settings*).
+- **Currency** is NGN with **Exchange Rate 1** (locked). Another currency takes the rate from *Setup → Currencies*;
+  only inventory finance users may change it. Under the rate the Grand Total is shown in naira.
+- **Excise Duty** and **Sales Commission** are recorded; excise is added to the Grand Total only when the brand says
+  so.
+- **Copy Address**: billing → shipping, shipping → billing, billing from the brand's letterhead, shipping from one of
+  the brand's warehouses, billing from the vendor. Billing Country is *Nigeria* by default; with Nigeria the state is
+  a list of the 36 states and the FCT.
+- **Purchase Items**: the same grid as sales orders – Add row, Add multiple products, paste from Excel, discounts,
+  taxes, Adjustment. The List Price is the purchase price: the last price paid to this vendor, else the item's cost
+  price, else typed. *Show only this vendor's products* narrows the search. VINs are not needed (they are captured on
+  the goods receipt); a vehicle line can carry the *expected VINs* the vendor announced.
+- **Save** opens the purchase order; **Save and New** opens a fresh form with the same brand, owner, vendor, currency
+  and carrier; **Cancel** (or Esc) asks before discarding changes. **Ctrl+S** saves. A new purchase order is kept on
+  your device every 30 seconds and offered back if the page was closed before saving.
+- **Status**: Created → (Pending Approval) → Approved → *Send to vendor* (the PDF is e-mailed to the contact or the
+  vendor) → Partially Received / Received (goods receipts) → Closed. Cancel is possible while Created or Approved.
+  Approved orders are locked; the Brand Manager or an administrator can *Reopen* one until goods are shipped or
+  received against it. *Clone* copies an order into a new one.
+- **Form views**: administrators and Brand Admins can create a *custom form page* (for example an "Import PO view")
+  that hides fields or sections; users pick it in the bar at the bottom of the form. *Edit Page Layout* opens the same
+  settings (*Setup → Purchase Orders*), where the carriers, default terms, receiving warehouse, approval limit,
+  excise rule and typed numbers are set per brand.
 
 ## 4. Selling
 

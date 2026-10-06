@@ -26,6 +26,7 @@
   --c-canvas: #f3f5f8;
   --c-surface: #ffffff;
   --c-surface-alt: #f7f8fa;
+  --c-subheader: #e8edf4; /* light blue-grey bar under the top bar (create pages) */
   --c-border: #e2e6ec;
   --c-border-strong: #cfd6de;
   --c-text: #313949;
@@ -106,6 +107,7 @@
   --c-canvas: #0e1420;
   --c-surface: #161d2b;
   --c-surface-alt: #1b2434;
+  --c-subheader: #172030;
   --c-border: #2a3446;
   --c-border-strong: #3a4660;
   --c-text: #e5e9f0;

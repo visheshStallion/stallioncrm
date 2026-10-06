@@ -31,7 +31,7 @@ export interface InvDocConfig {
 }
 
 export const INV_DOCS: Record<InvDocType, InvDocConfig> = {
-  PO: { type: "PO", label: "Purchase order", plural: "Purchase orders", area: "inventory", statuses: ["DRAFT", "PENDING_APPROVAL", "ISSUED", "PARTIALLY_RECEIVED", "RECEIVED", "CLOSED", "CANCELLED"], initialStatus: "DRAFT", fields: ["vendorId", "warehouseId", "currency", "expectedDate", "reference"], lines: "ITEM", costed: true, referenceLabel: "Vendor reference" },
+  PO: { type: "PO", label: "Purchase order", plural: "Purchase orders", area: "inventory", statuses: ["DRAFT", "PENDING_APPROVAL", "ISSUED", "SENT", "PARTIALLY_RECEIVED", "RECEIVED", "CLOSED", "CANCELLED"], initialStatus: "DRAFT", fields: ["vendorId", "warehouseId", "currency", "expectedDate", "reference"], lines: "ITEM", costed: true, referenceLabel: "Vendor reference" },
   SHIPMENT: { type: "SHIPMENT", label: "Shipment", plural: "Shipments", area: "inventory", statuses: ["ORDERED", "SHIPPED", "AT_PORT", "CLEARING", "CLEARED", "DELIVERED"], initialStatus: "ORDERED", fields: ["vendorId", "expectedDate", "reference", "parent"], lines: "ITEM_VIN", costed: false, parentTypes: ["PO"], referenceLabel: "Bill of lading no." },
   GRN: { type: "GRN", label: "Goods receipt", plural: "Goods receipts", area: "inventory", statuses: ["DRAFT", "RECEIVED"], initialStatus: "DRAFT", fields: ["vendorId", "warehouseId", "currency", "reference", "parent"], lines: "ITEM_VIN", costed: true, parentTypes: ["PO", "SHIPMENT"], referenceLabel: "Delivery note / waybill no." },
   BILL: { type: "BILL", label: "Vendor bill", plural: "Vendor bills", area: "inventoryFinance", statuses: ["DRAFT", "OPEN", "PARTIALLY_PAID", "PAID", "VOID"], initialStatus: "DRAFT", fields: ["vendorId", "currency", "expectedDate", "reference", "parent"], lines: "CHARGE", costed: true, parentTypes: ["GRN", "PO"], referenceLabel: "Vendor invoice no." },
@@ -46,11 +46,14 @@ export const INV_DOCS: Record<InvDocType, InvDocConfig> = {
 };
 
 export const isDocType = (t: string): t is InvDocType => (DOC_TYPES as readonly string[]).includes(t);
-export const statusLabel = (s: string) => s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ");
+import { PO_STATUS_LABELS } from "./po-config";
+
+/** Status as shown: purchase orders use the PO page names (Created, Approved, Sent to Vendor …). */
+export const statusLabel = (s: string, type?: string) => (type === "PO" && PO_STATUS_LABELS[s]) || s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ");
 
 export const WAREHOUSE_TYPES = ["SHOWROOM", "MAIN_YARD", "PORT", "PDI_CENTRE", "PARTS_STORE", "IN_TRANSIT"] as const;
 export const VENDOR_TYPES = ["OEM", "DISTRIBUTOR", "CLEARING_AGENT", "SHIPPING_LINE", "TRANSPORTER", "PARTS_SUPPLIER"] as const;
-export const CURRENCIES = ["NGN", "USD", "EUR", "JPY", "CNY"] as const;
+export const CURRENCIES = ["NGN", "USD", "EUR", "GBP", "JPY", "CNY"] as const;
 export const CHARGE_TYPES = ["Customs duty", "CISS / levy", "Port charges", "Terminal charges", "Clearing agent", "Shipping", "Insurance", "Haulage", "Other"] as const;
 export const ADJUSTMENT_ACTIONS = ["WRITE_OFF", "REVALUE", "HOLD", "RELEASE"] as const;
 export const ADJUSTMENT_REASONS = ["Damage", "Theft", "Count variance", "Write-off", "Demo depreciation", "Other"] as const;
@@ -108,6 +111,7 @@ export const vendorSchema = z.object({
   phone: text(40),
   currency: z.preprocess(empty, z.enum(CURRENCIES).default("NGN")),
   paymentTerms: text(120),
+  address: text(300),
   taxId: text(60),
   bankDetails: text(500),
   active: z.boolean().default(true),

@@ -241,8 +241,8 @@ Product Name (with a description underneath), Quantity, List Price, Amount, Disc
 - **Phones**: each line is a card; *Edit line* opens it in a sheet.
 - **Settings** (*Setup → Modules and Fields → Dependencies*): the taxes offered, tax per line or once on the document,
   rounding (half up / half even) and whether only managers may enter an Adjustment.
-- Purchase orders and stock transfers still use the inventory line editor; the same grid comes to them with the
-  purchase-order page.
+- Purchase orders use the same grid ("Purchase Items", see *Creating a purchase order*); stock transfers and
+  adjustments keep the inventory line editor.
 
 ## Automation (Setup → Automation)
 

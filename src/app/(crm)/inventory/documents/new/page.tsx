@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { forbidden, notFound } from "next/navigation";
+import { forbidden, notFound, redirect } from "next/navigation";
 import { PageTitleRow } from "@/components/crm/primitives";
 import { cn } from "@/lib/utils";
 import { hasPermission } from "@/server/access/can";
@@ -16,6 +16,8 @@ export const metadata = { title: "New inventory document" };
 export default async function NewInvDocumentPage({ searchParams }: { searchParams: Promise<{ type?: string; brand?: string; parent?: string }> }) {
   const sp = await searchParams;
   if (!sp.type || !isDocType(sp.type)) notFound();
+  // purchase orders have their own page (prompt 25)
+  if (sp.type === "PO") redirect(`/purchaseOrders/new${sp.brand ? `?brand=${sp.brand}` : ""}`);
   const cfg = INV_DOCS[sp.type];
   if (cfg.system) notFound();
   const ctx = await requireContext();
