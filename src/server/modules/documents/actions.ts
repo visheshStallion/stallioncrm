@@ -163,6 +163,13 @@ export async function saveDocumentRulesAction(_p: unknown, fd: FormData) {
     const brandId = String(fd.get("brandId") ?? "");
     const input: Record<string, unknown> = Object.fromEntries(Object.keys(DOCUMENT_RULES).map((k) => [k, fd.get(k) === "on"]));
     input.discountAmountApproval = Number(fd.get("discountAmountApproval") || 0);
+    // Ordered Items grid: taxes offered (name + rate rows), tax mode, rounding, who may enter an adjustment
+    const names = fd.getAll("taxName").map(String);
+    const rates = fd.getAll("taxRate").map(String);
+    input.taxes = names.map((name, i) => ({ name: name.trim(), rate: rates[i] ?? "" })).filter((t) => t.name && t.rate !== "");
+    input.taxMode = fd.get("taxMode") === "DOCUMENT" ? "DOCUMENT" : "LINE";
+    input.roundingMode = fd.get("roundingMode") === "HALF_EVEN" ? "HALF_EVEN" : "HALF_UP";
+    input.adjustmentManagersOnly = fd.get("adjustmentManagersOnly") === "on";
     await saveRules(ctx, brandId, input);
     revalidatePath("/setup/document-dependencies");
     return { message: "Dependencies saved – they apply to new documents" };

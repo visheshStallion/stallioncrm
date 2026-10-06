@@ -200,8 +200,8 @@ standard stages and stages that contain deals cannot be removed).
 - **Create a quote** from a deal (*Create Quote*). It takes the deal's brand, region, customer, model, quantity and the
   current price book price; brand and region cannot be changed on the document. Numbers are issued automatically per
   brand: `HMNL-QT-2026-00001`, `HMNL-SO-…`, `HMNL-INV-…`.
-- **Edit** lines while the document is a draft: product (only the brand's products), quantity, price, discount % and
-  VAT. Totals are calculated by the system.
+- **Edit** lines while the document is a draft in the Ordered Items grid (see *Adding multiple products to orders*
+  below). Totals are calculated by the system.
 - **Discounts and approval**: a line discount above the price book's maximum, or any discount above the brand's
   threshold (3 % by default), sends the quote to the **Brand Manager** for approval when you submit it; above the
   escalation threshold (7 % by default) to the **Head of Sales**. The quote cannot be sent or accepted until it is
@@ -213,6 +213,36 @@ standard stages and stages that contain deals cannot be removed).
 - **PDF**: every document prints on the brand's template – logo, legal entity, address, bank details and terms from
   *Setup → Brands*.
 - Users of other brands cannot open, print or list these documents.
+
+### Adding multiple products to orders
+
+Quotes ("Quoted Items"), sales orders ("Ordered Items") and invoices ("Invoiced Items") share one line grid: S.NO,
+Product Name (with a description underneath), Quantity, List Price, Amount, Discount, Tax and Total, up to 200 lines.
+
+- **Add row** (or **Ctrl+Enter** anywhere in the grid, or **Enter** in the last row's Quantity / List Price) adds an
+  empty line and puts the cursor in its Product Name. Type to search the brand's products by name, model or code –
+  or a VIN of a vehicle in stock – or just type a free-text item (unless *Setup → Dependencies* requires catalogue
+  products).
+- **Add multiple products** opens a picker with search, category and *In stock* filters: tick the products, set a
+  quantity for each, and every one becomes a line with its price-book price.
+- **Paste from Excel**: copy rows with *product name or code · quantity · price* and paste into any grid cell. A preview
+  lists what will be added (matched catalogue products and free-text items) before the lines are created.
+- **Reorder** by dragging a row's handle or with its ⋯ menu (Move up / down, Insert above / below, Duplicate);
+  **delete** with the bin. S.NO always renumbers.
+- **Discount** per line as % or amount (click the Discount cell); a discount above the product's price-book maximum
+  marks the line *Needs approval* and the sales order cannot be confirmed until a manager approves it (*Request
+  discount approval*). **Tax** per line from the brand's taxes (click the Tax cell). Under the grid: Sub Total,
+  document Discount, Tax, Adjustment, Grand Total and the amount in words.
+- **Vehicles**: a vehicle line needs one VIN per unit (*Assign VINs*) before the order can be allocated; a VIN cannot be
+  on two open orders of the brand.
+- **Locked lines**: confirmed orders are read-only; a Brand Manager or Administrator can *Reopen* one (recorded).
+  *Invoice part…* invoices some lines or quantities and keeps track of what remains. Every line change is in the
+  record's history (who, old → new).
+- **Phones**: each line is a card; *Edit line* opens it in a sheet.
+- **Settings** (*Setup → Modules and Fields → Dependencies*): the taxes offered, tax per line or once on the document,
+  rounding (half up / half even) and whether only managers may enter an Adjustment.
+- Purchase orders and stock transfers still use the inventory line editor; the same grid comes to them with the
+  purchase-order page.
 
 ## Automation (Setup → Automation)
 

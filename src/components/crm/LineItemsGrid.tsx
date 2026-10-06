@@ -8,36 +8,9 @@ import { stockUnitsAction } from "@/server/modules/documents/actions";
 import { calcDocument, type DiscountType, type TaxMode, type TaxRate } from "@/server/modules/documents/calc";
 import type { GridProduct } from "@/server/modules/documents/lookups";
 import { amountInWords } from "@/server/modules/messaging/merge";
+import { newLine, type GridHeader, type GridLine, type GridValue } from "./line-grid";
 
-/** One row of the grid. `key` is the client's row id; `id` the stored line (kept across saves for its history). */
-export interface GridLine {
-  key: string;
-  id?: string;
-  productId: string;
-  description: string;
-  details: string;
-  itemCode: string;
-  uom: string;
-  qty: string;
-  unitPrice: string;
-  discountType: DiscountType;
-  discountValue: string;
-  taxes: TaxRate[];
-  vins: string[];
-  isStockItem: boolean;
-  /** stored lines: needs a discount approval (server decision) */
-  needsApproval?: boolean;
-}
-export interface GridHeader {
-  discountType: DiscountType;
-  discountValue: string;
-  taxes: TaxRate[];
-  adjustment: string;
-}
-export interface GridValue {
-  lines: GridLine[];
-  header: GridHeader;
-}
+export { gridFromLines, gridPayload, newLine, type GridHeader, type GridLine, type GridValue } from "./line-grid";
 
 export interface LineItemsGridProps {
   documentType: "quote" | "salesOrder" | "invoice" | "purchaseOrder";
@@ -62,8 +35,6 @@ export interface LineItemsGridProps {
 const TITLES: Record<LineItemsGridProps["documentType"], string> = { quote: "Quoted Items", salesOrder: "Ordered Items", invoice: "Invoiced Items", purchaseOrder: "Purchase Items" };
 const SYMBOL: Record<string, string> = { NGN: "₦", USD: "$", EUR: "€", GBP: "£", JPY: "¥", CNY: "¥" };
 export const MAX_GRID_LINES = 200;
-let seq = 0;
-export const newLine = (patch: Partial<GridLine> = {}, taxes: TaxRate[] = []): GridLine => ({ key: `g${Date.now().toString(36)}${++seq}`, productId: "", description: "", details: "", itemCode: "", uom: "", qty: "1", unitPrice: "", discountType: "PERCENT", discountValue: "0", taxes, vins: [], isStockItem: false, ...patch });
 const n = (s: string) => (s.trim() === "" || Number.isNaN(Number(s)) ? 0 : Number(s));
 const fmt = (v: number) => v.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -760,7 +731,7 @@ export function LineItemsGrid(p: LineItemsGridProps) {
           })()
         : null}
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           {ro ? null : (
             <>
@@ -774,7 +745,7 @@ export function LineItemsGrid(p: LineItemsGridProps) {
             </>
           )}
         </div>
-        <div className="w-full max-w-sm">
+        <div className="w-full md:w-96 md:shrink-0">
           {lines.length > 8 ? (
             <button type="button" className="mb-1 text-xs text-primary underline" onClick={() => topRef.current?.scrollIntoView({ behavior: "smooth" })}>
               ↑ Go to top of the list
@@ -857,26 +828,3 @@ export function LineItemsGrid(p: LineItemsGridProps) {
   );
 }
 
-/** Grid lines from stored document lines (detail pages, edit). */
-export function gridFromLines(
-  lines: Array<{ id: string; productId: string | null; description: string; details: string | null; itemCode: string | null; uom: string | null; qty: number; unitPrice: number; discountType: DiscountType; discountValue: number; taxes: Array<{ name: string; rate: number }>; vins: string[]; isStockItem: boolean; needsApproval: boolean }>,
-  header: { headerDiscountType: DiscountType; headerDiscountValue: number; documentTaxes: Array<{ name: string; rate: number }>; adjustment: number },
-): GridValue {
-  return {
-    lines: lines.map((l) => ({ key: l.id, id: l.id, productId: l.productId ?? "", description: l.description, details: l.details ?? "", itemCode: l.itemCode ?? "", uom: l.uom ?? "", qty: String(l.qty), unitPrice: String(l.unitPrice), discountType: l.discountType, discountValue: String(l.discountValue), taxes: l.taxes.map(({ name, rate }) => ({ name, rate })), vins: l.vins, isStockItem: l.isStockItem, needsApproval: l.needsApproval })),
-    header: { discountType: header.headerDiscountType, discountValue: String(header.headerDiscountValue), taxes: header.documentTaxes.map(({ name, rate }) => ({ name, rate })), adjustment: String(header.adjustment) },
-  };
-}
-
-/** What the server receives for the grid (lines + header). */
-export function gridPayload(v: GridValue) {
-  return {
-    lines: v.lines
-      .filter((l) => l.description.trim() || l.productId)
-      .map((l) => ({ id: l.id, productId: l.productId, description: l.description, details: l.details, itemCode: l.itemCode, uom: l.uom, qty: l.qty, unitPrice: l.unitPrice, discountType: l.discountType, discountValue: l.discountValue, taxes: l.taxes, vins: l.vins, isStockItem: l.isStockItem })),
-    headerDiscountType: v.header.discountType,
-    headerDiscountValue: v.header.discountValue,
-    documentTaxes: v.header.taxes,
-    adjustment: v.header.adjustment,
-  };
-}

@@ -53,6 +53,35 @@ export default async function DependenciesPage({ searchParams }: { searchParams:
             <Input id="discountAmountApproval" name="discountAmountApproval" type="number" min={0} step="1000" defaultValue={rules.discountAmountApproval} />
             <p className="text-xs text-text-muted">Free-text items have no price-book maximum: a quote whose discount is above this amount goes to the Brand Manager.</p>
           </div>
+          <fieldset className="space-y-2 border-t border-border pt-3" data-testid="grid-settings">
+            <legend className="text-sm font-semibold">Ordered Items: taxes and totals</legend>
+            <p className="text-xs text-text-muted">The first tax is applied to new lines. Leave a row empty to remove it (at most 5).</p>
+            {[...rules.taxes, ...Array(Math.max(0, 5 - rules.taxes.length)).fill(null)].slice(0, 5).map((t: { name: string; rate: number } | null, i) => (
+              <div key={i} className="flex max-w-md gap-2">
+                <Input name="taxName" defaultValue={t?.name ?? ""} placeholder="Tax name" aria-label={`Tax ${i + 1} name`} />
+                <Input name="taxRate" type="number" min={0} max={100} step="0.01" defaultValue={t?.rate ?? ""} placeholder="%" className="w-28" aria-label={`Tax ${i + 1} rate %`} />
+              </div>
+            ))}
+            <div className="flex flex-wrap gap-4">
+              <label className="space-y-1 text-sm">
+                <span className="block">Tax applies</span>
+                <select name="taxMode" defaultValue={rules.taxMode} className="crm-select w-56">
+                  <option value="LINE">Per line (each line its own taxes)</option>
+                  <option value="DOCUMENT">Once on the document</option>
+                </select>
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="block">Rounding</span>
+                <select name="roundingMode" defaultValue={rules.roundingMode} className="crm-select w-56">
+                  <option value="HALF_UP">Half up (0.5 → 1)</option>
+                  <option value="HALF_EVEN">Half even (banker&apos;s)</option>
+                </select>
+              </label>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="adjustmentManagersOnly" defaultChecked={rules.adjustmentManagersOnly} /> Only managers may enter an Adjustment
+            </label>
+          </fieldset>
           <SubmitButton>Save</SubmitButton>
         </ActionForm>
       </Section>

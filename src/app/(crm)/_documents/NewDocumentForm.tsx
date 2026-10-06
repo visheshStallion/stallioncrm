@@ -104,7 +104,7 @@ export function NewDocumentForm(p: NewDocumentProps) {
   const [canSaveProduct, setCanSaveProduct] = useState(false);
   const [settings, setSettings] = useState<{ taxes: Array<{ name: string; rate: number }>; taxMode: "LINE" | "DOCUMENT"; requireProduct: boolean; canAdjust: boolean }>({ taxes: [{ name: "VAT", rate: 7.5 }], taxMode: "LINE", requireProduct: false, canAdjust: true });
   const [grid, setGrid] = useState<GridValue>(() => ({
-    lines: init.lines?.length ? init.lines.map((l) => newLine({ productId: l.productId ?? "", description: l.description, qty: l.qty ?? "1", unitPrice: l.unitPrice ?? "", discountValue: l.discountPct ?? "0", isStockItem: !!l.isStockItem }, [{ name: "VAT", rate: 7.5 }])) : [newLine({}, [{ name: "VAT", rate: 7.5 }])],
+    lines: init.lines?.length ? init.lines.map((l, i) => newLine({ key: `init${i}`, productId: l.productId ?? "", description: l.description, qty: l.qty ?? "1", unitPrice: l.unitPrice ?? "", discountValue: l.discountPct ?? "0", isStockItem: !!l.isStockItem }, [{ name: "VAT", rate: 7.5 }])) : [newLine({ key: "init0" }, [{ name: "VAT", rate: 7.5 }])],
     header: { discountType: "PERCENT", discountValue: String(init.headerDiscountPct ?? 0), taxes: [], adjustment: "0" },
   }));
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));

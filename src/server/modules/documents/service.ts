@@ -763,6 +763,9 @@ export async function reopenOrder(ctx: AccessContext, id: string) {
 export async function assignVins(ctx: AccessContext, id: string, input: Record<string, string[]>) {
   const doc = await load(ctx, "salesOrder", id);
   if (!["DRAFT", "CONFIRMED"].includes(doc.status)) throw new BadRequestError("VINs are assigned before allocation");
+  const typed = Object.values(input).flat().map((v) => v.trim().toUpperCase()).filter(Boolean);
+  const twice = typed.find((v, i) => typed.indexOf(v) !== i);
+  if (twice) throw new BadRequestError(`VIN ${twice} appears twice on this document`);
   const rules = await rulesOf(ctx, doc.brandId);
   const lines = doc.lines.map((l) => normaliseLine({ ...lineFrom(l), id: l.id, vins: input[l.id] ?? l.vins } as LineData, rules));
   await assertVins(ctx, "salesOrder", id, doc.brandId, lines);

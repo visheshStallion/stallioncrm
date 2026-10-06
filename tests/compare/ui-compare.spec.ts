@@ -42,6 +42,14 @@ const SCREENS: Array<{ name: string; open: (p: Page) => Promise<void> }> = [
     },
   },
   { name: "deal-detail-overview", open: firstDeal },
+  // the empty one-row Ordered Items grid (prompt 24 §8)
+  {
+    name: "ordered-items",
+    open: async (p) => {
+      await p.goto("/salesOrders/new");
+      await expect(p.getByTestId("line-items-grid")).toBeVisible();
+    },
+  },
   {
     name: "deal-detail-timeline",
     open: async (p) => {

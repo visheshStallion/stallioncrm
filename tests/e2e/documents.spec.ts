@@ -16,12 +16,13 @@ test("quote: create from a deal, discount needs approval, Brand Manager approves
   const quoteUrl = page.url();
   const quoteId = quoteUrl.split("/").pop()!;
   await expect(page.getByTestId("record-header")).toContainText(/HMNL-QT-\d{4}-\d{5}/);
-  await expect(page.getByTestId("doc-line")).toHaveCount(1);
+  await expect(page.getByTestId("grid-row")).toHaveCount(1);
 
-  // 5 % discount is above the 3 % brand threshold → warning, then Pending Approval on submit
-  await page.getByLabel("Discount % line 1").fill("5");
-  await expect(page.getByTestId("discount-warnings")).toContainText("needs approval");
-  await page.getByRole("button", { name: "Save" }).click();
+  // 5 % discount is above the 3 % brand threshold → Pending Approval on submit
+  await page.getByRole("button", { name: /^Row 1, Discount/ }).click();
+  await page.getByTestId("grid-popup").getByLabel("Discount %").fill("5");
+  await page.getByTestId("grid-popup").getByRole("button", { name: "Done" }).click();
+  await page.getByTestId("lines-save").click();
   await expect(page.getByText("Saved")).toBeVisible();
   await page.getByRole("button", { name: "Submit" }).click();
   await expect(page.getByTestId("approval-banner")).toContainText("Pending approval");

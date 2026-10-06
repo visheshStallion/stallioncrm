@@ -21,7 +21,7 @@ import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
 import { getUiFilters, requireContext } from "@/server/request";
 import { ApprovalDecision, DocButtons, PaymentForm, type DocButton } from "./DocActions";
-import { gridFromLines } from "@/components/crm/LineItemsGrid";
+import { gridFromLines } from "@/components/crm/line-grid";
 import { DocumentLines, OrderTools } from "./DocumentLines";
 import { LinkPanel } from "./LinkPanel";
 import { NewDocumentForm, type NewDocumentProps } from "./NewDocumentForm";
@@ -372,7 +372,7 @@ export async function NewDocumentPage({ type, searchParams }: { type: DocType; s
     if (d) initial = { ...initial, brandId: d.brandId, links: { dealId: { id: d.id, label: d.name } }, billTo: { name: d.customerName ?? "" } };
   }
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-[1400px]">
       <PageTitleRow title={`Create ${cfg.label}`} left={<Link href={cfg.path} className="text-sm text-primary hover:underline">← {cfg.plural}</Link>} />
       <NewDocumentForm type={type} label={cfg.label} path={cfg.path} dateLabel={cfg.dateLabel} brands={lookups.brands} regions={lookups.regions} defaultBrandId={lookups.defaultBrandId} defaultRegionId={lookups.defaultRegionId} initial={initial} showVin={type !== "quote"} />
     </div>

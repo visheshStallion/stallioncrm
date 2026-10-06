@@ -22,10 +22,10 @@ test("Create Invoice from the list with only the customer's name and one free-te
   await expect(form.getByLabel("Invoice date")).not.toHaveValue("");
   await form.getByLabel("Customer name").fill(`Standalone Buyer ${stamp}`);
   await form.getByLabel("Phone").fill(`+23480${String(stamp).slice(-8)}`);
-  await form.getByLabel("Item line 1").fill("Floor mats");
-  await form.getByLabel("Quantity line 1").fill("2");
-  await form.getByLabel("Unit price line 1").fill("50000");
-  await expect(page.getByTestId("new-total")).toHaveText("107,500.00");
+  await form.getByLabel("Row 1, Product Name").fill("Floor mats");
+  await form.getByLabel("Row 1, Quantity").fill("2");
+  await form.getByLabel("Row 1, List Price").fill("50000");
+  await expect(page.getByTestId("grand-total")).toHaveText("107,500.00");
   await page.getByTestId("new-document-save").click();
   await expect(page).toHaveURL(/\/invoices\/(?!new$)[a-z0-9]+$/);
   invoiceUrl = new URL(page.url()).pathname;
@@ -61,13 +61,13 @@ test("Quick Create → Quote opens the standalone form; a product line takes the
   await expect(page).toHaveURL(/\/quotes\/new$/);
   const form = page.getByTestId("new-document");
   await form.getByLabel("Customer name").fill(`Quote Buyer ${stamp}`);
-  const product = form.getByLabel("Product line 1");
-  await expect(product.locator("option").nth(1)).toBeAttached();
-  await product.selectOption({ index: 1 });
-  await expect(form.getByLabel("Unit price line 1")).not.toHaveValue("");
+  // the product search of row 1 lists the brand's products; picking one takes its price-book price
+  await form.getByLabel("Row 1, Product Name").click();
+  await page.getByTestId("product-options").getByRole("option").first().click();
+  await expect(form.getByLabel("Row 1, List Price")).not.toHaveValue("");
   await page.getByTestId("new-document-save").click();
   await expect(page).toHaveURL(/\/quotes\/(?!new$)[a-z0-9]+$/);
-  await expect(page.getByTestId("doc-total")).not.toHaveText("0.00");
+  await expect(page.getByTestId("grand-total")).not.toHaveText("0.00");
 });
 
 test("API: minimal quote, sales order and invoice; link later is refused across brands; another brand gets 404", async ({ page, browser }) => {
