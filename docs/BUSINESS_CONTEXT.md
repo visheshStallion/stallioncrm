@@ -141,7 +141,7 @@ Tiers sit on top of the profile – they decide what a person may do in **Setup*
 | Brands, Regions, Territories, Users | Admin | Admin edit; all read own context |
 | Accounts / Contacts (customers) | **Shared** across brands, one record per customer | Public read-only for **basic fields** (name, city, masked phone); sensitive fields (full phone, email, KYC, credit, address) visible only to users who can see at least one of that customer's brand records, or Management |
 | Leads | Brand-owned | Private → territory rule |
-| Deals, Quotes, Sales Orders, Invoices | Brand-owned (brand + region mandatory, inherited Lead → Deal → Quote → SO → Invoice) | Private → territory rule |
+| Deals, Quotes, Sales Orders, Invoices | Brand-owned (brand + region mandatory; inherited Lead → Deal → Quote → SO → Invoice **when linked**; every record can also be created standalone and linked later – prompt 23) | Private → territory rule |
 | Activities (tasks, calls, meetings, test drives) | Inherit brand from parent record | Private → territory rule |
 | Cases (complaints) | Brand-owned | Private → territory rule |
 | Products (models/variants), Price Books | Brand-tagged | Read-only, filtered: a record can only reference products/price books of its own brand |
@@ -159,7 +159,7 @@ Mandatory on entering stage: Test Drive (date, model), Quotation (a quote exists
 - Web form per brand (hidden brand field, region picklist).
 - Discount approval: > 3% → Brand Manager of the record's brand; > 7% → Head of Sales (thresholds configurable per brand).
 - Stale deal: no update for 7 days → task to owner + notification to Brand Manager.
-- Quote / Sales Order inherit brand + region from Deal.
+- Quote / Sales Order inherit brand + region from Deal when one is linked; standalone documents carry their own (prompt 23).
 
 ## 11. Go-live visibility tests (must pass – see prompt 15)
 17 cases, e.g. HMNL Lagos exec cannot find an SNMNL deal by list, search, report, related list, API

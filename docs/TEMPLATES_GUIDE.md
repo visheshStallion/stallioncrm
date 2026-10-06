@@ -130,9 +130,8 @@ template says.
 
 ## 5. Known limits
 
-- **Sales orders, invoices and purchase orders have no record templates**: in this CRM they are never created blank
-  (an order comes from a quotation, an invoice from an order), so there is no form to pre-fill and no "template
-  required" rule for them. Their *document* templates (prompt 21) are in the hub.
+- Quotes, sales orders and invoices have record templates since prompt 23 (they can be created standalone). Purchase
+  orders have none. The "template required" rule covers leads, deals, cases, accounts and contacts.
 - There are **no custom modules** in this CRM (only custom fields), so the module list has the built-in modules.
   Tasks, meetings, calls and test drives are one module, *Activities*; activities, products, price books, campaigns,
   vendors and solutions have no record templates.

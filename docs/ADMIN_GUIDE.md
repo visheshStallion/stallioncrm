@@ -267,6 +267,8 @@ standard stages and stages that contain deals cannot be removed).
    other documents. Brand managers submit shared templates; the brand's Brand Admin (or an administrator when the
    brand has none) approves them under **Approvals**. Set the default per module and brand on the template's page.
    Group templates are for administrators.
+7. **Dependencies** (Setup → Customization → Dependencies) – per brand, which links quotes, sales orders and invoices
+   need; by default none (documents can be created standalone). See docs/STANDALONE_RECORDS.md.
 6. **Templates hub** (`/templates`, Setup → Customization → Templates) – every template type in one list, with
    folders, favourites and “where is it used”. **Record templates** pre-fill new records; Setup → Customization →
    *Record template policy* makes a template mandatory for a module. See docs/TEMPLATES_GUIDE.md.
