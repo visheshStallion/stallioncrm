@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
 import { BrandBadge } from "@/components/BrandBadge";
-import { ModuleListFrame, Pagination, ViewSelector } from "@/components/crm/ListPage";
-import { ApprovalBanner, EmptyState, StatusPill, type Tone } from "@/components/crm/primitives";
+import { CreateSplitButton, ModuleListFrame, Pagination, ViewSelector } from "@/components/crm/ListPage";
+import { ApprovalBanner, EmptyState, PageTitleRow, StatusPill, type Tone } from "@/components/crm/primitives";
 import { Field, FieldSection, RecordHeader, RelatedListCard } from "@/components/crm/record";
 import { PaymentLinks } from "@/components/crm/PaymentLinks";
 import { RegionBadge } from "@/components/RegionBadge";
@@ -23,6 +23,8 @@ import { getPreferences } from "@/server/modules/preferences/queries";
 import { getUiFilters, requireContext } from "@/server/request";
 import { ApprovalDecision, DocButtons, PaymentForm, type DocButton } from "./DocActions";
 import { LineEditor, type EditorProduct } from "./LineEditor";
+import { LinkPanel } from "./LinkPanel";
+import { NewDocumentForm, type NewDocumentProps } from "./NewDocumentForm";
 
 type SP = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
@@ -60,6 +62,7 @@ export async function DocumentListPage({ type, searchParams }: { type: DocType; 
     q: one(sp.q),
     status: view in cfg.statuses ? view : undefined,
     mine: view === "mine",
+    linked: view === "unlinked" ? "Unlinked" : view === "linked" ? "Linked" : undefined,
     take: paging.per,
     skip: paging.skip,
   });
@@ -73,11 +76,15 @@ export async function DocumentListPage({ type, searchParams }: { type: DocType; 
           views={[
             { id: "all", name: `All ${cfg.plural}`, group: "system" },
             { id: "mine", name: `My ${cfg.plural}`, group: "system" },
+            { id: "unlinked", name: `Unlinked ${cfg.plural}`, group: "system" },
+            { id: "linked", name: `Linked ${cfg.plural}`, group: "system" },
             ...Object.entries(cfg.statuses).map(([id, name]) => ({ id, name: `${name} ${cfg.plural}`, group: "system" as const })),
           ]}
         />
       }
       actions={
+        <div className="flex gap-2">
+        {hasPermission(ctx, cfg.module, "create") ? <CreateSplitButton label={`Create ${cfg.label}`} href={`${cfg.path}/new`} templateModule={cfg.module} /> : null}
         <form className="flex gap-2">
           <input type="hidden" name="view" value={view} />
           <Input name="q" defaultValue={one(sp.q)} placeholder="Number, deal or customer" className="h-9 w-60" aria-label={`Search ${cfg.plural}`} data-shortcut="filter" />
@@ -85,19 +92,20 @@ export async function DocumentListPage({ type, searchParams }: { type: DocType; 
             Search
           </Button>
         </form>
+        </div>
       }
     >
       <div className="overflow-auto rounded-lg border border-border bg-surface">
         {rows.length === 0 ? (
           <EmptyState
             title={`No ${cfg.plural.toLowerCase()} in this view`}
-            text={type === "quote" ? "Create a quote from a deal (Deal → Create Quote)." : type === "salesOrder" ? "Sales orders are created from accepted quotes." : "Invoices are created from confirmed sales orders."}
+            text={`Create a ${cfg.label.toLowerCase()} directly with “Create ${cfg.label}”, or convert it from ${type === "quote" ? "a deal" : type === "salesOrder" ? "an accepted quote" : "a quote or sales order"}.`}
           />
         ) : (
           <table className="crm-table w-full">
             <thead className="bg-muted text-left text-[12px] text-text-muted">
               <tr>
-                {["Number", "Brand", "Customer", "Deal", "Status", "Issue date", cfg.dateLabel, "Total", "Owner"].map((h) => (
+                {["Number", "Brand", "Customer", "Deal", "Links", "Status", "Issue date", cfg.dateLabel, "Total", "Owner"].map((h) => (
                   <th key={h} className="h-9 whitespace-nowrap px-3 font-semibold">
                     {h}
                   </th>
@@ -117,9 +125,16 @@ export async function DocumentListPage({ type, searchParams }: { type: DocType; 
                   </td>
                   <td className="px-3">{r.customerName ?? "—"}</td>
                   <td className="px-3">
-                    <Link href={`/deals/${r.dealId}`} className="hover:underline">
-                      {r.dealName}
-                    </Link>
+                    {r.dealId ? (
+                      <Link href={`/deals/${r.dealId}`} className="hover:underline">
+                        {r.dealName}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="px-3">
+                    <StatusPill tone={r.linkStatus === "Linked" ? "neutral" : "warning"}>{r.linkStatus}</StatusPill>
                   </td>
                   <td className="px-3">
                     <StatusPill tone={TONES[r.status]}>{cfg.statuses[r.status]}</StatusPill>
@@ -225,6 +240,18 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
               </a>
             </Button>
             <DocButtons type={type} id={doc.id} buttons={buttons} />
+            {canEdit ? (
+              <LinkPanel
+                type={type}
+                id={doc.id}
+                brandId={doc.brandId}
+                status={doc.status}
+                links={{ dealId: doc.dealId, accountId: doc.accountId, contactId: doc.contactId, sourceDocumentId: doc.sourceDocumentId }}
+                canCreateCustomer={!doc.accountId && !!doc.billTo?.name && hasPermission(ctx, "accounts", "create")}
+                canCreateDeal={type === "quote" && !doc.dealId && hasPermission(ctx, "deals", "create")}
+                canInvoiceQuote={type === "quote" && doc.status === "ACCEPTED" && can(ctx, "invoices", "create", doc)}
+              />
+            ) : null}
           </>
         }
       />
@@ -242,7 +269,17 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
         <FieldSection title={`${cfg.label} Information`}>
           <Field label="Issued by" value={brandCfg.legalEntity ?? brand?.name} />
           <Field label="Customer" value={doc.accountId ? <Link href={`/accounts/${doc.accountId}`} className="text-primary hover:underline">{doc.customerName}</Link> : doc.customerName} />
-          <Field label="Deal" value={<Link href={`/deals/${doc.dealId}`} className="text-primary hover:underline">{doc.dealName}</Link>} />
+          <Field
+            label="Bill to"
+            value={
+              <span className="whitespace-pre-line" data-testid="doc-bill-to">
+                {[doc.billTo?.company && doc.billTo.company !== doc.billTo.name ? doc.billTo.company : null, doc.billTo?.address, [doc.billTo?.city, doc.billTo?.state].filter(Boolean).join(", "), [doc.billTo?.phone, doc.billTo?.email].filter(Boolean).join(" · "), doc.billTo?.taxId ? `TIN ${doc.billTo.taxId}` : null].filter(Boolean).join("\n") || "—"}
+              </span>
+            }
+          />
+          <Field label="Deal" value={doc.dealId ? <Link href={`/deals/${doc.dealId}`} className="text-primary hover:underline">{doc.dealName}</Link> : "—"} />
+          <Field label="Links" value={<StatusPill tone={doc.linkStatus === "Linked" ? "neutral" : "warning"}>{doc.linkStatus}</StatusPill>} />
+          {doc.sourceDocumentId ? <Field label="Created from" value={<SourceLink id={doc.sourceDocumentId} />} /> : null}
           <Field label="Region" value={<RegionBadge region={region} />} />
           <Field label="Issue date" value={formatDate(doc.issueDate, prefs.dateFormat)} />
           <Field label={cfg.dateLabel} value={formatDate(doc.date, prefs.dateFormat)} />
@@ -344,4 +381,58 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
       </div>
     </div>
   );
+}
+
+/** Standalone create page shared by quotes, sales orders and invoices (prompt 23): /quotes/new, … `?template=` pre-fills. */
+export async function NewDocumentPage({ type, searchParams }: { type: DocType; searchParams: Promise<SP> }) {
+  const cfg = DOCS[type];
+  const sp = await searchParams;
+  const ctx = await requireContext();
+  if (!hasPermission(ctx, cfg.module, "create")) forbidden();
+  const { leadFormLookups } = await import("@/server/modules/leads/queries");
+  const lookups = await leadFormLookups(ctx);
+  let initial: NewDocumentProps["initial"] = {};
+  const templateId = one(sp.template);
+  if (templateId) {
+    const { resolveForUse } = await import("@/server/modules/rectpl/service");
+    const t = await resolveForUse(ctx, templateId, cfg.module).catch((e) => {
+      if (isAccessError(e)) notFound();
+      throw e;
+    });
+    const products = t.lineItems.length ? await scopedDb(ctx).product.findMany({ where: { id: { in: t.lineItems.map((l) => l.productId) } }, select: { id: true, name: true, category: true } }) : [];
+    initial = {
+      templateId: t.id,
+      templateName: t.name,
+      brandId: t.brandId,
+      terms: (t.values.terms as string | undefined) ?? null,
+      notes: (t.values.notes as string | undefined) ?? null,
+      headerDiscountPct: typeof t.values.headerDiscountPct === "number" ? t.values.headerDiscountPct : null,
+      lines: t.lineItems
+        .map((l) => ({ l, p: products.find((x) => x.id === l.productId) }))
+        .filter((x) => x.p)
+        .map(({ l, p }) => ({ productId: p!.id, description: p!.name, qty: String(l.qty), discountPct: String(l.discountPct), isStockItem: p!.category === "VEHICLE" })),
+    };
+  }
+  // pre-links from another page: /invoices/new?dealId=…
+  const dealId = one(sp.dealId);
+  if (dealId) {
+    const d = await scopedDb(ctx).deal.findUnique({ where: { id: dealId }, select: { id: true, name: true, brandId: true, customerName: true } });
+    if (d) initial = { ...initial, brandId: d.brandId, links: { dealId: { id: d.id, label: d.name } }, billTo: { name: d.customerName ?? "" } };
+  }
+  return (
+    <div className="mx-auto max-w-6xl">
+      <PageTitleRow title={`Create ${cfg.label}`} left={<Link href={cfg.path} className="text-sm text-primary hover:underline">← {cfg.plural}</Link>} />
+      <NewDocumentForm type={type} label={cfg.label} path={cfg.path} dateLabel={cfg.dateLabel} brands={lookups.brands} regions={lookups.regions} defaultBrandId={lookups.defaultBrandId} defaultRegionId={lookups.defaultRegionId} initial={initial} showVin={type !== "quote"} />
+    </div>
+  );
+}
+
+/** The document a document was converted from (quote or sales order), if the viewer can open it. */
+async function SourceLink({ id }: { id: string }) {
+  const ctx = await requireContext();
+  const db = scopedDb(ctx);
+  const [q, o] = await Promise.all([db.quote.findUnique({ where: { id }, select: { number: true } }), db.salesOrder.findUnique({ where: { id }, select: { number: true } })]);
+  if (q) return <Link href={`/quotes/${id}`} className="text-primary hover:underline">{q.number}</Link>;
+  if (o) return <Link href={`/salesOrders/${id}`} className="text-primary hover:underline">{o.number}</Link>;
+  return <span>—</span>;
 }

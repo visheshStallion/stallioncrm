@@ -74,7 +74,7 @@ async function apply(ctx: AccessContext, op: OfflineOp): Promise<string> {
   const s = (k: string) => (typeof p[k] === "string" ? (p[k] as string) : "");
   switch (op.type) {
     case "lead.create": {
-      const lead = await createLead(ctx, { firstName: s("firstName") || undefined, lastName: s("lastName"), mobile: s("mobile"), email: s("email") || undefined, source: s("source") || "WALK_IN", brandId: s("brandId"), regionId: s("regionId"), city: s("city") || undefined } as never, { autoAssign: false });
+      const lead = await createLead(ctx, { firstName: s("firstName") || undefined, lastName: s("lastName") || undefined, company: s("company") || undefined, mobile: s("mobile"), email: s("email") || undefined, source: s("source") || "WALK_IN", brandId: s("brandId"), regionId: s("regionId"), city: s("city") || undefined } as never, { autoAssign: false });
       return (lead as { id: string }).id;
     }
     case "call.log": {

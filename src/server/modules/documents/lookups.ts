@@ -68,8 +68,8 @@ export async function linkTargets(ctx: AccessContext, brandId: string, kind: "de
     const rows = await db.deal.findMany({ where: { brandId, deletedAt: null, ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { customerName: { contains: q, mode: "insensitive" } }] } : {}) }, select: { id: true, name: true, regionId: true, customerName: true }, take: 15, orderBy: { updatedAt: "desc" } });
     return rows.map((d) => ({ id: d.id, label: d.customerName ? `${d.name} · ${d.customerName}` : d.name, regionId: d.regionId }));
   }
-  const module = kind === "quote" ? "quotes" : "salesOrders";
-  if (!hasPermission(ctx, module, "read")) return [];
+  const moduleKey = kind === "quote" ? "quotes" : "salesOrders";
+  if (!hasPermission(ctx, moduleKey, "read")) return [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- quote / salesOrder share these columns
   const rows: Array<{ id: string; number: string; status: string; regionId: string; billTo: unknown }> = await (db as any)[kind].findMany({ where: { brandId, deletedAt: null, ...(q ? { number: { contains: q, mode: "insensitive" } } : {}) }, select: { id: true, number: true, status: true, regionId: true, billTo: true }, take: 15, orderBy: { createdAt: "desc" } });
   return rows.map((d) => ({ id: d.id, label: `${d.number} · ${(d.billTo as { name?: string } | null)?.name ?? d.status}`, regionId: d.regionId }));

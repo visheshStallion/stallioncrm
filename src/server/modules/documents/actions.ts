@@ -154,3 +154,17 @@ export async function brandProductsAction(brandId: string) {
 export async function saveLineAsProductAction(brandId: string, input: { name: string; price: number; vehicle: boolean }) {
   return safeAction(async () => (await import("./lookups")).saveLineAsProduct(await requireContext(), brandId, input));
 }
+
+/** Setup → Modules and Fields → Dependencies: the rules of one brand. */
+export async function saveDocumentRulesAction(_p: unknown, fd: FormData) {
+  return safeAction(async () => {
+    const ctx = await requireContext();
+    const { DOCUMENT_RULES, saveRules } = await import("./rules");
+    const brandId = String(fd.get("brandId") ?? "");
+    const input: Record<string, unknown> = Object.fromEntries(Object.keys(DOCUMENT_RULES).map((k) => [k, fd.get(k) === "on"]));
+    input.discountAmountApproval = Number(fd.get("discountAmountApproval") || 0);
+    await saveRules(ctx, brandId, input);
+    revalidatePath("/setup/document-dependencies");
+    return { message: "Dependencies saved – they apply to new documents" };
+  });
+}

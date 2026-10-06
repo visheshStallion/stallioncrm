@@ -114,15 +114,19 @@ export function QuickActions({ brands, regions, offlinePage = false }: { brands?
 
       <section className="rounded-lg border border-border bg-surface p-4">
         <h2 className="mb-2 text-sm font-semibold">New lead</h2>
-        <form className="space-y-2" onSubmit={(e) => run(e, "lead.create", "Lead", (fd) => ({ payload: { firstName: str(fd.get("firstName")), lastName: str(fd.get("lastName")), mobile: str(fd.get("mobile")), source: "WALK_IN", brandId: str(fd.get("brandId")), regionId: str(fd.get("regionId")) }, label: `Lead – ${str(fd.get("lastName"))}` }))}>
+        <form className="space-y-2" onSubmit={(e) => run(e, "lead.create", "Lead", (fd) => ({ payload: { firstName: str(fd.get("firstName")), lastName: str(fd.get("lastName")), company: str(fd.get("company")), mobile: str(fd.get("mobile")), source: "WALK_IN", brandId: str(fd.get("brandId")), regionId: str(fd.get("regionId")) }, label: `Lead – ${str(fd.get("lastName")) || str(fd.get("company"))}` }))}>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label htmlFor="lead-first">First name</Label>
               <Input id="lead-first" name="firstName" maxLength={80} className={field} />
             </div>
             <div>
-              <Label htmlFor="lead-last">Last name</Label>
-              <Input id="lead-last" name="lastName" required maxLength={80} className={field} />
+              <Label htmlFor="lead-last">Last name (or company)</Label>
+              <Input id="lead-last" name="lastName" maxLength={80} className={field} />
+            </div>
+            <div className="col-span-2">
+              <Label htmlFor="lead-company">Company</Label>
+              <Input id="lead-company" name="company" maxLength={160} className={field} />
             </div>
           </div>
           <Label htmlFor="lead-mobile">Mobile</Label>

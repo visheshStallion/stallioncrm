@@ -5,8 +5,8 @@
 Every configuration and control function of Setup (`/setup`), by category, with who may open it and how far it is
 built. The list follows the brief of prompt 19; it has **not** been checked against the live Zoho CRM account.
 
-**118 functions: 30 done, 29 in progress, 59 planned.** Of the 51 go-live (P1) functions,
-26 are done, 23 are in progress and 2 are planned.
+**119 functions: 31 done, 29 in progress, 59 planned.** Of the 52 go-live (P1) functions,
+27 are done, 23 are in progress and 2 are planned.
 
 - **Status** – *Done*: working. *In progress*: the core works, the note says what is missing. *Planned*: the page
   exists and says "Coming soon".
@@ -69,6 +69,7 @@ built. The list follows the brief of prompt 19; it has **not** been checked agai
 | Function | What it does | Pri | Tier | Status | Page | Notes |
 |---|---|---|---|---|---|---|
 | Teamspace | Module groupings and navigation per team | P3 | ADMIN | Planned | `/setup/teamspaces` |  |
+| Dependencies | Which links quotes, sales orders and invoices need per brand: account, contact, deal, product, quote before order, order before invoice, stock link for vehicles | P1 | ADMIN, BA | Done | `/setup/document-dependencies` |  |
 | Modules and Fields | Custom fields, field types, mandatory and unique, picklist values | P1 | ADMIN | In progress | `/admin/customization` | No custom modules, module renaming, lookup filters, picklist dependencies or global picklists. Built by prompt 12 |
 | Layouts & Layout Rules | Layouts per module and brand, section order, show / hide / require rules | P1 | ADMIN, BA (planned) | In progress | `/admin/customization` | Administrators only. Built by prompt 12 |
 | Validation Rules | Refuse a save when a formula is true, with your own error message | P1 | ADMIN | Done | `/setup/validation-rules` | Can be delegated to other profiles (Setup permissions) |
