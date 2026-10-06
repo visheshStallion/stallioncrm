@@ -82,7 +82,8 @@ BEGIN
     NEW."number" := v_prefix || '-' || v_type || '-' || v_year || '-' || lpad(v_seq::text, 5, '0');
   ELSIF TG_OP = 'UPDATE' AND NEW."number" IS DISTINCT FROM OLD."number" THEN
     RAISE EXCEPTION 'Document numbers cannot be changed' USING ERRCODE = '23514';
-  ELSIF TG_OP = 'UPDATE' AND NEW."brandId" IS DISTINCT FROM OLD."brandId" THEN
+  ELSIF TG_OP = 'UPDATE' AND NEW."brandId" IS DISTINCT FROM OLD."brandId" AND NEW."dealId" IS NULL THEN
+    -- a document only changes brand together with its deal (approved brand change, prompt 08); a standalone one never
     RAISE EXCEPTION 'The brand of a document cannot be changed' USING ERRCODE = '23514';
   END IF;
   RETURN NEW;

@@ -151,7 +151,7 @@ describe("folders and sharing", () => {
     expect((await svc.getReport(exec, brand.id)).name).toBe("HMNL team report");
     await expect(svc.getReport(snmnl, brand.id)).rejects.toBeInstanceOf(NotFoundError);
     expect((await svc.listReports(snmnl)).some((r) => r.id === brand.id)).toBe(false);
-    expect((await svc.listReports(exec)).filter((r) => r.standard).length).toBe(12);
+    expect((await svc.listReports(exec)).filter((r) => r.standard).length).toBe(14);
     // cannot share into a brand you do not belong to
     await expect(svc.createReport(bm, { name: "x", folder: "BRAND", brandId: I.brand("SNMNL"), definition: { module: "leads", columns: ["name"], filters: [] } })).rejects.toBeInstanceOf(ForbiddenError);
     await expect(rawAsUser(bm, `INSERT INTO "Report" (id, name, module, definition, folder, "brandId", "ownerId", "updatedAt") VALUES ('x1', 'x', 'leads', '{}', 'BRAND', '${I.brand("SNMNL")}', '${bm.userId}', now())`)).rejects.toThrow(/row-level security/);

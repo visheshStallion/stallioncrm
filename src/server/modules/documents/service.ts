@@ -589,7 +589,7 @@ export async function createDocument(ctx: AccessContext, type: DocType, input: C
   return created as { id: string; number: string };
 }
 
-const LINK_KEYS = ["dealId", "accountId", "contactId", "sourceDocumentId"] as const;
+type LinkKey = "dealId" | "accountId" | "contactId" | "sourceDocumentId";
 
 /**
  * Link later: adds (or removes, with null) a deal, account, contact or source document. Same brand, visible to the
@@ -644,7 +644,7 @@ export async function linkDocument(ctx: AccessContext, type: DocType, id: string
     update.billTo = snap as object;
   }
   await delegate(ctx, cfg).update({ where: { id }, data: update, select: { id: true } });
-  const before = Object.fromEntries(Object.keys(change).map((k) => [k, doc[k as (typeof LINK_KEYS)[number]] ?? null]));
+  const before = Object.fromEntries(Object.keys(change).map((k) => [k, doc[k as LinkKey] ?? null]));
   await audit({ ctx, action: "UPDATE", entity: cfg.model, entityId: id, brandId: doc.brandId, before: { ...before, ...(data.refreshBillTo ? { billTo: doc.billTo } : {}) }, after: { ...change, ...(data.refreshBillTo ? { billTo: update.billTo } : {}), link: true } });
   return getDocument(ctx, type, id);
 }
