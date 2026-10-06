@@ -82,7 +82,7 @@ export async function assertVins(ctx: AccessContext, type: DocType, docId: strin
   }
 }
 
-const TRACKED: Array<keyof NormalLine> = ["description", "qty", "unitPrice", "discountType", "discountValue", "productId"];
+const TRACKED: Array<keyof NormalLine> = ["description", "details", "qty", "unitPrice", "discountType", "discountValue", "productId"];
 
 /**
  * Writes the lines (kept by id, new ones created, removed ones deleted; order = position) and the header totals in one
@@ -102,6 +102,7 @@ export async function persistLines(ctx: AccessContext, type: DocType, docId: str
       productId: l.productId,
       description: l.description,
       itemCode: l.itemCode ?? null,
+      details: l.details ?? null,
       uom: l.uom ?? null,
       isStockItem: l.isStockItem || l.vins.length > 0,
       qty: l.qty,

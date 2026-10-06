@@ -14,7 +14,6 @@ import { isAccessError } from "@/server/access/errors";
 import { fieldMaskView } from "@/server/access/field-mask";
 import { scopedDb } from "@/server/db";
 import { parsePaging } from "@/server/list/filters";
-import { getPrice, listProducts } from "@/server/modules/catalogue/queries";
 import { DOCS, type DocType } from "@/server/modules/documents/config";
 import { getDocument, listDocuments, pendingApproval } from "@/server/modules/documents/queries";
 import { expireQuotes } from "@/server/modules/documents/service";
@@ -22,7 +21,8 @@ import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
 import { getUiFilters, requireContext } from "@/server/request";
 import { ApprovalDecision, DocButtons, PaymentForm, type DocButton } from "./DocActions";
-import { LineEditor, type EditorProduct } from "./LineEditor";
+import { gridFromLines } from "@/components/crm/LineItemsGrid";
+import { DocumentLines, OrderTools } from "./DocumentLines";
 import { LinkPanel } from "./LinkPanel";
 import { NewDocumentForm, type NewDocumentProps } from "./NewDocumentForm";
 
@@ -210,16 +210,9 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
   const nextModule = type === "quote" ? "salesOrders" : "invoices";
   const buttons = buttonsFor(type, doc.status, canEdit, can(ctx, nextModule, "create", doc));
 
-  let products: EditorProduct[] = [];
-  if (editable && hasPermission(ctx, "products", "read")) {
-    const list = await listProducts(ctx, { brandId: doc.brandId, activeOnly: true, take: 500 });
-    products = await Promise.all(
-      list.rows.map(async (p) => {
-        const price = await getPrice(ctx, p.id, new Date(doc.issueDate), doc.priceBookId);
-        return { id: p.id, name: p.name, price: price.price, taxRatePct: price.taxRatePct, maxDiscountPct: price.maxDiscountPct };
-      }),
-    );
-  }
+  const { gridSettings } = await import("@/server/modules/documents/lookups");
+  const settings = await gridSettings(ctx, doc.brandId);
+  const { managedBrands } = await import("@/server/access/brand-tag");
   const canDecide = !!approval && (approval.approverId === ctx.userId || (ctx.scope === "ALL" && hasPermission(ctx, "quotes", "approve")));
   const balance = type === "invoice" ? doc.total - (doc.amountPaid ?? 0) : 0;
 
@@ -240,6 +233,17 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
               </a>
             </Button>
             <DocButtons type={type} id={doc.id} buttons={buttons} />
+            {type === "salesOrder" ? (
+              <OrderTools
+                id={doc.id}
+                status={doc.status}
+                canEdit={canEdit}
+                canReopen={canEdit && (ctx.isAdmin || managedBrands(ctx).includes(doc.brandId))}
+                canInvoice={can(ctx, "invoices", "create", doc)}
+                needsApproval={doc.lines.some((l) => l.needsApproval)}
+                lines={doc.lines.map((l) => ({ id: l.id, description: l.description, qty: l.qty, invoicedQty: l.invoicedQty, vins: l.vins, isStockItem: l.isStockItem }))}
+              />
+            ) : null}
             {canEdit ? (
               <LinkPanel
                 type={type}
@@ -286,69 +290,17 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
         </FieldSection>
 
         <RelatedListCard id="lines" title="Line items" count={doc.lines.length}>
-          {editable ? (
-            <LineEditor
-              type={type}
-              id={doc.id}
-              currency={doc.currency}
-              lines={doc.lines}
-              header={{ headerDiscountPct: doc.headerDiscountPct, date: doc.date, terms: doc.terms, notes: doc.notes }}
-              products={products}
-              dateLabel={cfg.dateLabel}
-              approvalPct={type === "quote" ? Number(brandCfg.discountApprovalPct.toString()) : null}
-              showVin={type !== "quote"}
-            />
-          ) : (
-            <div className="space-y-3">
-              <table className="w-full text-[13px]" data-testid="doc-lines">
-                <thead className="text-left text-xs text-text-muted">
-                  <tr>
-                    <th className="py-1">Description</th>
-                    <th className="text-right">Qty</th>
-                    <th className="text-right">Unit price</th>
-                    <th className="text-right">Disc %</th>
-                    <th className="text-right">VAT %</th>
-                    <th>VIN</th>
-                    <th className="text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {doc.lines.map((l) => (
-                    <tr key={l.id} className="border-t border-border">
-                      <td className="py-1.5">{l.description}</td>
-                      <td className="text-right">{l.qty}</td>
-                      <td className="text-right tabular-nums">{money(l.unitPrice, doc.currency)}</td>
-                      <td className="text-right">{l.discountPct || "—"}</td>
-                      <td className="text-right">{l.taxRate}</td>
-                      <td className="font-mono text-xs">{l.vin ?? "—"}</td>
-                      <td className="text-right tabular-nums">{money(l.lineTotal, doc.currency)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="ml-auto w-72 space-y-1 text-[13px]" data-testid="doc-totals">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span className="tabular-nums">{money(doc.subtotal, doc.currency)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Discount{doc.headerDiscountPct ? ` (incl. ${doc.headerDiscountPct}% header)` : ""}</span>
-                  <span className="tabular-nums">− {money(doc.discountTotal, doc.currency)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>VAT</span>
-                  <span className="tabular-nums">{money(doc.taxTotal, doc.currency)}</span>
-                </div>
-                <div className="flex justify-between border-t border-border pt-1 text-[15px] font-semibold">
-                  <span>Total</span>
-                  <span className="tabular-nums" data-testid="doc-total">
-                    {money(doc.total, doc.currency)}
-                  </span>
-                </div>
-              </div>
-              {doc.terms ? <p className="whitespace-pre-wrap text-xs text-text-muted">{doc.terms}</p> : null}
-            </div>
-          )}
+          <DocumentLines
+            type={type}
+            id={doc.id}
+            brandId={doc.brandId}
+            currency={doc.currency}
+            editable={editable}
+            initial={gridFromLines(doc.lines, doc)}
+            header={{ date: doc.date, terms: doc.terms, notes: doc.notes }}
+            dateLabel={cfg.dateLabel}
+            settings={settings}
+          />
         </RelatedListCard>
 
         {type === "invoice" ? (

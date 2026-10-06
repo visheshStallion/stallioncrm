@@ -1,8 +1,8 @@
 "use client";
 
-import { ChevronDown, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "@/components/Toaster";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,28 +15,16 @@ import {
   searchCustomersAction,
 } from "@/server/modules/documents/actions";
 import type { CustomerHit } from "@/server/modules/documents/lookups";
-import { computeTotals } from "@/server/modules/documents/totals";
+import { LineItemsGrid, gridPayload, newLine, type GridValue } from "@/components/crm/LineItemsGrid";
+import type { GridProduct } from "@/server/modules/documents/lookups";
 
-interface Product {
-  id: string;
-  name: string;
-  price: number | null;
-  taxRatePct: number;
-  maxDiscountPct: number | null;
-  vehicle: boolean;
-}
-interface Row {
-  key: string;
-  productId: string;
+interface InitLine {
+  productId?: string;
   description: string;
-  itemCode: string;
-  uom: string;
-  qty: string;
-  unitPrice: string;
-  discountPct: string;
-  taxRate: string;
-  vin: string;
-  isStockItem: boolean;
+  qty?: string;
+  unitPrice?: string;
+  discountPct?: string;
+  isStockItem?: boolean;
 }
 type Party = { name: string; company: string; phone: string; email: string; address: string; city: string; state: string; taxId: string };
 const EMPTY_PARTY: Party = { name: "", company: "", phone: "", email: "", address: "", city: "", state: "", taxId: "" };
@@ -51,14 +39,10 @@ export interface NewDocumentProps {
   defaultBrandId: string | null;
   defaultRegionId: string | null;
   /** prefill: a record template, or a link from another page (?dealId, ?accountId …) */
-  initial?: { templateId?: string | null; templateName?: string | null; brandId?: string | null; lines?: Array<Partial<Row> & { description: string }>; terms?: string | null; notes?: string | null; headerDiscountPct?: number | null; links?: Partial<Record<"dealId" | "accountId" | "contactId" | "sourceDocumentId", { id: string; label: string }>>; billTo?: Partial<Party> };
+  initial?: { templateId?: string | null; templateName?: string | null; brandId?: string | null; lines?: InitLine[]; terms?: string | null; notes?: string | null; headerDiscountPct?: number | null; links?: Partial<Record<"dealId" | "accountId" | "contactId" | "sourceDocumentId", { id: string; label: string }>>; billTo?: Partial<Party> };
   showVin: boolean;
 }
 
-let seq = 0;
-const n = (s: string) => (s.trim() === "" || Number.isNaN(Number(s)) ? 0 : Number(s));
-const fmt = (v: number) => v.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const blank = (patch: Partial<Row> = {}): Row => ({ key: `r${++seq}`, productId: "", description: "", itemCode: "", uom: "", qty: "1", unitPrice: "", discountPct: "0", taxRate: "7.5", vin: "", isStockItem: false, ...patch });
 const label = "block space-y-1 text-xs font-medium text-text-muted";
 
 /** A search box over records of the same brand (deals, quotes, sales orders) for the optional links. */
@@ -116,10 +100,13 @@ export function NewDocumentForm(p: NewDocumentProps) {
   const [search, setSearch] = useState("");
   const [hits, setHits] = useState<CustomerHit[]>([]);
   const [dupe, setDupe] = useState<CustomerHit | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<GridProduct[]>([]);
   const [canSaveProduct, setCanSaveProduct] = useState(false);
-  const [rows, setRows] = useState<Row[]>(() => (init.lines?.length ? init.lines.map((l) => blank({ ...l, qty: String(l.qty ?? "1"), unitPrice: l.unitPrice ?? "" })) : [blank()]));
-  const [headerDiscount, setHeaderDiscount] = useState(String(init.headerDiscountPct ?? 0));
+  const [settings, setSettings] = useState<{ taxes: Array<{ name: string; rate: number }>; taxMode: "LINE" | "DOCUMENT"; requireProduct: boolean; canAdjust: boolean }>({ taxes: [{ name: "VAT", rate: 7.5 }], taxMode: "LINE", requireProduct: false, canAdjust: true });
+  const [grid, setGrid] = useState<GridValue>(() => ({
+    lines: init.lines?.length ? init.lines.map((l) => newLine({ productId: l.productId ?? "", description: l.description, qty: l.qty ?? "1", unitPrice: l.unitPrice ?? "", discountValue: l.discountPct ?? "0", isStockItem: !!l.isStockItem }, [{ name: "VAT", rate: 7.5 }])) : [newLine({}, [{ name: "VAT", rate: 7.5 }])],
+    header: { discountType: "PERCENT", discountValue: String(init.headerDiscountPct ?? 0), taxes: [], adjustment: "0" },
+  }));
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
   const [date, setDate] = useState("");
   const [terms, setTerms] = useState(init.terms ?? "");
@@ -137,6 +124,9 @@ export function NewDocumentForm(p: NewDocumentProps) {
       if (res.ok) {
         setProducts(res.data.products);
         setCanSaveProduct(res.data.canSaveAsProduct);
+        setSettings(res.data.grid);
+        // template lines without a typed price take the price-book price of their product
+        setGrid((g) => ({ ...g, lines: g.lines.map((l) => (l.productId && !l.unitPrice ? { ...l, unitPrice: String(res.data.products.find((x) => x.id === l.productId)?.price ?? "") } : l)) }));
       }
     });
   }, [brandId]);
@@ -173,15 +163,14 @@ export function NewDocumentForm(p: NewDocumentProps) {
     setDupe(null);
   };
 
-  const totals = useMemo(() => computeTotals(rows.map((r) => ({ qty: n(r.qty), unitPrice: n(r.unitPrice), discountPct: n(r.discountPct), taxRate: n(r.taxRate) })), n(headerDiscount)), [rows, headerDiscount]);
-  const set = (key: string, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-
-  const saveAsProduct = (r: Row) =>
+  const saveAsProduct = (key: string) =>
     start(async () => {
-      const res = await saveLineAsProductAction(brandId, { name: r.description, price: n(r.unitPrice), vehicle: r.isStockItem });
+      const l = grid.lines.find((x) => x.key === key);
+      if (!l) return;
+      const res = await saveLineAsProductAction(brandId, { name: l.description, price: Number(l.unitPrice) || 0, vehicle: l.isStockItem });
       if (!res.ok) return toast(res.error.message, "error");
-      setProducts((ps) => [...ps, { id: res.data.id, name: res.data.name, price: res.data.price, taxRatePct: n(r.taxRate), maxDiscountPct: null, vehicle: r.isStockItem }]);
-      set(r.key, { productId: res.data.id });
+      setProducts((ps) => [...ps, { id: res.data.id, name: res.data.name, code: "", category: l.isStockItem ? "VEHICLE" : "ACCESSORY", price: res.data.price, taxRatePct: l.taxes[0]?.rate ?? 7.5, maxDiscountPct: null, vehicle: l.isStockItem, uom: null, stock: null }]);
+      setGrid((g) => ({ ...g, lines: g.lines.map((x) => (x.key === key ? { ...x, productId: res.data.id } : x)) }));
       toast(`“${res.data.name}” is now a product of the brand`, "success");
     });
 
@@ -191,8 +180,7 @@ export function NewDocumentForm(p: NewDocumentProps) {
         brandId,
         regionId,
         billTo: Object.fromEntries(Object.entries(party).filter(([, v]) => v.trim() !== "")),
-        lines: rows.filter((r) => r.description.trim() || r.productId).map((r) => ({ productId: r.productId, description: r.description, itemCode: r.itemCode, uom: r.uom, qty: r.qty, unitPrice: r.unitPrice, discountPct: r.discountPct, taxRate: r.taxRate, vin: r.vin, isStockItem: r.isStockItem })),
-        headerDiscountPct: headerDiscount,
+        ...gridPayload(grid),
         issueDate,
         date,
         terms,
@@ -313,127 +301,41 @@ export function NewDocumentForm(p: NewDocumentProps) {
         ) : null}
       </section>
 
-      <section className="space-y-2 rounded-lg border border-border bg-surface p-4" data-testid="new-lines">
-        <h2 className="text-[13px] font-semibold">Line items</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
-            <thead className="text-left text-xs text-text-muted">
-              <tr>
-                <th className="w-48 py-1">Product</th>
-                <th>Item / description *</th>
-                <th className="w-16">UOM</th>
-                <th className="w-16 text-right">Qty</th>
-                <th className="w-32 text-right">Unit price</th>
-                <th className="w-16 text-right">Disc %</th>
-                <th className="w-16 text-right">VAT %</th>
-                {p.showVin ? <th className="w-36">VIN</th> : null}
-                <th className="w-32 text-right">Amount</th>
-                <th className="w-8" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={r.key} className="border-t border-border align-top" data-testid="new-line">
-                  <td className="py-1 pr-1">
-                    <select
-                      className="crm-select h-8 w-full"
-                      value={r.productId}
-                      aria-label={`Product line ${i + 1}`}
-                      onChange={(e) => {
-                        const pr = products.find((x) => x.id === e.target.value);
-                        set(r.key, pr ? { productId: pr.id, description: r.description || pr.name, unitPrice: pr.price === null ? r.unitPrice : String(pr.price), taxRate: String(pr.taxRatePct), isStockItem: pr.vehicle } : { productId: "" });
-                      }}
-                    >
-                      <option value="">— free text —</option>
-                      {products.map((pr) => (
-                        <option key={pr.id} value={pr.id}>
-                          {pr.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="pr-1">
-                    <Input value={r.description} onChange={(e) => set(r.key, { description: e.target.value })} className="h-8" aria-label={`Item line ${i + 1}`} />
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-muted">
-                      <label className="flex items-center gap-1">
-                        <input type="checkbox" checked={r.isStockItem} onChange={(e) => set(r.key, { isStockItem: e.target.checked })} /> Vehicle / stock item
-                      </label>
-                      {!r.productId && canSaveProduct && r.description.trim() ? (
-                        <button type="button" className="text-primary underline" onClick={() => saveAsProduct(r)} disabled={pending}>
-                          Save as product
-                        </button>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="pr-1">
-                    <Input value={r.uom} onChange={(e) => set(r.key, { uom: e.target.value })} className="h-8" aria-label={`Unit of measure line ${i + 1}`} />
-                  </td>
-                  <td className="pr-1">
-                    <Input value={r.qty} onChange={(e) => set(r.key, { qty: e.target.value })} type="number" min={0} className="h-8 text-right" aria-label={`Quantity line ${i + 1}`} />
-                  </td>
-                  <td className="pr-1">
-                    <Input value={r.unitPrice} onChange={(e) => set(r.key, { unitPrice: e.target.value })} type="number" min={0} step="0.01" className="h-8 text-right" aria-label={`Unit price line ${i + 1}`} placeholder={r.productId ? "price book" : ""} />
-                  </td>
-                  <td className="pr-1">
-                    <Input value={r.discountPct} onChange={(e) => set(r.key, { discountPct: e.target.value })} type="number" min={0} max={100} className="h-8 text-right" aria-label={`Discount % line ${i + 1}`} />
-                  </td>
-                  <td className="pr-1">
-                    <Input value={r.taxRate} onChange={(e) => set(r.key, { taxRate: e.target.value })} type="number" min={0} max={100} className="h-8 text-right" aria-label={`VAT % line ${i + 1}`} />
-                  </td>
-                  {p.showVin ? (
-                    <td className="pr-1">
-                      <Input value={r.vin} onChange={(e) => set(r.key, { vin: e.target.value.toUpperCase(), isStockItem: r.isStockItem || !!e.target.value })} className="h-8 uppercase" aria-label={`VIN line ${i + 1}`} />
-                    </td>
-                  ) : null}
-                  <td className="py-2 text-right tabular-nums">{fmt(totals.lineTotals[i] ?? 0)}</td>
-                  <td>
-                    <button type="button" onClick={() => setRows((rs) => (rs.length > 1 ? rs.filter((x) => x.key !== r.key) : rs))} aria-label={`Remove line ${i + 1}`} className="p-1.5 text-text-muted hover:text-danger">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
+      <section className="space-y-3 rounded-lg border border-border bg-surface p-4" data-testid="new-lines">
+        <LineItemsGrid
+          documentType={p.type}
+          value={grid}
+          onChange={setGrid}
+          products={products}
+          taxOptions={settings.taxes}
+          taxMode={settings.taxMode}
+          currency="NGN"
+          brandId={brandId}
+          canAdjust={settings.canAdjust}
+          showVins={p.showVin}
+          requireProduct={settings.requireProduct}
+        />
+        {canSaveProduct && grid.lines.some((l) => !l.productId && l.description.trim()) ? (
+          <p className="flex flex-wrap items-center gap-2 text-xs text-text-muted" data-testid="save-as-product">
+            Free-text items:
+            {grid.lines
+              .filter((l) => !l.productId && l.description.trim())
+              .map((l) => (
+                <button key={l.key} type="button" className="text-primary underline" disabled={pending} onClick={() => saveAsProduct(l.key)}>
+                  Save “{l.description}” as product
+                </button>
               ))}
-            </tbody>
-          </table>
-        </div>
-        <Button type="button" size="sm" variant="outline" onClick={() => setRows((rs) => [...rs, blank()])}>
-          <Plus className="h-4 w-4" /> Add line
-        </Button>
-        <div className="grid gap-4 pt-2 md:grid-cols-2">
-          <div className="space-y-2 text-[13px]">
-            <label className="block">
-              Terms &amp; conditions <span className="text-xs text-text-muted">(empty: the brand’s standard terms)</span>
-              <textarea value={terms} onChange={(e) => setTerms(e.target.value)} className="mt-1 h-16 w-full rounded-md border border-border bg-background p-2" />
-            </label>
-            <label className="block">
-              Notes
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 h-12 w-full rounded-md border border-border bg-background p-2" />
-            </label>
-          </div>
-          <div className="space-y-1 text-[13px]" data-testid="new-totals">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span className="tabular-nums">{fmt(totals.subtotal)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <label className="flex items-center gap-2">
-                Header discount %
-                <Input value={headerDiscount} onChange={(e) => setHeaderDiscount(e.target.value)} type="number" min={0} max={100} className="h-8 w-20 text-right" aria-label="Header discount %" />
-              </label>
-              <span className="tabular-nums">− {fmt(totals.discountTotal)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>VAT</span>
-              <span className="tabular-nums">{fmt(totals.taxTotal)}</span>
-            </div>
-            <div className="flex justify-between border-t border-border pt-1 text-[15px] font-semibold">
-              <span>Total</span>
-              <span className="tabular-nums" data-testid="new-total">
-                {fmt(totals.total)}
-              </span>
-            </div>
-            <p className="text-xs text-text-muted">Product lines without a price take the price book’s price. The server calculates the final totals.</p>
-          </div>
+          </p>
+        ) : null}
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="block text-[13px]">
+            Terms &amp; conditions <span className="text-xs text-text-muted">(empty: the brand’s standard terms)</span>
+            <textarea value={terms} onChange={(e) => setTerms(e.target.value)} className="mt-1 h-16 w-full rounded-md border border-border bg-background p-2" />
+          </label>
+          <label className="block text-[13px]">
+            Notes
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 h-16 w-full rounded-md border border-border bg-background p-2" />
+          </label>
         </div>
       </section>
 

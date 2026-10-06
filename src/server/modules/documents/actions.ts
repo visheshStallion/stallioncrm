@@ -148,7 +148,7 @@ export async function brandProductsAction(brandId: string) {
   return safeAction(async () => {
     const ctx = await requireContext();
     const l = await import("./lookups");
-    return { products: await l.brandProducts(ctx, brandId), canSaveAsProduct: l.canSaveAsProduct(ctx, brandId) };
+    return { products: await l.brandProducts(ctx, brandId), canSaveAsProduct: l.canSaveAsProduct(ctx, brandId), grid: await l.gridSettings(ctx, brandId) };
   });
 }
 export async function saveLineAsProductAction(brandId: string, input: { name: string; price: number; vehicle: boolean }) {
@@ -166,5 +166,43 @@ export async function saveDocumentRulesAction(_p: unknown, fd: FormData) {
     await saveRules(ctx, brandId, input);
     revalidatePath("/setup/document-dependencies");
     return { message: "Dependencies saved – they apply to new documents" };
+  });
+}
+
+// ── Ordered Items grid (prompt 24) ──
+export async function stockUnitsAction(brandId: string, opts: { q?: string; productId?: string }) {
+  return safeAction(async () => (await import("./lookups")).stockUnits(await requireContext(), brandId, opts));
+}
+
+export async function assignVinsAction(id: string, vins: Record<string, string[]>) {
+  return safeAction(async () => {
+    await svc.assignVins(await requireContext(), id, vins);
+    revalidatePath(`/salesOrders/${id}`);
+    return { message: "VINs assigned" };
+  });
+}
+
+export async function requestOrderApprovalAction(id: string) {
+  return safeAction(async () => {
+    const res = await svc.requestOrderDiscountApproval(await requireContext(), id);
+    revalidatePath(`/salesOrders/${id}`);
+    return { message: res.status === "APPROVED" ? "Discount approved" : "Sent for discount approval" };
+  });
+}
+
+export async function reopenOrderAction(id: string) {
+  return safeAction(async () => {
+    await svc.reopenOrder(await requireContext(), id);
+    revalidatePath(`/salesOrders/${id}`);
+    return { message: "The order is a draft again" };
+  });
+}
+
+/** Sales order → invoice for chosen quantities per line (partial invoicing). */
+export async function invoicePartAction(orderId: string, quantities: Record<string, number>) {
+  return safeAction(async () => {
+    const inv = await svc.convertOrderToInvoice(await requireContext(), orderId, quantities);
+    revalidatePath(`/salesOrders/${orderId}`);
+    return { message: "Invoice created", redirect: `/invoices/${inv.id}` };
   });
 }

@@ -79,6 +79,8 @@ export const lineSchema = z.object({
   productId: z.preprocess(empty, z.string().optional()).transform((v) => v ?? null),
   description: z.string().trim().min(1, "Give each line an item name").max(300),
   itemCode: z.preprocess(empty, z.string().trim().max(60).optional()).transform((v) => v ?? null),
+  /** free text under the item name (prompt 24) */
+  details: z.preprocess(empty, z.string().trim().max(2000).optional()).transform((v) => v ?? null),
   uom: z.preprocess(empty, z.string().trim().max(20).optional()).transform((v) => v ?? null),
   isStockItem: z.preprocess((v) => v === true || v === "true" || v === "on", z.boolean()).default(false),
   qty: z.coerce.number().positive().max(100_000),

@@ -80,6 +80,7 @@ export async function createQuoteFromDeal(ctx: AccessContext, dealId: string) {
       taxRate: price.taxRatePct,
       vin: null,
       itemCode: null,
+      details: null,
       uom: null,
       isStockItem: true,
     });
@@ -242,7 +243,7 @@ export async function expireQuotes(ctx: AccessContext) {
 // ───────────────────────────── conversion ─────────────────────────────
 
 /** A stored line as input for a new document (conversion). */
-const lineFrom = (l: DocDetail["lines"][number]): LineData => ({ productId: l.productId, description: l.description, itemCode: l.itemCode, uom: l.uom, isStockItem: l.isStockItem, qty: l.qty, unitPrice: l.unitPrice, discountPct: l.discountPct, taxRate: l.taxRate, vin: l.vin, discountType: l.discountType, discountValue: l.discountValue, taxes: l.taxes.map(({ name, rate }) => ({ name, rate })), vins: l.vins });
+const lineFrom = (l: DocDetail["lines"][number]): LineData => ({ productId: l.productId, description: l.description, details: l.details, itemCode: l.itemCode, uom: l.uom, isStockItem: l.isStockItem, qty: l.qty, unitPrice: l.unitPrice, discountPct: l.discountPct, taxRate: l.taxRate, vin: l.vin, discountType: l.discountType, discountValue: l.discountValue, taxes: l.taxes.map(({ name, rate }) => ({ name, rate })), vins: l.vins });
 
 async function copyTo(ctx: AccessContext, source: DocDetail, target: DocType, extra: Record<string, unknown>, opts?: { lines?: DocDetail["lines"]; qty?: Map<string, number> }) {
   const cfg = DOCS[target];

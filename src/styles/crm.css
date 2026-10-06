@@ -1433,3 +1433,192 @@
 .rich-editor-content .selectedCell {
   background: var(--c-primary-soft);
 }
+
+/* ── Ordered Items grid (prompt 24) ── */
+@layer components {
+  .crm-grid-title {
+    margin-top: 16px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--c-text);
+  }
+  .crm-grid-title.crm-grid-title-required {
+    border-left: 3px solid #d93025;
+    padding-left: 8px;
+  }
+  .crm-grid {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--c-border);
+    border-radius: 8px;
+    background: var(--c-surface);
+  }
+  .crm-grid-table {
+    width: 100%;
+    min-width: 1100px;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+  }
+  @media (min-width: 1280px) {
+    .crm-grid-table {
+      min-width: 0;
+    }
+  }
+  .crm-grid-table thead th {
+    height: 34px;
+    padding: 0 10px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--c-text);
+    background: #f3f6fc;
+    border-bottom: 1px solid var(--c-border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dark .crm-grid-table thead th {
+    background: var(--c-surface-alt);
+  }
+  .crm-grid-table th + th,
+  .crm-grid-table td + td {
+    border-left: 1px solid var(--c-border);
+  }
+  .crm-grid-table tbody td {
+    padding: 12px;
+    vertical-align: top;
+    border-bottom: 1px solid var(--c-border);
+    background: var(--c-surface);
+  }
+  .crm-grid-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .crm-grid-required {
+    box-shadow: inset 3px 0 0 #d93025;
+  }
+  /* 768–1279 px: the table scrolls; S.NO and Product Name stay */
+  .crm-grid-sticky0 {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+  }
+  .crm-grid-sticky1 {
+    position: sticky;
+    left: 12%;
+    z-index: 1;
+  }
+  @media (max-width: 1279px) {
+    .crm-grid-sticky1 {
+      left: 132px;
+    }
+  }
+  .crm-grid-sno {
+    text-align: center;
+    padding-top: 12px !important;
+  }
+  .crm-grid-rowtools {
+    display: none;
+    margin-top: 6px;
+    justify-content: center;
+    gap: 6px;
+  }
+  .crm-grid-table tr:hover .crm-grid-rowtools,
+  .crm-grid-table tr:focus-within .crm-grid-rowtools {
+    display: flex;
+  }
+  .crm-grid-input {
+    height: 34px;
+    padding: 0 8px;
+    border: 1px solid #c9ced6;
+    border-radius: 6px;
+    background: var(--c-surface);
+    color: var(--c-text);
+    font-size: 13px;
+  }
+  .crm-grid-input:focus,
+  .crm-grid-textarea:focus {
+    outline: none;
+    border-color: var(--c-primary);
+    box-shadow: 0 0 0 3px var(--c-primary-soft);
+  }
+  .crm-grid-input[readonly] {
+    background: #f4f5f7;
+  }
+  .crm-grid-textarea {
+    display: block;
+    width: 100%;
+    height: 64px;
+    margin-top: 10px;
+    padding: 6px 8px;
+    border: 1px solid #c9ced6;
+    border-radius: 6px;
+    background: var(--c-surface);
+    color: var(--c-text);
+    font-size: 13px;
+    resize: vertical;
+  }
+  .crm-grid-readonly {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    max-width: 100%;
+    height: 34px;
+    padding: 0 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #f4f5f7;
+    color: var(--c-text);
+    font-variant-numeric: tabular-nums;
+  }
+  .dark .crm-grid-readonly,
+  .dark .crm-grid-input[readonly] {
+    background: var(--c-surface-alt);
+    border-color: var(--c-border);
+  }
+  .crm-grid-clickable {
+    border-color: #b9d3f5;
+    cursor: pointer;
+  }
+  .crm-grid-clickable:disabled {
+    cursor: default;
+  }
+  .crm-grid-clickable:not(:disabled):hover {
+    border-color: var(--c-primary);
+  }
+  .crm-btn-outline-primary {
+    border: 1px solid var(--c-primary);
+    color: var(--c-primary);
+    background: var(--c-surface);
+  }
+  .crm-grid-totals {
+    border: 1px solid var(--c-border);
+    border-radius: 8px;
+    background: var(--c-surface);
+    font-size: 13px;
+  }
+  .crm-grid-totals > div {
+    display: grid;
+    grid-template-columns: 1fr 160px;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--c-border);
+  }
+  .crm-grid-totals > div:last-child {
+    border-bottom: 0;
+  }
+  .crm-grid-totals dt {
+    color: var(--c-text-muted);
+  }
+  .crm-grid-totals dd {
+    margin: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .crm-grid-grand dt,
+  .crm-grid-grand dd {
+    font-weight: 700;
+    color: var(--c-text);
+  }
+}

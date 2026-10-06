@@ -75,16 +75,59 @@ export async function linkTargets(ctx: AccessContext, brandId: string, kind: "de
   return rows.map((d) => ({ id: d.id, label: `${d.number} · ${(d.billTo as { name?: string } | null)?.name ?? d.status}`, regionId: d.regionId }));
 }
 
-/** The brand's active products with their price-book price on a date (the document form's product picker). */
-export async function brandProducts(ctx: AccessContext, brandId: string) {
+export interface GridProduct {
+  id: string;
+  name: string;
+  code: string;
+  category: string;
+  price: number | null;
+  taxRatePct: number;
+  maxDiscountPct: number | null;
+  vehicle: boolean;
+  uom: string | null;
+  /** stock of the brand (only for users who may see inventory) */
+  stock: { inStock: number; reserved: number; inTransit: number } | null;
+}
+
+/** The brand's active products with their price-book price on a date (the grid's product search and picker). */
+export async function brandProducts(ctx: AccessContext, brandId: string): Promise<GridProduct[]> {
   if (!ctx.brandIds.includes(brandId)) throw new NotFoundError();
   if (!hasPermission(ctx, "products", "read")) return [];
   const { getPrice, listProducts } = await import("@/server/modules/catalogue/queries");
   const list = await listProducts(ctx, { brandId, activeOnly: true, take: 500 });
-  return Promise.all(list.rows.map(async (p) => {
-    const price = await getPrice(ctx, p.id, new Date());
-    return { id: p.id, name: p.name, price: price.price, taxRatePct: price.taxRatePct, maxDiscountPct: price.maxDiscountPct, vehicle: p.category === "VEHICLE" };
-  }));
+  const counts = hasPermission(ctx, "inventory", "read") ? await scopedDb(ctx).vehicleUnit.groupBy({ by: ["productId", "status"], where: { brandId, productId: { in: list.rows.map((p) => p.id) } }, _count: { _all: true } }) : null;
+  const n = (productId: string, statuses: string[]) => (counts ?? []).filter((c) => c.productId === productId && statuses.includes(c.status)).reduce((s, c) => s + c._count._all, 0);
+  return Promise.all(
+    list.rows.map(async (p) => {
+      const price = await getPrice(ctx, p.id, new Date());
+      return {
+        id: p.id,
+        name: p.name,
+        code: (p as { code?: string }).code ?? "",
+        category: p.category,
+        price: price.price,
+        taxRatePct: price.taxRatePct,
+        maxDiscountPct: price.maxDiscountPct,
+        vehicle: p.category === "VEHICLE",
+        uom: p.category === "VEHICLE" ? "unit" : null,
+        stock: counts ? { inStock: n(p.id, ["AVAILABLE", "PDI_PENDING", "DEMO"]), reserved: n(p.id, ["RESERVED", "ALLOCATED"]), inTransit: n(p.id, ["ON_ORDER", "IN_TRANSIT", "AT_PORT", "IN_CLEARING"]) } : null,
+      };
+    }),
+  );
+}
+
+/** Vehicles in stock of the brand: by VIN text, or the available units of one product ("Pick from stock"). */
+export async function stockUnits(ctx: AccessContext, brandId: string, opts: { q?: string; productId?: string }) {
+  if (!ctx.brandIds.includes(brandId)) throw new NotFoundError();
+  if (!hasPermission(ctx, "inventory", "read")) return [];
+  const q = (opts.q ?? "").trim().toUpperCase();
+  const rows = await scopedDb(ctx).vehicleUnit.findMany({
+    where: { brandId, ...(opts.productId ? { productId: opts.productId } : {}), ...(q ? { vin: { contains: q } } : {}), status: { in: ["AVAILABLE", "PDI_PENDING", "DEMO", "ON_ORDER", "IN_TRANSIT", "AT_PORT", "IN_CLEARING"] } },
+    select: { id: true, vin: true, colour: true, status: true, productId: true, product: { select: { name: true } }, warehouse: { select: { name: true } } },
+    take: 30,
+    orderBy: { vin: "asc" },
+  });
+  return rows.map((u) => ({ id: u.id, vin: u.vin, productId: u.productId, productName: u.product.name, colour: u.colour, status: u.status, location: u.warehouse?.name ?? null }));
 }
 
 export const canSaveAsProduct = (ctx: AccessContext, brandId: string) => canManageBrandData(ctx, "products", "create", brandId);
@@ -97,4 +140,13 @@ export async function saveLineAsProduct(ctx: AccessContext, brandId: string, inp
   const { createProduct } = await import("@/server/modules/catalogue/service");
   const p = await createProduct(ctx, brandId, { code, model: name.slice(0, 80), category: input.vehicle ? "VEHICLE" : "ACCESSORY", listPrice: input.price } as never);
   return { id: p.id, name: name.slice(0, 80), price: input.price };
+}
+
+/** The brand settings the grid needs: taxes, tax mode, free-text allowed, who may enter an adjustment. */
+export async function gridSettings(ctx: AccessContext, brandId: string) {
+  if (!ctx.brandIds.includes(brandId)) throw new NotFoundError();
+  const { rulesOf } = await import("./service");
+  const { managedBrands } = await import("@/server/access/brand-tag");
+  const r = await rulesOf(ctx, brandId);
+  return { taxes: r.taxes, taxMode: r.taxMode, requireProduct: r.requireProduct, canAdjust: !r.adjustmentManagersOnly || !!ctx.isAdmin || managedBrands(ctx).includes(brandId) };
 }

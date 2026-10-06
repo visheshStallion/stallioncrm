@@ -23,6 +23,7 @@ export interface DocLine {
   lineTotal: number;
   vin: string | null;
   itemCode: string | null;
+  details: string | null;
   uom: string | null;
   isStockItem: boolean;
   // ── Ordered Items (prompt 24) ──
@@ -224,6 +225,7 @@ export async function getDocument(ctx: AccessContext, type: DocType, id: string)
       lineTotal: Number(l.lineTotal.toString()),
       vin: l.vin,
       itemCode: l.itemCode,
+      details: l.details,
       uom: l.uom,
       isStockItem: l.isStockItem,
       amount: Number(l.amount.toString()),

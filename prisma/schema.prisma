@@ -1113,6 +1113,8 @@ model DocumentLine {
   /// a vehicle / stock item line: stock movements only when it is linked to a stock unit of the brand
   isStockItem    Boolean     @default(false)
   // ── Ordered Items grid (prompt 24) ──
+  /// free text under the product name (the item name is `description`)
+  details        String?
   /// qty × unitPrice
   amount         Decimal     @default(0) @db.Decimal(18, 2)
   /// PERCENT (discountValue is %) or AMOUNT (discountValue is money)
