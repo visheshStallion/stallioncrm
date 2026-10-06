@@ -38,16 +38,18 @@ const TRANSITIONS = {
   "salesOrder:allocate": (ctx, id) => svc.allocateOrder(ctx, id).then(() => "Vehicle allocated"),
   "salesOrder:deliver": (ctx, id) => svc.deliverOrder(ctx, id).then(() => "Order delivered – the deal moved to Delivery"),
   "salesOrder:cancel": (ctx, id) => svc.cancelOrder(ctx, id).then(() => "Sales order cancelled"),
-  "invoice:issue": (ctx, id) => svc.issueInvoice(ctx, id).then(() => "Invoice issued"),
-  "invoice:void": (ctx, id) => svc.voidInvoice(ctx, id).then(() => "Invoice voided"),
-} satisfies Record<string, (ctx: Awaited<ReturnType<typeof requireContext>>, id: string) => Promise<string>>;
+  "invoice:issue": (ctx, id) => svc.issueInvoice(ctx, id).then((r) => (r.status === "PENDING_APPROVAL" ? "The discount needs approval – sent to the Brand Manager" : "Invoice issued")),
+  "invoice:approve": (ctx, id, note) => svc.decideInvoice(ctx, id, true, note).then(() => "Invoice approved – it can be issued"),
+  "invoice:sendBack": (ctx, id, note) => svc.decideInvoice(ctx, id, false, note).then(() => "Invoice sent back"),
+  "invoice:void": (ctx, id, note) => svc.voidInvoice(ctx, id, note).then(() => "Invoice voided"),
+} satisfies Record<string, (ctx: Awaited<ReturnType<typeof requireContext>>, id: string, note?: string) => Promise<string>>;
 
 /** Status transitions (submit, send, accept, confirm, allocate, deliver, issue …). */
-export async function transitionAction(type: string, id: string, op: string) {
+export async function transitionAction(type: string, id: string, op: string, note?: string) {
   return safeAction(async () => {
-    const fn = (TRANSITIONS as Record<string, (ctx: Awaited<ReturnType<typeof requireContext>>, id: string) => Promise<string>>)[`${type}:${op}`];
+    const fn = (TRANSITIONS as Record<string, (ctx: Awaited<ReturnType<typeof requireContext>>, id: string, note?: string) => Promise<string>>)[`${type}:${op}`];
     if (!fn || !isDocType(type)) throw new BadRequestError("Unknown action");
-    const message = await fn(await requireContext(), id);
+    const message = await fn(await requireContext(), id, note);
     revalidatePath(`${DOCS[type].path}/${id}`);
     return { message };
   });
@@ -82,6 +84,15 @@ export async function addPaymentAction(invoiceId: string, input: { amount: strin
     const res = await svc.addPayment(await requireContext(), invoiceId, input);
     revalidatePath(`/invoices/${invoiceId}`);
     return { message: res.status === "PAID" ? "Payment recorded – invoice paid" : "Payment recorded" };
+  });
+}
+
+/** Credit note on an issued invoice (amount + reason). */
+export async function creditNoteAction(invoiceId: string, input: { amount: string; reason: string }) {
+  return safeAction(async () => {
+    const note = await svc.createCreditNote(await requireContext(), invoiceId, input);
+    revalidatePath(`/invoices/${invoiceId}`);
+    return { message: `Credit note ${note.number} created` };
   });
 }
 

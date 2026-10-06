@@ -105,12 +105,12 @@ export async function createPaymentLink(ctx: AccessContext, invoiceId: string, i
   const { getDocument } = await import("@/server/modules/documents/queries");
   const doc = await getDocument(ctx, "invoice", invoiceId); // 404 outside the caller's scope
   assertCan(ctx, "invoices", "edit", doc);
-  if (!["ISSUED", "PART_PAID"].includes(doc.status)) throw new BadRequestError("Payment links can be created for issued invoices only");
+  if (!["ISSUED", "SENT", "PART_PAID", "OVERDUE"].includes(doc.status)) throw new BadRequestError("Payment links can be created for issued invoices only");
   const brand = await store.brandForIntegration(doc.brandId);
   const available = brand ? providersFor(brand.code) : [];
   const provider = input.provider ? available.find((p) => p.key === input.provider) : available[0];
   if (!brand || !provider) throw new BadRequestError("Online payments are not configured for this brand");
-  const balance = Math.round((doc.total - (doc.amountPaid ?? 0)) * 100) / 100;
+  const balance = Math.round((doc.total - (doc.amountPaid ?? 0) - (doc.invoice?.creditedAmount ?? 0)) * 100) / 100;
   const amount = input.amount === undefined || input.amount === null || input.amount === "" ? balance : Number(input.amount);
   if (!(amount > 0) || amount > balance + 0.005) throw new BadRequestError(`The amount must be between 0 and the outstanding balance of ${balance.toFixed(2)}`);
   const email = input.email?.trim() || (await store.invoiceCustomerEmail(invoiceId));

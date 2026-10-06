@@ -165,7 +165,7 @@ describe("approval, VINs, conversion", () => {
     expect((await getDocument(hmnlExec, "invoice", inv2.id)).lines.map((l) => [l.description, l.qty])).toEqual([["Mats", 6], ["Tint", 4]]);
     await expect(docs.convertOrderToInvoice(hmnlExec, so.id)).rejects.toThrow(/invoiced already/);
     // voiding an invoice gives its quantities back to the order
-    await docs.voidInvoice(hmnlExec, inv1.id);
+    await docs.voidInvoice(bmHmnl, inv1.id, "Wrong quantities");
     expect((await getDocument(hmnlExec, "salesOrder", so.id)).lines.map((l) => l.invoicedQty)).toEqual([6, 4]);
     void admin;
   });

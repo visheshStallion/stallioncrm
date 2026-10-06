@@ -311,7 +311,7 @@ export async function massSoftDelete(c: MassCriteria, userId: string): Promise<n
 /** Business data. Configuration (brands, territories, users, profiles, pipelines, rules, templates, products, price books, warehouses) is NOT in this list. */
 export const BUSINESS_TABLES = [
   "Lead", "Deal", "DealStageHistory", "Note", "Attachment", "Account", "Contact", "ContactBrandConsent", "CustomerBrandLink",
-  "Quote", "SalesOrder", "Invoice", "DocumentLine", "Payment", "DocumentCounter", "ApprovalRequest", "ApprovalTask", "DomainEvent",
+  "Quote", "SalesOrder", "Invoice", "DocumentLine", "Payment", "CreditNote", "DocumentCounter", "ApprovalRequest", "ApprovalTask", "DomainEvent",
   "Activity", "TestDrive", "Notification", "Job", "Target", "ForecastNote", "Message", "Campaign", "CampaignMember", "Case",
   "ImportJob", "ImportRecord", "ExportJob", "IdempotencyKey", "WebhookDelivery", "ExternalRef", "PaymentLink",
   "VehicleUnit", "VehicleStatusHistory", "StockMovement", "StockBalance", "InventoryDocument", "InventoryDocumentLine", "JournalEntry", "JournalLine",

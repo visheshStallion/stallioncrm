@@ -80,6 +80,25 @@ export interface DocRow {
   ownerName: string;
   createdAt: string;
   updatedAt: string;
+  /** Create Invoice page fields (prompt 26) – invoices only */
+  invoice: InvoiceExtra | null;
+}
+
+export interface InvoiceExtra {
+  subject: string | null;
+  customerPoRef: string | null;
+  tinNumber: string | null;
+  phone: string | null;
+  exchangeRate: number;
+  exciseDuty: number;
+  otherCharges: number;
+  salesCommission: number;
+  creditedAmount: number;
+  balanceDue: number;
+  issuedAt: string | null;
+  voidReason: string | null;
+  formViewId: string | null;
+  sentAt: string | null;
 }
 
 const headerSelect = (cfg: DocConfig) => ({
@@ -102,7 +121,7 @@ const headerSelect = (cfg: DocConfig) => ({
   discountTotal: true,
   taxTotal: true,
   total: true,
-  ...(cfg.type === "invoice" ? { amountPaid: true } : {}),
+  ...(cfg.type === "invoice" ? { amountPaid: true, subject: true, customerPoRef: true, tinNumber: true, phone: true, exchangeRate: true, exciseDuty: true, otherCharges: true, salesCommission: true, creditedAmount: true, issuedAt: true, voidReason: true, formViewId: true, sentAt: true } : {}),
   terms: true,
   notes: true,
   priceBookId: true,
@@ -154,6 +173,25 @@ function toRow(cfg: DocConfig, d: any): DocRow {
     ownerName: d.owner.name,
     createdAt: d.createdAt.toISOString(),
     updatedAt: d.updatedAt.toISOString(),
+    invoice:
+      cfg.type === "invoice"
+        ? {
+            subject: d.subject ?? null,
+            customerPoRef: d.customerPoRef ?? null,
+            tinNumber: d.tinNumber ?? null,
+            phone: d.phone ?? null,
+            exchangeRate: num(d.exchangeRate) ?? 1,
+            exciseDuty: num(d.exciseDuty) ?? 0,
+            otherCharges: num(d.otherCharges) ?? 0,
+            salesCommission: num(d.salesCommission) ?? 0,
+            creditedAmount: num(d.creditedAmount) ?? 0,
+            balanceDue: Math.round(((num(d.total) ?? 0) - (num(d.amountPaid) ?? 0) - (num(d.creditedAmount) ?? 0)) * 100) / 100,
+            issuedAt: d.issuedAt ? d.issuedAt.toISOString() : null,
+            voidReason: d.voidReason ?? null,
+            formViewId: d.formViewId ?? null,
+            sentAt: d.sentAt ? d.sentAt.toISOString() : null,
+          }
+        : null,
   };
 }
 

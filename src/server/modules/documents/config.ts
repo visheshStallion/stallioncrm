@@ -62,9 +62,14 @@ export const DOCS: Record<DocType, DocConfig> = {
     dateLabel: "Due date",
     lineKey: "invoiceId",
     editable: ["DRAFT"],
-    statuses: { DRAFT: "Draft", ISSUED: "Issued", PART_PAID: "Part-paid", PAID: "Paid", VOID: "Void" },
+    statuses: { DRAFT: "Created", PENDING_APPROVAL: "Pending Approval", APPROVED: "Approved", ISSUED: "Issued", SENT: "Sent", PART_PAID: "Partially Paid", PAID: "Paid", OVERDUE: "Overdue", VOID: "Void" },
   },
 };
+
+/** Invoice statuses that take payments, credit notes and the overdue flag (prompt 26). */
+export const PAYABLE_INVOICE = ["ISSUED", "SENT", "PART_PAID", "OVERDUE"] as const;
+/** An invoice in these statuses is official: number, lines and amounts are locked. */
+export const ISSUED_INVOICE = ["ISSUED", "SENT", "PART_PAID", "PAID", "OVERDUE"] as const;
 
 export const docByPath = (segment: string): DocConfig | undefined => Object.values(DOCS).find((d) => d.path === `/${segment}`);
 
@@ -213,6 +218,17 @@ export const documentRulesSchema = z.object({
   roundingMode: z.enum(["HALF_UP", "HALF_EVEN"]).default("HALF_UP"),
   /** who may enter an adjustment: everyone who edits the document, or managers (brand manager / admin) only */
   adjustmentManagersOnly: z.boolean().default(false),
+  // ── Create Invoice page (prompt 26) ──
+  /** Due Date = Invoice Date + these days */
+  paymentTermsDays: z.coerce.number().int().min(0).max(365).default(7),
+  /** a TIN is required on invoices to companies (account type other than Individual) */
+  tinRequiredB2B: z.boolean().default(false),
+  /** Excise Duty is added to the Grand Total (it is always printed when above 0) */
+  exciseInTotal: z.boolean().default(false),
+  /** Other Charges (delivery, registration, plates …) are offered and added to the Grand Total */
+  otherChargesEnabled: z.boolean().default(true),
+  /** custom form views of the invoice page: [{id, name, hidden}] */
+  invoiceFormViews: z.array(z.object({ id: z.string(), name: z.string(), hidden: z.array(z.string()) })).max(30).default([]),
 });
 export type DocumentRules = z.output<typeof documentRulesSchema>;
 export const parseRules = (raw: unknown): DocumentRules => documentRulesSchema.parse(raw && typeof raw === "object" ? raw : {});

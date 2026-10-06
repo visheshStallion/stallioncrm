@@ -1,6 +1,6 @@
 import "server-only";
-import { assertSameBrand } from "@/server/access/brand-tag";
-import { assertCan } from "@/server/access/can";
+import { assertSameBrand, managedBrands } from "@/server/access/brand-tag";
+import { assertCan, hasPermission } from "@/server/access/can";
 import { ForbiddenError, NotFoundError } from "@/server/access/errors";
 import type { AccessContext } from "@/server/access/types";
 import { audit, scopedDb } from "@/server/db";
@@ -14,7 +14,8 @@ import { defaultBookFor } from "@/server/modules/catalogue/pricing";
 import { getDeal } from "@/server/modules/deals/queries";
 import { decide, submitForApproval } from "@/server/modules/approvals/service";
 import { advanceDealToStage } from "@/server/modules/deals/service";
-import { DOCS, createSchema, linkSchema, parseRules, paymentSchema, saveSchema, type CreateDocumentInput, type DocConfig, type DocType, type DocumentRules, type LineData, type LinkInput, type Party, type SaveInput } from "./config";
+import { notify } from "@/server/modules/notifications/service";
+import { DOCS, ISSUED_INVOICE, PAYABLE_INVOICE, createSchema, linkSchema, parseRules, paymentSchema, saveSchema, type CreateDocumentInput, type DocConfig, type DocType, type DocumentRules, type LineData, type LinkInput, type Party, type SaveInput } from "./config";
 import { getDocument, type DocDetail } from "./queries";
 import { assertVins, computeLines, normaliseLine, persistLines, type HeaderInput } from "./lines";
 import { discountApproval, paymentStatus, type ApprovalDecision } from "./totals";
@@ -313,9 +314,10 @@ export async function convertOrderToInvoice(ctx: AccessContext, orderId: string,
 
 // ───────────────────────────── sales orders ─────────────────────────────
 
-async function emitConfirmed(ctx: AccessContext, type: "salesOrder" | "invoice", doc: DocDetail) {
+async function emitConfirmed(ctx: AccessContext, type: "salesOrder" | "invoice", doc: DocDetail, name: "document.confirmed" | "document.voided" | "document.credited" = "document.confirmed", extra: { reason?: string; creditNote?: { number: string; amount: number } } = {}) {
   const brand = await scopedDb(ctx).brand.findUniqueOrThrow({ where: { id: doc.brandId }, select: { code: true, erpCompanyCode: true } });
-  await emitEvent("document.confirmed", {
+  await emitEvent(name, {
+    ...extra,
     documentType: type,
     documentId: doc.id,
     number: doc.number,
@@ -405,16 +407,55 @@ export async function cancelOrder(ctx: AccessContext, id: string) {
 
 // ───────────────────────────── invoices & payments ─────────────────────────────
 
+/**
+ * Who may issue, void and credit invoices (prompt 26 §7): Brand Managers / managers with invoice approval, brand
+ * accountants (inventory finance approval) and administrators – on invoices they can see.
+ */
+export const canIssueInvoices = (ctx: AccessContext) => !!ctx.isAdmin || hasPermission(ctx, "invoices", "approve") || hasPermission(ctx, "inventoryFinance", "approve");
+function assertIssuer(ctx: AccessContext) {
+  if (!canIssueInvoices(ctx)) throw new ForbiddenError("Only the Brand Manager, the brand accountant or an administrator can issue, void or credit invoices");
+}
+/** A sales executive may send the invoice for approval; issuing itself needs canIssueInvoices. */
+function assertIssuerOrRequest(ctx: AccessContext, doc: DocDetail) {
+  if (canIssueInvoices(ctx)) return;
+  assertCan(ctx, "invoices", "edit", doc);
+}
+
+/** Does the invoice need a discount approval before it is issued? (a line above its price-book maximum, or above the brand threshold) */
+async function invoiceNeedsApproval(ctx: AccessContext, doc: DocDetail) {
+  const brand = await scopedDb(ctx).brand.findUniqueOrThrow({ where: { id: doc.brandId }, select: { discountApprovalPct: true } });
+  const gross = doc.lines.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+  const pct = gross > 0 ? (doc.discountTotal / gross) * 100 : 0;
+  return doc.lines.some((l) => l.needsApproval) || pct > Number(brand.discountApprovalPct ?? 100) + 1e-9;
+}
+
+/**
+ * Issue (prompt 26 §6): Created → (Pending Approval → Approved) → Issued. A discount above the brand threshold goes to
+ * the Brand Manager first – unless a manager issues it. Every vehicle unit needs its VIN.
+ */
 export async function issueInvoice(ctx: AccessContext, id: string) {
-  const doc = await load(ctx, "invoice", id);
-  if (doc.status !== "DRAFT") throw new BadRequestError("Only draft invoices can be issued");
+  const doc = await load(ctx, "invoice", id, "approve");
+  assertIssuerOrRequest(ctx, doc);
+  if (!["DRAFT", "APPROVED"].includes(doc.status)) throw new BadRequestError("Only created or approved invoices can be issued");
   if (doc.lines.length === 0) throw new BadRequestError("Add at least one line before issuing");
+  // vehicles allocated on the source sales order carry their VINs there (the sale issue takes those units)
+  const allocated = doc.sourceDocumentId ? await scopedDb(ctx).vehicleUnit.count({ where: { salesOrderId: doc.sourceDocumentId, status: { in: ["ALLOCATED", "DELIVERED", "INVOICED"] } } }) : 0;
+  const missing = doc.lines.filter((l) => l.isStockItem && (l.vins?.length ?? (l.vin ? 1 : 0)) < Math.ceil(l.qty));
+  const noVin = missing.reduce((s, l) => s + Math.ceil(l.qty) - (l.vins?.length ?? (l.vin ? 1 : 0)), 0) > allocated ? missing : [];
+  if (noVin.length) throw new BadRequestError(`Every vehicle needs its VIN before the invoice is issued: ${noVin.map((l) => l.description).join(", ")}`);
+  if (doc.status === "DRAFT" && (await invoiceNeedsApproval(ctx, doc)) && !(ctx.isAdmin || managedBrands(ctx).includes(doc.brandId))) {
+    await setStatus(ctx, "invoice", id, "PENDING_APPROVAL");
+    const brand = await scopedDb(ctx).brand.findUniqueOrThrow({ where: { id: doc.brandId }, select: { brandManagerId: true } });
+    if (brand.brandManagerId && brand.brandManagerId !== ctx.userId) await notify(ctx, [brand.brandManagerId], { kind: "APPROVAL", title: `Invoice ${doc.number} needs your approval`, body: `Discount ${doc.currency} ${doc.discountTotal.toLocaleString("en-NG")}`, href: `/invoices/${id}` });
+    return { status: "PENDING_APPROVAL" as const };
+  }
+  assertIssuer(ctx);
   const rules = await rulesOf(ctx, doc.brandId);
   if (rules.requireStockLinkForVehicleInvoice) {
     const unlinked = await nonStockLines(ctx, doc);
     if (unlinked.length) throw new ForbiddenError(`This brand needs every vehicle line linked to a stock unit before an invoice is issued: ${unlinked.map((l) => l.vin ?? l.description).join(", ")}`);
   }
-  await setStatus(ctx, "invoice", id, "ISSUED", { issueDate: new Date() });
+  await setStatus(ctx, "invoice", id, "ISSUED", { issueDate: new Date(), issuedAt: new Date(), issuedById: ctx.userId || null });
   if (doc.sourceDocumentId) {
     // Sale issue: the order's allocated units leave stock at their own landed cost (Dr COGS / Cr Inventory).
     const out = await posting.issueForInvoice(id, doc.sourceDocumentId, doc.brandId, doc.number, { userId: ctx.userId || null });
@@ -422,12 +463,30 @@ export async function issueInvoice(ctx: AccessContext, id: string) {
     for (const j of out.journalIds) await dispatchEvent("journal.posted", j, doc.brandId);
   }
   await emitConfirmed(ctx, "invoice", doc);
+  return { status: "ISSUED" as const };
 }
 
-export async function voidInvoice(ctx: AccessContext, id: string) {
-  const doc = await load(ctx, "invoice", id);
-  if (!["DRAFT", "ISSUED"].includes(doc.status) || (doc.amountPaid ?? 0) > 0) throw new BadRequestError("An invoice with payments cannot be voided");
-  await setStatus(ctx, "invoice", id, "VOID");
+/** Pending Approval → Approved (or back to Created): the Brand Manager of the brand, or an administrator. */
+export async function decideInvoice(ctx: AccessContext, id: string, approve: boolean, note?: string) {
+  const doc = await load(ctx, "invoice", id, "approve");
+  if (doc.status !== "PENDING_APPROVAL") throw new BadRequestError("The invoice is not waiting for approval");
+  if (!ctx.isAdmin && !managedBrands(ctx).includes(doc.brandId) && !hasPermission(ctx, "invoices", "approve")) throw new ForbiddenError("Only the Brand Manager or an administrator approves invoices");
+  await setStatus(ctx, "invoice", id, approve ? "APPROVED" : "DRAFT");
+  await audit({ ctx, action: "UPDATE", entity: "Invoice", entityId: id, brandId: doc.brandId, before: { status: doc.status }, after: { status: approve ? "APPROVED" : "DRAFT", note: note ?? null } });
+  if (doc.ownerId !== ctx.userId) await notify(ctx, [doc.ownerId], { kind: "APPROVAL", title: `Invoice ${doc.number} ${approve ? "approved" : "sent back"}`, body: note || null, href: `/invoices/${id}` });
+  return { status: approve ? "APPROVED" : "DRAFT" };
+}
+
+/** Void with a reason (prompt 26): never deleted; no payments or credit notes; the ERP is told to reverse it. */
+export async function voidInvoice(ctx: AccessContext, id: string, reason?: string) {
+  const doc = await load(ctx, "invoice", id, "approve");
+  assertIssuer(ctx);
+  const why = (reason ?? "").trim();
+  if (why.length < 3) throw new BadRequestError("Give the reason for voiding the invoice");
+  if (doc.status === "VOID") throw new BadRequestError("The invoice is void already");
+  if ((doc.amountPaid ?? 0) > 0 || (doc.invoice?.creditedAmount ?? 0) > 0 || doc.status === "PAID" || doc.status === "PART_PAID") throw new BadRequestError("An invoice with payments or credit notes cannot be voided");
+  await setStatus(ctx, "invoice", id, "VOID", { voidReason: why.slice(0, 500) });
+  if ((ISSUED_INVOICE as readonly string[]).includes(doc.status)) await emitConfirmed(ctx, "invoice", doc, "document.voided", { reason: why });
   // partial invoicing: the order's lines can be invoiced again
   const db = scopedDb(ctx);
   for (const l of doc.lines) {
@@ -438,17 +497,56 @@ export async function voidInvoice(ctx: AccessContext, id: string) {
 
 /** Records a receipt (deposit / balance) and moves the invoice to Part-paid or Paid. */
 export async function addPayment(ctx: AccessContext, invoiceId: string, input: unknown) {
-  const doc = await load(ctx, "invoice", invoiceId);
-  if (!["ISSUED", "PART_PAID"].includes(doc.status)) throw new BadRequestError("Payments can be recorded on issued invoices only");
+  const doc = await load(ctx, "invoice", invoiceId, canIssueInvoices(ctx) ? "approve" : "edit");
+  if (!(PAYABLE_INVOICE as readonly string[]).includes(doc.status)) throw new BadRequestError("Payments can be recorded on issued invoices only");
   const data = paymentSchema.parse(input);
-  const balance = doc.total - (doc.amountPaid ?? 0);
+  const credited = doc.invoice?.creditedAmount ?? 0;
+  const balance = doc.total - (doc.amountPaid ?? 0) - credited;
   if (data.amount > balance + 0.005) throw new BadRequestError(`The payment exceeds the outstanding balance of ${balance.toFixed(2)}`);
   const db = scopedDb(ctx);
   const payment = await db.payment.create({ data: { invoiceId, ...data, receivedById: ctx.userId || null } });
   await audit({ ctx, action: "CREATE", entity: "Payment", entityId: payment.id, brandId: doc.brandId, after: payment });
   const paid = (doc.amountPaid ?? 0) + data.amount;
-  await setStatus(ctx, "invoice", invoiceId, paymentStatus(doc.total, paid), { amountPaid: paid });
-  return { id: payment.id, status: paymentStatus(doc.total, paid) };
+  const status = settledStatus(doc, paid, credited);
+  await setStatus(ctx, "invoice", invoiceId, status, { amountPaid: paid });
+  return { id: payment.id, status };
+}
+
+/** Status after a payment or credit: Paid when settled, else Partially Paid – Overdue while past due. */
+function settledStatus(doc: DocDetail, paid: number, credited: number) {
+  const s = paymentStatus(doc.total - credited, paid);
+  if (s !== "PAID" && doc.date && doc.date < new Date().toISOString().slice(0, 10)) return "OVERDUE";
+  return s === "ISSUED" ? (doc.status === "SENT" ? "SENT" : "ISSUED") : s;
+}
+
+/**
+ * Credit note (prompt 26): the only correction of an issued invoice – an amount and a reason. Lowers the balance;
+ * the ERP gets a document.credited event.
+ */
+export async function createCreditNote(ctx: AccessContext, invoiceId: string, input: { amount: unknown; reason: unknown }) {
+  const doc = await load(ctx, "invoice", invoiceId, "approve");
+  assertIssuer(ctx);
+  if (!([...PAYABLE_INVOICE, "PAID"] as readonly string[]).includes(doc.status)) throw new BadRequestError("Credit notes are for issued invoices");
+  const amount = Math.round(Number(input.amount) * 100) / 100;
+  const reason = String(input.reason ?? "").trim();
+  if (!(amount > 0)) throw new BadRequestError("Enter the amount of the credit note");
+  if (reason.length < 3) throw new BadRequestError("Give the reason for the credit note");
+  const credited = doc.invoice?.creditedAmount ?? 0;
+  if (amount > doc.total - credited + 0.005) throw new BadRequestError(`At most ${(doc.total - credited).toFixed(2)} can still be credited`);
+  const db = scopedDb(ctx);
+  const note = await db.creditNote.create({ data: { invoiceId, brandId: doc.brandId, amount, reason: reason.slice(0, 500), createdById: ctx.userId || null }, select: { id: true, number: true } });
+  const total = credited + amount;
+  const status = doc.status === "PAID" ? "PAID" : settledStatus(doc, doc.amountPaid ?? 0, total);
+  await setStatus(ctx, "invoice", invoiceId, status, { creditedAmount: total });
+  await audit({ ctx, action: "CREATE", entity: "CreditNote", entityId: note.id, brandId: doc.brandId, after: { invoice: doc.number, number: note.number, amount, reason } });
+  await emitConfirmed(ctx, "invoice", doc, "document.credited", { creditNote: { number: note.number, amount } });
+  return note;
+}
+
+/** Nightly (cron tick): issued invoices past their due date with a balance become Overdue. */
+export async function markOverdueInvoices(now = new Date()) {
+  const { markOverdue } = await import("@/server/db/document-rules-store");
+  return markOverdue(new Date(now.toISOString().slice(0, 10)));
 }
 
 // ───────────────────────────── standalone documents and links (prompt 23) ─────────────────────────────
@@ -691,7 +789,7 @@ export async function createDealFromQuote(ctx: AccessContext, quoteId: string) {
 /** Dependency rules: how many OPEN documents of a brand would break a rule if it were switched on now. */
 export async function ruleViolations(ctx: AccessContext, brandId: string): Promise<Record<string, number>> {
   const db = scopedDb(ctx);
-  const open: Record<"quote" | "salesOrder" | "invoice", any> = { quote: { status: { in: ["DRAFT", "PENDING_APPROVAL", "APPROVED", "SENT"] } }, salesOrder: { status: { in: ["DRAFT", "CONFIRMED", "ALLOCATED"] } }, invoice: { status: { in: ["DRAFT", "ISSUED", "PART_PAID"] } } };
+  const open: Record<"quote" | "salesOrder" | "invoice", any> = { quote: { status: { in: ["DRAFT", "PENDING_APPROVAL", "APPROVED", "SENT"] } }, salesOrder: { status: { in: ["DRAFT", "CONFIRMED", "ALLOCATED"] } }, invoice: { status: { in: ["DRAFT", "PENDING_APPROVAL", "APPROVED", "ISSUED", "SENT", "PART_PAID", "OVERDUE"] } } };
   const count = async (where: Record<string, unknown>) => {
     let n = 0;
     for (const t of ["quote", "salesOrder", "invoice"] as const) n += await (db as any)[t].count({ where: { brandId, deletedAt: null, ...open[t], ...where } });

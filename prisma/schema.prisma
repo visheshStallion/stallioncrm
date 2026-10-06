@@ -523,6 +523,8 @@ model Account {
   type             AccountType @default(INDIVIDUAL)
   /// CAC registration number (corporate) – sensitive tier
   rcNumber         String?
+  /// Tax Identification Number (FIRS), pre-filled on invoices
+  taxId            String?
   industry         String?
   city             String?
   state            String?
@@ -904,11 +906,16 @@ enum OrderStatus {
   CANCELLED
 }
 
+/// DRAFT is shown as "Created" (prompt 26)
 enum InvoiceStatus {
   DRAFT
+  PENDING_APPROVAL
+  APPROVED
   ISSUED
+  SENT
   PART_PAID
   PAID
+  OVERDUE
   VOID
 }
 
@@ -1063,6 +1070,26 @@ model Invoice {
   status              InvoiceStatus @default(DRAFT)
   dueDate             DateTime?     @db.Date
   amountPaid          Decimal       @default(0) @db.Decimal(14, 2)
+  // ── Create Invoice page (prompt 26) ──
+  subject             String?
+  /// the customer's own PO reference (printed on the invoice)
+  customerPoRef       String?
+  /// customer Tax Identification Number (from the account, editable)
+  tinNumber           String?
+  phone               String?
+  /// NGN per unit of the invoice currency
+  exchangeRate        Decimal       @default(1) @db.Decimal(14, 6)
+  exciseDuty          Decimal       @default(0) @db.Decimal(14, 2)
+  /// delivery, registration, plate number, documentation … (a separate "Other Charges" line)
+  otherCharges        Decimal       @default(0) @db.Decimal(14, 2)
+  salesCommission     Decimal       @default(0) @db.Decimal(14, 2)
+  /// sum of the credit notes
+  creditedAmount      Decimal       @default(0) @db.Decimal(14, 2)
+  issuedAt            DateTime?
+  issuedById          String?
+  voidReason          String?
+  /// the custom form view the invoice was created with (Brand.documentRules.invoiceFormViews)
+  formViewId          String?
 
   // ── brand-owned base mixin (brand and region are inherited from the deal) ──
   brandId     String
@@ -1078,12 +1105,29 @@ model Invoice {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  lines    DocumentLine[]
-  payments Payment[]
+  lines       DocumentLine[]
+  payments    Payment[]
+  creditNotes CreditNote[]
 
   @@index([dealId])
   @@index([brandId, regionId])
   @@index([ownerId])
+}
+
+/// Correction of an issued invoice (prompt 26): an amount and a reason; numbered {docPrefix}-CN-{YYYY}-{00001}.
+/// RLS: visible when its invoice is.
+model CreditNote {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  brandId     String
+  number      String   @unique @default("")
+  amount      Decimal  @db.Decimal(14, 2)
+  reason      String
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([invoiceId])
 }
 
 /// Line of exactly one document. RLS: visible when its document is.

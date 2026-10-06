@@ -165,7 +165,7 @@ describe("link later", () => {
 
   it("an issued invoice can be linked to a deal, but its lines and amounts stay the same; no circular links", async () => {
     const inv = await docs.createDocument(hmnlExec, "invoice", minimal());
-    await docs.issueInvoice(hmnlExec, inv.id);
+    await docs.issueInvoice(bmHmnl, inv.id);
     const before = await getDocument(hmnlExec, "invoice", inv.id);
     const deal = await unsafeDb.deal.findFirstOrThrow({ where: { brandId: id.brand("HMNL"), regionId: lagos(), deletedAt: null }, select: { id: true } });
     const after = await docs.linkDocument(hmnlExec, "invoice", inv.id, { dealId: deal.id });
@@ -226,7 +226,7 @@ describe("conversion and brand rules", () => {
     const make = () => docs.createDocument(hmnlExec, "invoice", { billTo: { name: "Vehicle buyer" }, lines: [{ description: "Used SUV", qty: 1, unitPrice: 15_000_000, vin, isStockItem: true }] });
     const inv = await make();
     const movements = await unsafeDb.stockMovement.count();
-    await docs.issueInvoice(hmnlExec, inv.id);
+    await docs.issueInvoice(bmHmnl, inv.id);
     expect(await unsafeDb.stockMovement.count()).toBe(movements);
     expect(await docs.nonStockLines(hmnlExec, await getDocument(hmnlExec, "invoice", inv.id))).toHaveLength(1);
     const report = await runSavedReport(admin, "non-stock-vehicle-lines");
@@ -236,11 +236,11 @@ describe("conversion and brand rules", () => {
     await setRules("HMNL", { requireStockLinkForVehicleInvoice: true });
     try {
       const blocked = await make();
-      await expect(docs.issueInvoice(hmnlExec, blocked.id)).rejects.toThrow(/linked to a stock unit/);
+      await expect(docs.issueInvoice(bmHmnl, blocked.id)).rejects.toThrow(/linked to a stock unit/);
       // a VIN that is a stock unit of the brand is linked
       const unit = await unsafeDb.vehicleUnit.findFirstOrThrow({ where: { brandId: id.brand("HMNL") }, select: { vin: true } });
       const ok = await docs.createDocument(hmnlExec, "invoice", { billTo: { name: "Stock buyer" }, lines: [{ description: "SUV from stock", qty: 1, unitPrice: 15_000_000, vin: unit.vin, isStockItem: true }] });
-      await docs.issueInvoice(hmnlExec, ok.id);
+      await docs.issueInvoice(bmHmnl, ok.id);
     } finally {
       await setRules("HMNL", {});
     }

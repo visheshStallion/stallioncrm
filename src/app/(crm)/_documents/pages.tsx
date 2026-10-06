@@ -43,6 +43,7 @@ const TONES: Record<string, Tone> = {
   CANCELLED: "danger",
   ISSUED: "primary",
   PART_PAID: "warning",
+  OVERDUE: "danger",
   PAID: "success",
   VOID: "danger",
 };
@@ -176,8 +177,9 @@ function buttonsFor(type: DocType, status: string, canEdit: boolean, canCreateNe
     ];
   }
   return [
-    ...(status === "DRAFT" ? [{ op: "issue", label: "Issue", variant: "default" as const }] : []),
-    ...(["DRAFT", "ISSUED"].includes(status) ? [{ op: "void", label: "Void", confirm: "Void this invoice?" }] : []),
+    ...(["DRAFT", "APPROVED"].includes(status) ? [{ op: "issue", label: "Issue", variant: "default" as const }] : []),
+    ...(status === "PENDING_APPROVAL" ? [{ op: "approve", label: "Approve", variant: "default" as const }, { op: "sendBack", label: "Send back", ask: "Why is the invoice sent back?" }] : []),
+    ...(["DRAFT", "PENDING_APPROVAL", "APPROVED", "ISSUED", "SENT", "OVERDUE"].includes(status) ? [{ op: "void", label: "Void", ask: "Why is this invoice voided? (required – it is recorded)" }] : []),
   ];
 }
 
@@ -325,8 +327,8 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
                 ))}
                 {doc.payments.length === 0 ? <li className="py-1 text-text-muted">No payments recorded.</li> : null}
               </ul>
-              {canEdit && ["ISSUED", "PART_PAID"].includes(doc.status) ? <PaymentForm invoiceId={doc.id} balance={Math.round(balance * 100) / 100} /> : null}
-              <PaymentLinks ctx={ctx} invoiceId={doc.id} brandId={doc.brandId} canCreate={canEdit && ["ISSUED", "PART_PAID"].includes(doc.status)} balance={Math.round(balance * 100) / 100} />
+              {canEdit && ["ISSUED", "SENT", "PART_PAID", "OVERDUE"].includes(doc.status) ? <PaymentForm invoiceId={doc.id} balance={Math.round(balance * 100) / 100} /> : null}
+              <PaymentLinks ctx={ctx} invoiceId={doc.id} brandId={doc.brandId} canCreate={canEdit && ["ISSUED", "SENT", "PART_PAID", "OVERDUE"].includes(doc.status)} balance={Math.round(balance * 100) / 100} />
             </div>
           </RelatedListCard>
         ) : null}

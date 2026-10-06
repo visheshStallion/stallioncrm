@@ -35,6 +35,7 @@
     "InventorySettings_brandId_fkey",
     "PushSubscription_userId_fkey",
     "VendorContact_brandId_fkey",
-    "VendorContact_vendorId_fkey"
+    "VendorContact_vendorId_fkey",
+    "CreditNote_brandId_fkey"
   ]
 }

@@ -33,6 +33,8 @@ export interface DocButton {
   confirm?: string;
   /** "convert" calls the conversion action instead of a status transition */
   kind?: "transition" | "convert";
+  /** asks for a note first (void reason, approval note); empty → nothing happens */
+  ask?: string;
 }
 
 /** Status buttons for a document (which ones are offered is decided on the server from status + permissions). */
@@ -45,7 +47,11 @@ export function DocButtons({ type, id, buttons }: { type: string; id: string; bu
           key={b.op}
           variant={b.variant ?? "outline"}
           disabled={pending}
-          onClick={() => run(() => (b.kind === "convert" ? convertAction(type, id) : transitionAction(type, id, b.op)) as Promise<Result>, b.confirm)}
+          onClick={() => {
+            const note = b.ask ? window.prompt(b.ask)?.trim() : undefined;
+            if (b.ask && !note) return;
+            run(() => (b.kind === "convert" ? convertAction(type, id) : transitionAction(type, id, b.op, note)) as Promise<Result>, b.confirm);
+          }}
         >
           {b.label}
         </Button>

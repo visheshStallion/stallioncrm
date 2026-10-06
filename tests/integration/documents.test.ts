@@ -210,7 +210,7 @@ describe("quote → sales order → invoice", () => {
     const invoice = await getDocument(exec, "invoice", inv.id);
     expect(invoice.number).toMatch(new RegExp(`^HMNL-INV-${year}-\\d{5}$`));
     await expect(svc.addPayment(exec, inv.id, { amount: 1000, method: "CASH" })).rejects.toThrow(/issued invoices/);
-    await svc.issueInvoice(exec, inv.id);
+    await svc.issueInvoice(bm, inv.id);
     expect((await unsafeDb.domainEvent.findFirstOrThrow({ orderBy: { createdAt: "desc" } })).payload).toMatchObject({ documentType: "invoice", number: invoice.number });
     expect((await svc.addPayment(exec, inv.id, { amount: 5_000_000, method: "TRANSFER", reference: "DEP-1" })).status).toBe("PART_PAID");
     await expect(svc.addPayment(exec, inv.id, { amount: invoice.total, method: "TRANSFER" })).rejects.toThrow(/exceeds/);
@@ -218,7 +218,7 @@ describe("quote → sales order → invoice", () => {
     const paid = await getDocument(exec, "invoice", inv.id);
     expect(paid).toMatchObject({ status: "PAID", amountPaid: invoice.total });
     expect(paid.payments).toHaveLength(2);
-    await expect(svc.voidInvoice(exec, inv.id)).rejects.toThrow();
+    await expect(svc.voidInvoice(bm, inv.id, "Paid invoices cannot be voided")).rejects.toThrow();
   });
 
   it("management can read documents but not create or change them", async () => {

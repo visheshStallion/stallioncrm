@@ -45,6 +45,10 @@ export const generatedCount = (templateId: string) => unsafeDb.generatedDocument
 
 /** Marks a sales order or invoice as sent to the customer (system write: the caller has sent it with the user's access). */
 export async function markDocumentSent(module: string, id: string): Promise<void> {
-  if (module === "invoices") await unsafeDb.invoice.updateMany({ where: { id }, data: { sentAt: new Date() } });
+  if (module === "invoices") {
+    await unsafeDb.invoice.updateMany({ where: { id }, data: { sentAt: new Date() } });
+    // prompt 26: an issued invoice e-mailed to the customer is Sent
+    await unsafeDb.invoice.updateMany({ where: { id, status: "ISSUED" }, data: { status: "SENT" } });
+  }
   if (module === "salesOrders") await unsafeDb.salesOrder.updateMany({ where: { id }, data: { sentAt: new Date() } });
 }

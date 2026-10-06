@@ -239,7 +239,7 @@ describe("PDI, reservation and sale", () => {
     expect(await unit(id)).toMatchObject({ status: "ALLOCATED", salesOrderId: order.id });
 
     const invoice = await docs.convertOrderToInvoice(exec, order.id);
-    await docs.issueInvoice(exec, invoice.id);
+    await docs.issueInvoice(bm, invoice.id);
     expect(await unit(id)).toMatchObject({ status: "INVOICED", invoiceId: invoice.id });
     const issue = await unsafeDb.stockMovement.findFirstOrThrow({ where: { vehicleUnitId: id, movementType: "SALE_ISSUE" } });
     expect([n(issue.qtyOut), n(issue.totalCost)]).toEqual([1, n(u0.purchaseCost) + n(u0.landedCost)]);

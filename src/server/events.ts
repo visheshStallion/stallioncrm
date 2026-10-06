@@ -18,9 +18,13 @@ export interface DocumentConfirmedEvent {
   dealId: string | null;
   currency: string;
   total: number;
+  /** document.voided: why; document.credited: the credit note */
+  reason?: string;
+  creditNote?: { number: string; amount: number };
 }
 
-export async function emitEvent(name: "document.confirmed", payload: DocumentConfirmedEvent): Promise<void> {
+/** document.confirmed (issued) · document.voided (reverse in the ERP) · document.credited (credit note) */
+export async function emitEvent(name: "document.confirmed" | "document.voided" | "document.credited", payload: DocumentConfirmedEvent): Promise<void> {
   try {
     await storeDomainEvent(name, payload.brandId, payload);
   } catch (err) {

@@ -79,6 +79,12 @@ async function principal(name: string, brands: string[], profileName: string = P
   return tokens.createPrincipal(admin, { name, roleId: role.id, profileId: profile.id, brandIds: brands.map((b) => I.brand(b)) });
 }
 
+/** VINs on the vehicle lines of an invoice (one per unit) – an invoice is issued only with them. */
+async function giveVins(invoiceId: string) {
+  const lines = await unsafeDb.documentLine.findMany({ where: { invoiceId, isStockItem: true }, select: { id: true, qty: true } });
+  for (const l of lines) await unsafeDb.documentLine.update({ where: { id: l.id }, data: { vins: Array.from({ length: Math.ceil(Number(l.qty)) }, (_, i) => `TESTERPVIN${l.id.slice(-5)}${i}`) } });
+}
+
 describe("API tokens", () => {
   it("a personal token of an HMNL exec returns exactly the rows the UI shows", async () => {
     await newDeal(exec);
@@ -282,7 +288,8 @@ describe("ERP and payments", () => {
 
     // invoice → ERP → payment comes back
     const invoice = await docs.convertOrderToInvoice(exec, hmnlOrder);
-    await docs.issueInvoice(exec, invoice.id);
+    await giveVins(invoice.id); // prompt 26: every vehicle unit needs its VIN before issue
+    await docs.issueInvoice(bm, invoice.id);
     await drain();
     const invRef = await unsafeDb.externalRef.findFirstOrThrow({ where: { entity: "Invoice", entityId: invoice.id } });
     expect(received.at(-1)!.path).toBe("/bc/companies(ERP-HMNL)/salesInvoices");
@@ -311,7 +318,8 @@ describe("ERP and payments", () => {
     delete process.env.ERP_ADAPTER_HMNL;
     const orderId = await confirmedOrder(exec, "HMNL");
     const invoice = await docs.convertOrderToInvoice(exec, orderId);
-    await docs.issueInvoice(exec, invoice.id);
+    await giveVins(invoice.id); // prompt 26: every vehicle unit needs its VIN before issue
+    await docs.issueInvoice(bm, invoice.id);
     await expect(createPaymentLink(exec, invoice.id, { email: "buyer@example.test" })).rejects.toThrow(/not configured/); // feature flag off
     process.env.PAYSTACK_SECRET_KEY_HMNL = "sk_test_hmnl";
     process.env.PAYSTACK_SECRET_KEY_SNMNL = "sk_test_snmnl";

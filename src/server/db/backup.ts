@@ -11,7 +11,7 @@ import { unsafeDb } from "./unsafe";
 const TABLES = [
   "Brand", "BrandCodeAlias", "Region", "Territory", "TerritoryMember", "Role", "Profile", "User",
   "Account", "Contact", "ContactBrandConsent", "CustomerBrandLink", "Lead", "Deal", "DealStageHistory", "Pipeline", "PipelineStage",
-  "Product", "PriceBook", "PriceBookEntry", "Warehouse", "Vendor", "VendorContact", "VehicleUnit", "StockMovement", "InventoryDocument", "InventoryDocumentLine", "JournalEntry", "JournalLine", "Quote", "SalesOrder", "Invoice", "DocumentLine", "Payment",
+  "Product", "PriceBook", "PriceBookEntry", "Warehouse", "Vendor", "VendorContact", "VehicleUnit", "StockMovement", "InventoryDocument", "InventoryDocumentLine", "JournalEntry", "JournalLine", "Quote", "SalesOrder", "Invoice", "DocumentLine", "Payment", "CreditNote",
   "Activity", "TestDrive", "Note", "Case", "SlaPolicy", "Solution", "Campaign", "CampaignMember", "Template", "Message",
   "ApprovalRequest", "Target", "Report", "CustomField", "Layout",
 ];
