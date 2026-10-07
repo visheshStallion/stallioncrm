@@ -473,3 +473,14 @@ export async function getJournal(ctx: AccessContext, id: string) {
   if (!j) throw new NotFoundError();
   return { id: j.id, brandId: j.brandId, number: j.number, date: j.date.toISOString().slice(0, 10), memo: j.memo, sourceDocType: j.sourceDocType, sourceDocId: j.sourceDocId, lines: j.lines.map((l) => ({ account: l.account, debit: num(l.debit), credit: num(l.credit), memo: l.memo })) };
 }
+
+/** One vendor for the Vendors module (bank details and tax id only for inventory finance). */
+export async function getVendor(ctx: AccessContext, id: string) {
+  assertCan(ctx, "inventory", "read");
+  if (isSalesView(ctx)) throw new NotFoundError();
+  const v = await scopedDb(ctx).vendor.findUnique({ where: { id }, omit: { imageData: true } });
+  if (!v) throw new NotFoundError();
+  const owner = v.ownerId ? await scopedDb(ctx).user.findUnique({ where: { id: v.ownerId }, select: { name: true } }) : null;
+  const hasImage = !!(await scopedDb(ctx).vendor.count({ where: { id, imageData: { not: null } } }));
+  return { ...v, ownerName: owner?.name ?? null, hasImage, ...(canSeeCost(ctx) ? {} : { bankDetails: null, taxId: null }) };
+}

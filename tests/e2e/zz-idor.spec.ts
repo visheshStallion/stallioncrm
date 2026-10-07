@@ -38,6 +38,7 @@ const SOURCES: Record<string, string> = {
   products: "/api/v1/products?limit=200",
   quotes: "/api/v1/quotes?limit=200",
   salesOrders: "/api/v1/salesOrders?limit=200",
+  vendors: "/api/v1/inventory/vendors",
 };
 /** Inventory: the generic `[resource]/[id]` route is scanned once per resource. */
 const INVENTORY = ["vehicle-units", "shipments", "landed-costs", "journals"];

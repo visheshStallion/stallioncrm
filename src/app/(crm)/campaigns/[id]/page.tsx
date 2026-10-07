@@ -19,6 +19,8 @@ import { getPreferences } from "@/server/modules/preferences/queries";
 import { listReports } from "@/server/modules/reports/service";
 import { requireContext } from "@/server/request";
 import { CampaignFields } from "../CampaignFields";
+import { productFormLookups } from "@/server/modules/catalogue/queries";
+import { getSetting } from "@/server/modules/setup/service";
 
 const TONE: Record<string, Tone> = { DRAFT: "neutral", SENDING: "warning", SENT: "success", CANCELLED: "danger" };
 const MEMBER_TONE: Partial<Record<MemberStatus, Tone>> = { SENT: "primary", DELIVERED: "info", OPENED: "success", CLICKED: "success", RESPONDED: "success", UNSUBSCRIBED: "warning", FAILED: "danger", SUPPRESSED: "neutral" };
@@ -86,6 +88,28 @@ export default async function CampaignPage({ params, searchParams }: { params: P
       />
       {draft && !canSend ? <p className="mb-3 rounded-md border border-border bg-muted px-3 py-2 text-[13px]">Launching a campaign needs the mass email permission (Brand Manager and above).</p> : null}
 
+      <dl className="mb-4 grid gap-x-6 gap-y-1 rounded-lg border border-border bg-surface p-4 text-[13px] sm:grid-cols-2 lg:grid-cols-4" data-testid="campaign-info">
+        {(
+          [
+            ["Status", campaign.planStatus],
+            ["Start Date", d(campaign.startDate)],
+            ["End Date", d(campaign.endDate)],
+            ["Currency", campaign.currency === "NGN" ? "NGN" : `${campaign.currency} · ₦ ${Number(campaign.exchangeRate)}`],
+            ["Expected Revenue", campaign.expectedRevenue === null ? null : formatMoney(Number(campaign.expectedRevenue))],
+            ["Budgeted Cost", campaign.budget === null ? null : formatMoney(Number(campaign.budget))],
+            ["Actual Cost", campaign.actualCost === null ? null : formatMoney(Number(campaign.actualCost))],
+            ["Expected Response", campaign.expectedResponse],
+            ["Numbers sent", campaign.numbersSent],
+            ["Description", campaign.description],
+          ] as Array<[string, string | number | null]>
+        ).map(([label, value]) => (
+          <div key={label} className={label === "Description" ? "sm:col-span-2 lg:col-span-4" : undefined}>
+            <dt className="text-xs text-text-muted">{label}</dt>
+            <dd data-field={label} className="whitespace-pre-wrap">{value ?? "—"}</dd>
+          </div>
+        ))}
+      </dl>
+
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5" data-testid="campaign-stats">
         {[
           ["Audience", stats.total, `${n("PENDING")} pending · ${n("SUPPRESSED")} suppressed`],
@@ -106,7 +130,9 @@ export default async function CampaignPage({ params, searchParams }: { params: P
         <ActionForm action={saveCampaignAction} className="mb-4 space-y-3">
           <input type="hidden" name="id" value={id} />
           <CampaignFields
-            values={{ id, brandId: campaign.brandId, name: campaign.name, type: campaign.type, channel: campaign.channel, budget: campaign.budget === null ? null : Number(campaign.budget), startDate: d(campaign.startDate), endDate: d(campaign.endDate), templateId: campaign.templateId, audienceKind: audience.kind, reportId: audience.reportId }}
+            values={{ id, brandId: campaign.brandId, name: campaign.name, type: campaign.type, channel: campaign.channel, budget: campaign.budget === null ? null : Number(campaign.budget), startDate: d(campaign.startDate), endDate: d(campaign.endDate), templateId: campaign.templateId, audienceKind: audience.kind, reportId: audience.reportId, ownerId: campaign.ownerId, planStatus: campaign.planStatus, expectedRevenue: campaign.expectedRevenue === null ? null : Number(campaign.expectedRevenue), actualCost: campaign.actualCost === null ? null : Number(campaign.actualCost), expectedResponse: campaign.expectedResponse, numbersSent: campaign.numbersSent, currency: campaign.currency, description: campaign.description }}
+            owners={(await productFormLookups(ctx, [campaign.brandId])).owners}
+            rates={{ NGN: 1, ...(((await getSetting("currencies")) as { rates?: Record<string, number> }).rates ?? {}) }}
             brands={dir.brands.map((b) => ({ id: b.id, label: `${b.code} – ${b.name}` }))}
             templates={templates.map((t) => ({ id: t.id, label: `${t.name}${campaign.channel === "WHATSAPP" ? ` (${t.whatsappStatus.toLowerCase().replace("_", " ")})` : ""}` }))}
             reports={reports.filter((r) => !r.definition.special && (r.module === "leads" || r.module === "deals")).map((r) => ({ id: r.id, label: r.name }))}

@@ -61,7 +61,36 @@ export async function saveVendor(ctx: AccessContext, id: string | null, input: u
   const db = scopedDb(ctx);
   // bank details and tax id belong to the finance tier: others cannot set or overwrite them
   const finance = hasPermission(ctx, "inventoryFinance", "read");
-  const values = { type: data.type, name: data.name, contactName: data.contactName ?? null, email: data.email ?? null, phone: data.phone ?? null, currency: data.currency, paymentTerms: data.paymentTerms ?? null, address: data.address ?? null, active: data.active, ...(finance ? { taxId: data.taxId ?? null, bankDetails: data.bankDetails ?? null } : {}) };
+  const fromPage = !!(input as { page?: boolean }).page;
+  if (data.ownerId) {
+    const ok = await db.user.findFirst({ where: { id: data.ownerId, active: true, OR: [{ profile: { scope: "ALL" } }, { memberships: { some: { territory: { brandId: data.brandId } } } }] }, select: { id: true } });
+    if (!ok) throw new BadRequestError("The vendor owner has no access to this brand");
+  }
+  const values = {
+    type: data.type,
+    name: data.name,
+    contactName: data.contactName ?? null,
+    email: data.email ?? null,
+    phone: data.phone ?? null,
+    currency: data.currency,
+    paymentTerms: data.paymentTerms ?? null,
+    address: data.address ?? null,
+    active: data.active,
+    // the Create Vendor page fields – only from that page (the short form in Inventory settings leaves them alone)
+    ...(fromPage ? {
+    website: data.website ? (/^https?:\/\//i.test(data.website) ? data.website : `https://${data.website}`) : null,
+    glAccount: data.glAccount ?? null,
+    category: data.category ?? null,
+    emailOptOut: data.emailOptOut,
+    city: data.city ?? null,
+    state: data.state ?? null,
+    zipCode: data.zipCode ?? null,
+    country: data.country ?? null,
+    description: data.description ?? null,
+    ...(data.ownerId ? { ownerId: data.ownerId } : {}),
+    } : {}),
+    ...(finance ? { taxId: data.taxId ?? null, bankDetails: data.bankDetails ?? null } : {}),
+  };
   if (id) {
     const before = await db.vendor.findUnique({ where: { id } });
     if (!before) throw new NotFoundError();
@@ -71,7 +100,7 @@ export async function saveVendor(ctx: AccessContext, id: string | null, input: u
     return { id };
   }
   if (await db.vendor.findFirst({ where: { brandId: data.brandId, name: data.name }, select: { id: true } })) throw new BadRequestError("This vendor already exists for the brand");
-  const created = await db.vendor.create({ data: { brandId: data.brandId, ...values } });
+  const created = await db.vendor.create({ data: { brandId: data.brandId, ownerId: ctx.userId || null, ...values } });
   await audit({ ctx, action: "CREATE", entity: "Vendor", entityId: created.id, brandId: data.brandId, after: { name: created.name, type: created.type } });
   return { id: created.id };
 }

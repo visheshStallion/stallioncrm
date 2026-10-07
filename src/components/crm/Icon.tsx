@@ -1,4 +1,5 @@
 import {
+  Store,
   BarChart3,
   Bell,
   BookOpen,
@@ -43,6 +44,7 @@ const ICONS: Record<string, LucideIcon> = {
   "book-open": BookOpen,
   warehouse: Warehouse,
   "life-buoy": LifeBuoy,
+  store: Store,
   megaphone: Megaphone,
   "bar-chart": BarChart3,
   "layout-dashboard": LayoutDashboard,

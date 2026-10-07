@@ -87,7 +87,27 @@ export async function deleteTemplate(ctx: AccessContext, id: string) {
 
 // ───────────────────────────── campaigns ─────────────────────────────
 
-export const CAMPAIGN_TYPES = { LAUNCH: "Launch", PROMO: "Promotion", SERVICE_REMINDER: "Service reminder", EVENT: "Event" } as const;
+export const CAMPAIGN_TYPES = {
+  LAUNCH: "Launch",
+  PROMO: "Promotion",
+  SERVICE_REMINDER: "Service reminder",
+  EVENT: "Event",
+  ADVERTISEMENT: "Advertisement",
+  BANNER_ADS: "Banner Ads",
+  CONFERENCE: "Conference",
+  DIRECT_MAIL: "Direct mail",
+  EMAIL: "Email",
+  PARTNERS: "Partners",
+  PUBLIC_RELATIONS: "Public Relations",
+  REFERRAL_PROGRAM: "Referral Program",
+  TELEMARKETING: "Telemarketing",
+  TRADE_SHOW: "Trade Show",
+  WEBINAR: "Webinar",
+  OTHERS: "Others",
+} as const;
+/** Planning status of the Create Campaign page (the sending status stays separate). */
+export const PLAN_STATUSES = ["Planning", "Active", "Inactive", "Complete"] as const;
+export const CAMPAIGN_CURRENCIES = ["NGN", "USD", "EUR", "GBP", "JPY", "CNY"] as const;
 export const AUDIENCES = { ALL_LEADS: "Open leads of the brand", ALL_CUSTOMERS: "Customers of the brand (contacts on its deals)", REPORT: "Records of a saved report (leads or deals)" } as const;
 export const MEMBER_LABELS: Record<MemberStatus, string> = { PENDING: "Pending", SENT: "Sent", DELIVERED: "Delivered", OPENED: "Opened", CLICKED: "Clicked", RESPONDED: "Responded", UNSUBSCRIBED: "Unsubscribed", FAILED: "Failed", SUPPRESSED: "Suppressed" };
 
@@ -95,14 +115,39 @@ const date = z.preprocess((v) => (v === "" || v === null || v === undefined ? nu
 const campaignSchema = z.object({
   brandId: z.string().min(1, "Brand is required"),
   name: z.string().trim().min(1, "Name is required").max(120),
-  type: z.enum(["LAUNCH", "PROMO", "SERVICE_REMINDER", "EVENT"]).default("PROMO"),
+  type: z.enum(Object.keys(CAMPAIGN_TYPES) as [keyof typeof CAMPAIGN_TYPES, ...Array<keyof typeof CAMPAIGN_TYPES>]).default("PROMO"),
   channel: z.enum(["EMAIL", "SMS", "WHATSAPP"]),
   budget: z.preprocess((v) => (v === "" || v === null || v === undefined ? null : v), z.coerce.number().min(0).max(1e12).nullable()),
   startDate: date,
   endDate: date,
   templateId: z.string().nullish().transform((v) => v || null),
   audience: z.object({ kind: z.enum(["ALL_LEADS", "ALL_CUSTOMERS", "REPORT"]), reportId: z.string().nullish() }).default({ kind: "ALL_LEADS" }),
-});
+  // ── Create Campaign page ──
+  ownerId: z.preprocess((v) => (v === "" || v === null ? undefined : v), z.string().max(40).optional()),
+  planStatus: z.preprocess((v) => (v === "" || v === null ? undefined : v), z.enum(PLAN_STATUSES).optional()).transform((v) => v ?? null),
+  expectedRevenue: z.preprocess((v) => (v === "" || v === null || v === undefined ? null : v), z.coerce.number().min(0).max(1e13).nullable()),
+  actualCost: z.preprocess((v) => (v === "" || v === null || v === undefined ? null : v), z.coerce.number().min(0).max(1e13).nullable()),
+  expectedResponse: z.preprocess((v) => (v === "" || v === null || v === undefined ? null : v), z.coerce.number().int().min(0).max(1e9).nullable()),
+  numbersSent: z.preprocess((v) => (v === "" || v === null || v === undefined ? null : v), z.coerce.number().int().min(0).max(1e9).nullable()),
+  currency: z.preprocess((v) => (v === "" || v === null || v === undefined ? "NGN" : v), z.enum(CAMPAIGN_CURRENCIES)),
+  description: z.preprocess((v) => (v === "" || v === null ? undefined : v), z.string().trim().max(4000).optional()).transform((v) => v ?? null),
+}).refine((d) => !d.startDate || !d.endDate || d.endDate >= d.startDate, { message: "The end date cannot be before the start date", path: ["endDate"] });
+
+/** Owner of a campaign: a user with access to its brand; exchange rate from Setup → Currencies. */
+async function pageValues(ctx: AccessContext, brandId: string, data: z.output<typeof campaignSchema>, fallbackOwner: string) {
+  const ownerId = data.ownerId ?? fallbackOwner;
+  if (ownerId !== fallbackOwner) {
+    const ok = await scopedDb(ctx).user.findFirst({ where: { id: ownerId, active: true, OR: [{ profile: { scope: "ALL" } }, { memberships: { some: { territory: { brandId } } } }] }, select: { id: true } });
+    if (!ok) throw new BadRequestError("The campaign owner has no access to this brand");
+  }
+  let exchangeRate = 1;
+  if (data.currency !== "NGN") {
+    const { referenceRate } = await import("@/server/modules/inventory/purchase-orders");
+    exchangeRate = (await referenceRate(data.currency)) ?? 0;
+    if (!(exchangeRate > 0)) throw new BadRequestError(`There is no exchange rate for ${data.currency} – set it in Setup → Currencies`);
+  }
+  return { ownerId, planStatus: data.planStatus, expectedRevenue: data.expectedRevenue, actualCost: data.actualCost, expectedResponse: data.expectedResponse, numbersSent: data.numbersSent, currency: data.currency, exchangeRate, description: data.description };
+}
 
 async function assertTemplate(ctx: AccessContext, templateId: string | null, brandId: string, channel: Channel) {
   if (!templateId) return;
@@ -119,7 +164,8 @@ export async function createCampaign(ctx: AccessContext, input: unknown) {
   if (!brand || brand.status !== "ACTIVE") throw new BadRequestError("Campaigns need an active brand");
   await assertTemplate(ctx, data.templateId, data.brandId, data.channel);
   const code = `${brand.code}-${new Date().toISOString().slice(2, 7).replace("-", "")}-${randomBytes(3).toString("hex").toUpperCase()}`;
-  const c = await db.campaign.create({ data: { ...data, audience: data.audience as Prisma.InputJsonValue, code, ownerId: ctx.userId, createdById: ctx.userId }, select: { id: true, code: true } });
+  const page = await pageValues(ctx, data.brandId, data, ctx.userId);
+  const c = await db.campaign.create({ data: { brandId: data.brandId, name: data.name, type: data.type, channel: data.channel, budget: data.budget, startDate: data.startDate, endDate: data.endDate, templateId: data.templateId, audience: data.audience as Prisma.InputJsonValue, code, createdById: ctx.userId, ...page }, select: { id: true, code: true } });
   await audit({ ctx, action: "CREATE", entity: "Campaign", entityId: c.id, brandId: data.brandId, after: { ...data, code } });
   return c;
 }
@@ -146,7 +192,7 @@ export async function updateCampaign(ctx: AccessContext, id: string, input: unkn
   const db = scopedDb(ctx);
   // Another channel or audience invalidates the members that were built.
   if (data.channel !== current.channel || JSON.stringify(data.audience) !== JSON.stringify(current.audience)) await db.campaignMember.deleteMany({ where: { campaignId: id } });
-  await db.campaign.update({ where: { id }, data: { name: data.name, type: data.type, channel: data.channel, budget: data.budget, startDate: data.startDate, endDate: data.endDate, templateId: data.templateId, audience: data.audience as Prisma.InputJsonValue } });
+  await db.campaign.update({ where: { id }, data: { name: data.name, type: data.type, channel: data.channel, budget: data.budget, startDate: data.startDate, endDate: data.endDate, templateId: data.templateId, audience: data.audience as Prisma.InputJsonValue, ...(await pageValues(ctx, current.brandId, data, current.ownerId)) } });
   return { id };
 }
 

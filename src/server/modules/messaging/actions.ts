@@ -57,6 +57,14 @@ const campaignInput = (fd: FormData) => ({
   endDate: str(fd, "endDate"),
   templateId: str(fd, "templateId"),
   audience: { kind: str(fd, "audienceKind") || "ALL_LEADS", reportId: str(fd, "reportId") || null },
+  ownerId: str(fd, "ownerId"),
+  planStatus: str(fd, "planStatus"),
+  expectedRevenue: str(fd, "expectedRevenue"),
+  actualCost: str(fd, "actualCost"),
+  expectedResponse: str(fd, "expectedResponse"),
+  numbersSent: str(fd, "numbersSent"),
+  currency: str(fd, "currency"),
+  description: str(fd, "description"),
 });
 
 export async function saveCampaignAction(_prev: unknown, fd: FormData): Promise<ActionResult<Outcome>> {
@@ -65,7 +73,7 @@ export async function saveCampaignAction(_prev: unknown, fd: FormData): Promise<
     const id = str(fd, "id");
     const saved = id ? await campaigns.updateCampaign(ctx, id, campaignInput(fd)) : await campaigns.createCampaign(ctx, campaignInput(fd));
     revalidatePath("/campaigns");
-    return { message: "Campaign saved", redirect: `/campaigns/${saved.id}` };
+    return { message: "Campaign saved", redirect: !id && fd.get("_saveAndNew") ? "/campaigns/new" : `/campaigns/${saved.id}` };
   });
 }
 

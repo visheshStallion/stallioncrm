@@ -24,6 +24,7 @@ export const RAIL_ORDER: RailItem[] = [
   { key: "products", label: "Products", href: "/products", icon: "car" },
   { key: "priceBooks", label: "Price Books", href: "/priceBooks", icon: "book-open" },
   { key: "inventory", label: "Inventory", href: "/inventory", icon: "warehouse" },
+  { key: "vendors", label: "Vendors", href: "/vendors", icon: "store" },
   { key: "cases", label: "Cases", href: "/cases", icon: "life-buoy" },
   { key: "campaigns", label: "Campaigns", href: "/campaigns", icon: "megaphone" },
   { key: "reports", label: "Reports", href: "/reports", icon: "bar-chart" },
@@ -55,5 +56,6 @@ export const QUICK_CREATE: QuickCreateItem[] = [
   { key: "salesOrder", label: "Sales Order", module: "salesOrders", mode: "link", href: "/salesOrders/new" },
   { key: "invoice", label: "Invoice", module: "invoices", mode: "link", href: "/invoices/new" },
   { key: "purchaseOrder", label: "Purchase Order", module: "inventory", mode: "link", href: "/purchaseOrders/new" },
+  { key: "vendor", label: "Vendor", module: "inventory", mode: "link", href: "/vendors/new" },
   { key: "template", label: "From a template…", module: "leads", mode: "link", href: "/templates/pick" },
 ];

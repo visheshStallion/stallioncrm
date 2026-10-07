@@ -127,10 +127,16 @@ test("campaign: template, consent-based audience, launch with mass email permiss
   await page.goto("/campaigns/new");
   await page.waitForLoadState("networkidle");
   await page.locator("#name").fill(name);
+  await page.locator("#type").selectOption("PROMO");
+  await page.locator("#planStatus").selectOption("Planning");
+  await page.locator("#expectedRevenue").fill("5000000");
+  await page.locator("#expectedResponse").fill("40");
   await page.locator("#channel").selectOption("EMAIL");
   await page.locator("#audienceKind").selectOption("ALL_LEADS");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page).toHaveURL(/\/campaigns\/c[a-z0-9]{20,}$/); // the saved campaign (a cuid), not /campaigns/new
+  await expect(page.getByTestId("campaign-info").locator('[data-field="Status"]')).toHaveText("Planning");
+  await expect(page.getByTestId("campaign-info").locator('[data-field="Expected Response"]')).toHaveText("40");
   const campaignUrl = page.url();
   await page.locator("#templateId").selectOption({ label: tplName });
   await page.getByRole("button", { name: "Save changes" }).click();

@@ -115,7 +115,21 @@ export const vendorSchema = z.object({
   taxId: text(60),
   bankDetails: text(500),
   active: z.boolean().default(true),
+  // ── Create Vendor page ──
+  ownerId: z.preprocess(empty, z.string().max(40).optional()),
+  website: z.preprocess(empty, z.string().trim().max(200).regex(/^(https?:\/\/)?[^\s]+\.[^\s]+$/, "Enter a web address").optional()),
+  glAccount: text(80),
+  category: text(80),
+  emailOptOut: z.boolean().default(false),
+  city: text(80),
+  state: text(80),
+  zipCode: text(20),
+  country: text(80),
+  description: text(4000),
 });
+
+/** GL Account picklist of a vendor (where its bills are booked). */
+export const GL_ACCOUNTS = ["Purchases – Vehicles", "Purchases – Spare parts", "Purchases – Accessories", "Freight and clearing", "Services", "Rental", "Sales-Software", "Sales-Hardware", "Other"] as const;
 
 export const settingsSchema = z.object({
   reservationDays: z.coerce.number().int().min(1).max(90),

@@ -32,7 +32,7 @@ import { AvatarMenu, CalendarShortcut, NotificationsBell, SetupGear } from "./Us
  */
 export async function AppShell({ ctx, children }: { ctx: AccessContext; children: ReactNode }) {
   // Home and the approvals inbox are personal pages – available to every profile.
-  const canRead = (key: string) => key === "home" || key === "approvals" || (isModuleKey(key) && hasPermission(ctx, key, "read"));
+  const canRead = (key: string) => key === "home" || key === "approvals" || (key === "vendors" ? hasPermission(ctx, "inventory", "create") || hasPermission(ctx, "inventoryFinance", "read") : isModuleKey(key) && hasPermission(ctx, key, "read"));
   const [dir, filters, prefs, notifications, overdue, approvals] = await Promise.all([
     getDirectory(ctx),
     getUiFilters(ctx),

@@ -1769,6 +1769,19 @@ enum CampaignType {
   PROMO
   SERVICE_REMINDER
   EVENT
+  // Create Campaign page: the usual CRM campaign types
+  ADVERTISEMENT
+  BANNER_ADS
+  CONFERENCE
+  DIRECT_MAIL
+  EMAIL
+  PARTNERS
+  PUBLIC_RELATIONS
+  REFERRAL_PROGRAM
+  TELEMARKETING
+  TRADE_SHOW
+  WEBINAR
+  OTHERS
 }
 
 enum CampaignStatus {
@@ -1801,6 +1814,19 @@ model Campaign {
   launchedAt  DateTime?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
+
+  // ── Create Campaign page ──
+  /// planning status (Planning, Active, Inactive, Complete) – the sending status is `status`
+  planStatus       String?
+  expectedRevenue  Decimal?  @db.Decimal(14, 2)
+  /// budget is the Budgeted Cost
+  actualCost       Decimal?  @db.Decimal(14, 2)
+  /// expected responses (count)
+  expectedResponse Int?
+  numbersSent      Int?
+  currency         String    @default("NGN")
+  exchangeRate     Decimal   @default(1) @db.Decimal(14, 6)
+  description      String?
 
   members CampaignMember[]
   leads   Lead[]
@@ -2312,6 +2338,21 @@ model Vendor {
   /// sensitive: inventory finance only
   bankDetails  String?
   active       Boolean  @default(true)
+  // ── Create Vendor page ──
+  ownerId       String?
+  website       String?
+  /// GL Account picklist (purchases / sales accounts)
+  glAccount     String?
+  category      String?
+  emailOptOut   Boolean  @default(false)
+  city          String?
+  state         String?
+  zipCode       String?
+  country       String?
+  description   String?
+  /// Vendor Image (small PNG / JPEG / WebP, served by /api/v1/vendors/[id]/image)
+  imageData     Bytes?
+  imageMimeType String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
