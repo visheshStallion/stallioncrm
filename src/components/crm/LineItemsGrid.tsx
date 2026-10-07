@@ -515,8 +515,8 @@ export function LineItemsGrid(p: LineItemsGridProps) {
 
   return (
     <section className="space-y-3" data-testid="line-items-grid" aria-label={TITLES[p.documentType]} ref={topRef}>
-      {/* the Purchase / Invoiced Items titles are mandatory (red bar), the Ordered Items title is not – as in the references */}
-      <h2 className={p.documentType === "purchaseOrder" || p.documentType === "invoice" ? "crm-grid-title crm-grid-title-required" : "crm-grid-title"}>{TITLES[p.documentType]}</h2>
+      {/* the items section is mandatory: red bar on its title (as in the references) */}
+      <h2 className="crm-grid-title crm-grid-title-required">{TITLES[p.documentType]}</h2>
       {lines.length > 50 ? (
         <p className="text-xs text-text-muted" data-testid="line-counter">
           {lines.length} / {MAX_GRID_LINES} lines

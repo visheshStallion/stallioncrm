@@ -276,8 +276,9 @@ export async function saveInvoicePage(ctx: AccessContext, id: string | null, inp
 
   // header fields of the page and the Grand Total with the brand's charges rules
   const row = await db.invoice.findUniqueOrThrow({ where: { id: invoiceId }, select: { total: true, number: true } });
-  // the grid total was just recomputed (create / save) – the charges come on top of it
-  const gridTotal = Number(row.total);
+  // the stored total includes the charges stored so far (create: none) – replace them with the new ones
+  const { chargesInTotal } = await import("./lines");
+  const gridTotal = Number(row.total) - (await chargesInTotal(db, "invoice", invoiceId, d.brandId));
   const other = rules.otherChargesEnabled ? d.otherCharges : 0;
   const total = Math.round((gridTotal + other + (rules.exciseInTotal ? d.exciseDuty : 0)) * 100) / 100;
   const owner = d.ownerId ?? before?.ownerId ?? ctx.userId;

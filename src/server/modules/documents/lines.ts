@@ -88,6 +88,17 @@ const TRACKED: Array<keyof NormalLine> = ["description", "details", "qty", "unit
  * Writes the lines (kept by id, new ones created, removed ones deleted; order = position) and the header totals in one
  * go. Changes to existing lines are audited per line (entity DocumentLine: old → new).
  */
+/** Other Charges + Excise Duty (when the brand includes it) of an invoice or sales order, as stored. */
+export async function chargesInTotal(db: ReturnType<typeof scopedDb>, type: DocType, docId: string, brandId: string): Promise<number> {
+  if (type === "quote") return 0;
+  const row = await (db as any)[type].findUnique({ where: { id: docId }, select: { otherCharges: true, exciseDuty: true } });
+  if (!row) return 0;
+  const brand = await db.brand.findUnique({ where: { id: brandId }, select: { documentRules: true } });
+  const { parseRules } = await import("./config");
+  const rules = parseRules(brand?.documentRules);
+  return (rules.otherChargesEnabled ? Number(row.otherCharges ?? 0) : 0) + (rules.exciseInTotal ? Number(row.exciseDuty ?? 0) : 0);
+}
+
 export async function persistLines(ctx: AccessContext, type: DocType, docId: string, brandId: string, lines: NormalLine[], r: DocumentResult, header: HeaderInput, extra: Record<string, unknown> = {}, opts: { history?: boolean } = {}) {
   const cfg = DOCS[type];
   const db = scopedDb(ctx);
@@ -132,13 +143,15 @@ export async function persistLines(ctx: AccessContext, type: DocType, docId: str
       await db.documentLine.create({ data: { ...data, [cfg.lineKey]: docId, ...(l as { sourceLineId?: string }).sourceLineId ? { sourceLineId: (l as { sourceLineId?: string }).sourceLineId } : {} } as any });
     }
   }
+  // invoices and sales orders: Other Charges (and Excise Duty, when the brand adds it) come on top of the grid
+  const charges = type === "quote" ? 0 : await chargesInTotal(db, type, docId, brandId);
   await (db as any)[type].update({
     where: { id: docId },
     data: {
       subtotal: r.gross,
       discountTotal: r.discountTotal,
       taxTotal: r.taxTotal,
-      total: r.grandTotal,
+      total: Math.round((r.grandTotal + charges) * 100) / 100,
       headerDiscountPct: Math.min(100, r.headerDiscountPct),
       headerDiscountType: header.headerDiscountType ?? "PERCENT",
       headerDiscountValue: header.headerDiscountValue ?? header.headerDiscountPct ?? 0,

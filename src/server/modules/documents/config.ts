@@ -49,7 +49,7 @@ export const DOCS: Record<DocType, DocConfig> = {
     dateLabel: "Expected delivery",
     lineKey: "salesOrderId",
     editable: ["DRAFT"],
-    statuses: { DRAFT: "Draft", CONFIRMED: "Confirmed", ALLOCATED: "Allocated", DELIVERED: "Delivered", CANCELLED: "Cancelled" },
+    statuses: { DRAFT: "Created", CONFIRMED: "Confirmed", ALLOCATED: "Allocated", DELIVERED: "Delivered", CANCELLED: "Cancelled" },
   },
   invoice: {
     type: "invoice",

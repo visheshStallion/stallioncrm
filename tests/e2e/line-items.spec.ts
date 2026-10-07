@@ -9,7 +9,8 @@ async function newOrder(page: Page) {
   await login(page, "exec.hmnl.1");
   await page.goto("/salesOrders/new");
   await expect(page.getByTestId("line-items-grid")).toBeVisible();
-  await page.getByTestId("new-document").getByLabel("Customer name").fill(`Grid test ${Date.now()}`);
+  await page.locator("#so-subject").fill(`Grid test ${Date.now()}`);
+  await page.locator("#inv-account").fill(`Grid test ${Date.now()}`);
 }
 const rows = (page: Page) => page.getByTestId("grid-row");
 
@@ -52,7 +53,7 @@ test("12 lines: Add row ×5, Add multiple products ×3, paste 4 from Excel; dele
   await page.getByRole("menuitem", { name: "Move up" }).click();
   await expect(grid.getByLabel("Row 10, Product Name")).toHaveValue("Fire extinguisher");
 
-  await page.getByTestId("new-document-save").click();
+  await page.getByTestId("so-save").click();
   await expect(page).toHaveURL(/\/salesOrders\/(?!new$)[a-z0-9]+$/);
   await expect(page.getByTestId("grid-row")).toHaveCount(11);
   await expect(page.getByLabel("Row 10, Product Name")).toHaveValue("Fire extinguisher");

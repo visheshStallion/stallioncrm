@@ -1034,6 +1034,23 @@ model SalesOrder {
   sourceDocumentId    String?
   status              OrderStatus @default(DRAFT)
   expectedDelivery    DateTime?   @db.Date
+  // ── Create Sales Order page ──
+  subject             String?
+  /// the customer's own PO reference
+  customerPoRef       String?
+  /// the customer's number
+  customerNo          String?
+  /// free text: what is still pending on the order
+  pending             String?
+  carrier             String?
+  dueDate             DateTime?   @db.Date
+  phone               String?
+  tinNumber           String?
+  exchangeRate        Decimal     @default(1) @db.Decimal(14, 6)
+  exciseDuty          Decimal     @default(0) @db.Decimal(14, 2)
+  otherCharges        Decimal     @default(0) @db.Decimal(14, 2)
+  salesCommission     Decimal     @default(0) @db.Decimal(14, 2)
+  formViewId          String?
 
   // ── brand-owned base mixin (brand and region are inherited from the deal) ──
   brandId     String

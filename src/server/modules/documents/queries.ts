@@ -84,6 +84,24 @@ export interface DocRow {
   invoice: InvoiceExtra | null;
   /** Create Quote page fields – quotes only */
   quote: QuoteExtra | null;
+  /** Create Sales Order page fields – sales orders only */
+  order: OrderExtra | null;
+}
+
+export interface OrderExtra {
+  subject: string | null;
+  customerPoRef: string | null;
+  customerNo: string | null;
+  pending: string | null;
+  carrier: string | null;
+  dueDate: string | null;
+  phone: string | null;
+  tinNumber: string | null;
+  exchangeRate: number;
+  exciseDuty: number;
+  otherCharges: number;
+  salesCommission: number;
+  formViewId: string | null;
 }
 
 export interface QuoteExtra {
@@ -136,6 +154,7 @@ const headerSelect = (cfg: DocConfig) => ({
   discountTotal: true,
   taxTotal: true,
   total: true,
+  ...(cfg.type === "salesOrder" ? { subject: true, customerPoRef: true, customerNo: true, pending: true, carrier: true, dueDate: true, phone: true, tinNumber: true, exchangeRate: true, exciseDuty: true, otherCharges: true, salesCommission: true, formViewId: true } : {}),
   ...(cfg.type === "quote" ? { subject: true, orgName: true, orgAddress: true, orgCity: true, orgCountry: true, tinNumber: true, phone: true, email: true, exchangeRate: true, formViewId: true } : {}),
   ...(cfg.type === "invoice" ? { amountPaid: true, subject: true, customerPoRef: true, tinNumber: true, phone: true, exchangeRate: true, exciseDuty: true, otherCharges: true, salesCommission: true, creditedAmount: true, issuedAt: true, voidReason: true, formViewId: true, sentAt: true } : {}),
   terms: true,
@@ -189,6 +208,10 @@ function toRow(cfg: DocConfig, d: any): DocRow {
     ownerName: d.owner.name,
     createdAt: d.createdAt.toISOString(),
     updatedAt: d.updatedAt.toISOString(),
+    order:
+      cfg.type === "salesOrder"
+        ? { subject: d.subject ?? null, customerPoRef: d.customerPoRef ?? null, customerNo: d.customerNo ?? null, pending: d.pending ?? null, carrier: d.carrier ?? null, dueDate: day(d.dueDate), phone: d.phone ?? null, tinNumber: d.tinNumber ?? null, exchangeRate: num(d.exchangeRate) ?? 1, exciseDuty: num(d.exciseDuty) ?? 0, otherCharges: num(d.otherCharges) ?? 0, salesCommission: num(d.salesCommission) ?? 0, formViewId: d.formViewId ?? null }
+        : null,
     quote:
       cfg.type === "quote"
         ? { subject: d.subject ?? null, orgName: d.orgName ?? null, orgAddress: d.orgAddress ?? null, orgCity: d.orgCity ?? null, orgCountry: d.orgCountry ?? null, tinNumber: d.tinNumber ?? null, phone: d.phone ?? null, email: d.email ?? null, exchangeRate: num(d.exchangeRate) ?? 1, formViewId: d.formViewId ?? null }

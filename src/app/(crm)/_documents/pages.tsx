@@ -216,6 +216,7 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
   const issuer = type === "invoice" && canIssueInvoices(ctx);
   const inv = doc.invoice;
   const creditNotes = type === "invoice" ? await scopedDb(ctx).creditNote.findMany({ where: { invoiceId: doc.id }, orderBy: { createdAt: "asc" }, select: { id: true, number: true, amount: true, reason: true, createdAt: true } }) : [];
+  const invRulesSo = type === "salesOrder" ? (await import("@/server/modules/documents/config")).parseRules((await scopedDb(ctx).brand.findUnique({ where: { id: doc.brandId }, select: { documentRules: true } }))?.documentRules) : null;
   const invRules = type === "invoice" ? (await import("@/server/modules/documents/config")).parseRules((await scopedDb(ctx).brand.findUnique({ where: { id: doc.brandId }, select: { documentRules: true } }))?.documentRules) : null;
   const nextModule = type === "quote" ? "salesOrders" : "invoices";
   const buttons = buttonsFor(type, doc.status, canEdit || (type === "invoice" && canIssueAny(ctx)), can(ctx, nextModule, "create", doc));
@@ -243,6 +244,20 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
                 PDF
               </a>
             </Button>
+            {type === "salesOrder" && doc.status === "DRAFT" && canEdit ? (
+              <Button asChild variant="outline">
+                <Link href={`/salesOrders/${doc.id}/edit`} data-testid="so-edit">
+                  Edit
+                </Link>
+              </Button>
+            ) : null}
+            {type === "salesOrder" && can(ctx, "salesOrders", "create", doc) ? (
+              <Button asChild variant="outline">
+                <Link href={`/salesOrders/new?clone=${doc.id}`} data-testid="so-clone">
+                  Clone
+                </Link>
+              </Button>
+            ) : null}
             {type === "quote" && doc.status === "DRAFT" && canEdit ? (
               <Button asChild variant="outline">
                 <Link href={`/quotes/${doc.id}/edit`} data-testid="q-edit">
@@ -327,6 +342,22 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
           <Field label="Region" value={<RegionBadge region={region} />} />
           <Field label={type === "invoice" ? "Invoice Date" : "Issue date"} value={formatDate(doc.issueDate, prefs.dateFormat)} />
           <Field label={cfg.dateLabel} value={formatDate(doc.date, prefs.dateFormat)} />
+          {doc.order ? (
+            <>
+              <Field label="Subject" value={doc.order.subject ?? "—"} />
+              <Field label="Purchase Order" value={doc.order.customerPoRef ?? "—"} />
+              <Field label="Customer No." value={doc.order.customerNo ?? "—"} />
+              <Field label="Due Date" value={doc.order.dueDate ? formatDate(doc.order.dueDate, prefs.dateFormat) : "—"} />
+              <Field label="Pending" value={doc.order.pending ?? "—"} />
+              <Field label="Carrier" value={doc.order.carrier ?? "—"} />
+              <Field label="Phone Number" value={doc.order.phone ?? "—"} />
+              <Field label="TIN Number" value={doc.order.tinNumber ?? "—"} />
+              <Field label="Currency" value={doc.currency === "NGN" ? "NGN" : `${doc.currency} · ₦ ${doc.order.exchangeRate} per ${doc.currency}`} />
+              {doc.order.otherCharges > 0 ? <Field label="Other Charges" value={money(doc.order.otherCharges, doc.currency)} /> : null}
+              {doc.order.exciseDuty > 0 ? <Field label="Excise Duty" value={money(doc.order.exciseDuty, doc.currency)} /> : null}
+              {doc.order.salesCommission > 0 ? <Field label="Sales Commission" value={money(doc.order.salesCommission, "NGN")} /> : null}
+            </>
+          ) : null}
           {doc.quote ? (
             <>
               <Field label="Subject" value={doc.quote.subject ?? "—"} />
@@ -365,7 +396,12 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
             dateLabel={cfg.dateLabel}
             settings={settings}
             extraRows={
-              inv
+              doc.order
+                ? [
+                    ...(doc.order.otherCharges > 0 ? [{ label: "Other Charges", amount: doc.order.otherCharges, inTotal: !!invRulesSo?.otherChargesEnabled, testId: "total-other-charges" }] : []),
+                    ...(doc.order.exciseDuty > 0 ? [{ label: "Excise Duty", amount: doc.order.exciseDuty, inTotal: !!invRulesSo?.exciseInTotal, testId: "total-excise" }] : []),
+                  ]
+                : inv
                 ? [
                     ...(inv.otherCharges > 0 ? [{ label: "Other Charges", amount: inv.otherCharges, inTotal: true, testId: "total-other-charges" }] : []),
                     ...(inv.exciseDuty > 0 ? [{ label: "Excise Duty", amount: inv.exciseDuty, inTotal: !!invRules?.exciseInTotal, testId: "total-excise" }] : []),
