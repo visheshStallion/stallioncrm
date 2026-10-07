@@ -70,6 +70,8 @@ export const productSchema = z.object({
 export type ProductInput = z.input<typeof productSchema>;
 
 const date = z.preprocess(empty, z.coerce.date());
+export const PRICING_MODELS = ["FLAT", "DIFFERENTIAL"] as const;
+export const PRICING_MODEL_LABELS: Record<(typeof PRICING_MODELS)[number], string> = { FLAT: "Flat", DIFFERENTIAL: "Differential" };
 export const priceBookSchema = z
   .object({
     name: z.string().trim().min(2).max(80),
@@ -77,6 +79,11 @@ export const priceBookSchema = z
     validTo: z.preprocess(empty, z.coerce.date().optional()).transform((v) => v ?? null),
     active: z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean()).default(true),
     isDefault: z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean()).default(false),
+    // ── Create Price Book page ──
+    ownerId: z.preprocess(empty, z.string().max(40).optional()),
+    pricingModel: z.preprocess(empty, z.enum(PRICING_MODELS).optional()).transform((v) => v ?? null),
+    naira: z.preprocess(empty, z.coerce.number().min(-1e12).max(1e12).optional()).transform((v) => v ?? null),
+    description: text(2000),
   })
   .refine((b) => b.validTo === null || b.validTo >= b.validFrom, { message: "Valid to must be on or after valid from", path: ["validTo"] });
 export type PriceBookInput = z.input<typeof priceBookSchema>;

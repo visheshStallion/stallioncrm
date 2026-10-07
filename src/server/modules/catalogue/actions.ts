@@ -36,13 +36,13 @@ export async function addStockAction(_p: unknown, fd: FormData): Promise<ActionR
   });
 }
 
-const bookInput = (fd: FormData) => ({ name: str(fd, "name"), validFrom: str(fd, "validFrom"), validTo: str(fd, "validTo"), active: fd.get("active") === "on", isDefault: fd.get("isDefault") === "on" });
+const bookInput = (fd: FormData) => ({ name: str(fd, "name"), validFrom: str(fd, "validFrom"), validTo: str(fd, "validTo"), active: fd.get("active") === "on", isDefault: fd.get("isDefault") === "on", ...(fd.has("pricingModel") ? { ownerId: str(fd, "ownerId"), pricingModel: str(fd, "pricingModel"), naira: str(fd, "naira"), description: str(fd, "description") } : {}) });
 
 export async function createPriceBookAction(_p: unknown, fd: FormData): Promise<ActionResult<Outcome>> {
   return safeAction(async () => {
     const b = await svc.createPriceBook(await requireContext(), str(fd, "brandId"), bookInput(fd) as never);
     revalidatePath("/priceBooks");
-    return { message: "Price book created", redirect: `/priceBooks/${b.id}` };
+    return { message: "Price book created", redirect: fd.get("_saveAndNew") ? "/priceBooks/new" : `/priceBooks/${b.id}` };
   });
 }
 
@@ -51,7 +51,7 @@ export async function updatePriceBookAction(_p: unknown, fd: FormData): Promise<
     const id = str(fd, "id");
     await svc.updatePriceBook(await requireContext(), id, bookInput(fd) as never);
     revalidatePath(`/priceBooks/${id}`);
-    return { message: "Price book saved" };
+    return { message: "Price book saved", ...(fd.has("pricingModel") ? { redirect: `/priceBooks/${id}` } : {}) };
   });
 }
 

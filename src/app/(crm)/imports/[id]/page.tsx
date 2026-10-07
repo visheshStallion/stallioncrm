@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
 import { ActionForm, SubmitButton } from "@/components/ActionForm";
+import { ImportSteps } from "@/components/crm/ImportSteps";
 import { PageTitleRow, StatusPill } from "@/components/crm/primitives";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +33,7 @@ export default async function ImportPage({ params, searchParams }: { params: Pro
     const problems = (job.problems ?? []) as Array<{ line: number; message: string }>;
     return (
       <div className="mx-auto max-w-5xl">
+        <div className="mb-3"><ImportSteps current={job.status === "DONE" ? 5 : 4} /></div>
         <PageTitleRow title={`Import: ${job.fileName}`} left={<StatusPill tone={job.status === "DONE" ? "success" : job.status === "FAILED" ? "danger" : "info"}>{job.status.charAt(0) + job.status.slice(1).toLowerCase()}</StatusPill>} />
         <section className="rounded-lg border border-border bg-surface p-4 text-[13px]" data-testid="import-result">
           {job.status === "QUEUED" || job.status === "RUNNING" ? (
@@ -81,6 +83,7 @@ export default async function ImportPage({ params, searchParams }: { params: Pro
 
   return (
     <div className="mx-auto max-w-6xl">
+      <div className="mb-3"><ImportSteps current={2} /></div>
       <PageTitleRow title={`Import ${mod.label}: ${job.fileName}`} left={<span className="text-[13px] text-text-muted">{plan.summary.total} rows</span>} />
       <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <section className="rounded-lg border border-border bg-surface p-4">

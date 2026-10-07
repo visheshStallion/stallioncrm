@@ -1,14 +1,10 @@
 import Link from "next/link";
 import { forbidden } from "next/navigation";
-import { ActionForm, SubmitButton } from "@/components/ActionForm";
 import { BrandBadge } from "@/components/BrandBadge";
 import { PageTitleRow, StatusPill } from "@/components/crm/primitives";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { formatDate } from "@/lib/format";
 import { canManageBrandData } from "@/server/access/brand-tag";
 import { hasPermission } from "@/server/access/can";
-import { createPriceBookAction } from "@/server/modules/catalogue/actions";
 import { listPriceBooks } from "@/server/modules/catalogue/queries";
 import { getDirectory } from "@/server/modules/org/queries";
 import { getPreferences } from "@/server/modules/preferences/queries";
@@ -26,7 +22,19 @@ export default async function PriceBooksPage() {
 
   return (
     <div>
-      <PageTitleRow title="Price Books" left={<span className="text-[13px] text-text-muted">{books.length} price book(s) of your brands</span>} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <PageTitleRow title="Price Books" left={<span className="text-[13px] text-text-muted">{books.length} price book(s) of your brands</span>} />
+        {manageable.length ? (
+          <div className="flex gap-2">
+            <Link href="/priceBooks/import" className="crm-btn crm-btn-secondary" data-testid="import-price-books">
+              Import
+            </Link>
+            <Link href="/priceBooks/new" className="crm-btn crm-btn-primary" data-testid="new-price-book">
+              Create Price Book
+            </Link>
+          </div>
+        ) : null}
+      </div>
       <div className="overflow-auto rounded-lg border border-border bg-surface">
         <table className="crm-table w-full">
           <thead className="bg-muted text-left text-[12px] text-text-muted">
@@ -71,36 +79,6 @@ export default async function PriceBooksPage() {
         </table>
       </div>
 
-      {manageable.length ? (
-        <section className="mt-4 rounded-lg border border-border bg-surface p-4">
-          <h2 className="mb-2 text-[13px] font-semibold">New price book</h2>
-          <ActionForm action={createPriceBookAction} className="flex flex-wrap items-end gap-2 text-[13px]">
-            <Select name="brandId" required defaultValue={manageable.length === 1 ? manageable[0]!.id : ""} aria-label="Brand">
-              <option value="">Brand…</option>
-              {manageable.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.code}
-                </option>
-              ))}
-            </Select>
-            <Input name="name" placeholder="Name" required className="w-56" aria-label="Name" />
-            <label>
-              Valid from <Input name="validFrom" type="date" required className="w-40" />
-            </label>
-            <label>
-              Valid to <Input name="validTo" type="date" className="w-40" />
-            </label>
-            <label className="flex items-center gap-1">
-              <input type="checkbox" name="active" defaultChecked /> active
-            </label>
-            <label className="flex items-center gap-1">
-              <input type="checkbox" name="isDefault" /> default
-            </label>
-            <SubmitButton size="sm">Create</SubmitButton>
-          </ActionForm>
-          <p className="mt-2 text-xs text-text-muted">Only one default price book per brand may be valid at a time – overlapping default books are rejected.</p>
-        </section>
-      ) : null}
     </div>
   );
 }

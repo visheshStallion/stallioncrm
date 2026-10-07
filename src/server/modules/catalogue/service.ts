@@ -74,11 +74,19 @@ async function assertNoOverlap(ctx: AccessContext, book: { id: string; brandId: 
   }
 }
 
+/** Price Book Owner: a user with access to the brand. */
+async function assertBookOwner(ctx: AccessContext, brandId: string, ownerId: string | undefined) {
+  if (!ownerId || ownerId === ctx.userId) return;
+  const ok = await scopedDb(ctx).user.findFirst({ where: { id: ownerId, active: true, OR: [{ profile: { scope: "ALL" } }, { memberships: { some: { territory: { brandId } } } }] }, select: { id: true } });
+  if (!ok) throw new BadRequestError("The price book owner has no access to this brand");
+}
+
 export async function createPriceBook(ctx: AccessContext, brandId: string, input: PriceBookInput) {
   assertCanManageBrandData(ctx, "priceBooks", "create", brandId);
   const data = priceBookSchema.parse(input);
   await assertNoOverlap(ctx, { id: "", brandId, ...data });
-  const book = await scopedDb(ctx).priceBook.create({ data: { ...data, brandId } });
+  await assertBookOwner(ctx, brandId, data.ownerId);
+  const book = await scopedDb(ctx).priceBook.create({ data: { ...data, ownerId: data.ownerId ?? (ctx.userId || null), brandId } });
   await audit({ ctx, action: "CREATE", entity: "PriceBook", entityId: book.id, brandId, after: book });
   return { id: book.id };
 }
@@ -88,8 +96,13 @@ export async function updatePriceBook(ctx: AccessContext, id: string, input: Pri
   const before = await db.priceBook.findUnique({ where: { id } });
   if (!before) throw new NotFoundError();
   assertCanManageBrandData(ctx, "priceBooks", "edit", before.brandId);
-  const data = priceBookSchema.parse(input);
-  await assertNoOverlap(ctx, { id, brandId: before.brandId, ...data });
+  const parsed = priceBookSchema.parse(input);
+  // the page fields only from the Create / Edit Price Book page – the quick edit on the record page leaves them alone
+  const { ownerId, pricingModel, naira, description, ...core } = parsed;
+  const fromPage = !!input && typeof input === "object" && "pricingModel" in input;
+  if (fromPage) await assertBookOwner(ctx, before.brandId, ownerId);
+  const data = fromPage ? { ...core, pricingModel, naira, description, ...(ownerId ? { ownerId } : {}) } : core;
+  await assertNoOverlap(ctx, { id, brandId: before.brandId, ...core });
   const after = await db.priceBook.update({ where: { id }, data });
   await audit({ ctx, action: "UPDATE", entity: "PriceBook", entityId: id, brandId: before.brandId, before, after });
   return { id };

@@ -710,6 +710,14 @@ model PriceBook {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  // ── Create Price Book page ──
+  ownerId      String?
+  /// FLAT (one price per product) | DIFFERENTIAL (price by quantity range) – shown on the page
+  pricingModel String?
+  /// the "Naira" amount of the page (e.g. a flat adjustment) – for reference; prices come from the entries
+  naira        Decimal?  @db.Decimal(14, 2)
+  description  String?
+
   entries PriceBookEntry[]
 
   @@unique([brandId, name])

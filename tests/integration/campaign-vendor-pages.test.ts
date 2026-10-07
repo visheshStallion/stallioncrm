@@ -45,3 +45,17 @@ describe("vendor page fields", () => {
     expect(await unsafeDb.vendor.count({ where: { id: res.id, imageData: null } })).toBe(1);
   });
 });
+
+describe("price book page fields", () => {
+  it("owner, pricing model, naira, description; the quick edit on the record page keeps them", async () => {
+    const svc = await import("@/server/modules/catalogue/service");
+    const b = await svc.createPriceBook(bm, I.brand("HMNL"), { name: `Fleet ${Date.now()}`, validFrom: "2026-10-01", active: true, isDefault: false, pricingModel: "FLAT", naira: "150000", description: "Fleet" } as never);
+    let row = await unsafeDb.priceBook.findUniqueOrThrow({ where: { id: b.id } });
+    expect(row).toMatchObject({ ownerId: bm.userId, pricingModel: "FLAT", description: "Fleet" });
+    expect(Number(row.naira)).toBe(150_000);
+    await svc.updatePriceBook(bm, b.id, { name: row.name, validFrom: "2026-10-01", active: true, isDefault: false } as never);
+    row = await unsafeDb.priceBook.findUniqueOrThrow({ where: { id: b.id } });
+    expect(row.pricingModel).toBe("FLAT");
+    await expect(svc.createPriceBook(bm, I.brand("HMNL"), { name: `Bad ${Date.now()}`, validFrom: "2026-10-01", pricingModel: "TIERED" } as never)).rejects.toThrow();
+  });
+});

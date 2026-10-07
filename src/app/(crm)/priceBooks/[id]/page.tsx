@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatMoney } from "@/lib/format";
+import { scopedDb } from "@/server/db";
 import { canManageBrandData } from "@/server/access/brand-tag";
 import { can, hasPermission } from "@/server/access/can";
 import { isAccessError } from "@/server/access/errors";
@@ -28,6 +29,9 @@ export default async function PriceBookPage({ params }: { params: Promise<{ id: 
   const [dir, products] = await Promise.all([getDirectory(ctx), listProducts(ctx, { brandId: book.brandId, take: 2000 })]);
   const brand = dir.brands.find((b) => b.id === book.brandId);
   const canEdit = canManageBrandData(ctx, "priceBooks", "edit", book.brandId);
+  const extra = await scopedDb(ctx).priceBook.findUnique({ where: { id: book.id }, select: { ownerId: true, pricingModel: true, naira: true, description: true } });
+  const owner = extra?.ownerId ? await scopedDb(ctx).user.findUnique({ where: { id: extra.ownerId }, select: { name: true } }) : null;
+  const pageInfo = { owner: owner?.name ?? null, pricingModel: extra?.pricingModel === "FLAT" ? "Flat" : extra?.pricingModel === "DIFFERENTIAL" ? "Differential" : null, naira: extra?.naira === null || extra?.naira === undefined ? null : formatMoney(Number(extra.naira)), description: extra?.description ?? null };
   const missing = products.rows.filter((p) => !book.entries.some((e) => e.productId === p.id));
 
   return (
@@ -44,14 +48,38 @@ export default async function PriceBookPage({ params }: { params: Promise<{ id: 
           </>
         }
         actions={
-          can(ctx, "priceBooks", "export") ? (
-            <Button asChild variant="outline">
-              <a href={`/api/v1/priceBooks/${book.id}/export`}>Export CSV</a>
-            </Button>
-          ) : null
+          <>
+            {canEdit ? (
+              <Button asChild variant="outline">
+                <Link href={`/priceBooks/${book.id}/edit`} data-testid="price-book-edit">
+                  Edit
+                </Link>
+              </Button>
+            ) : null}
+            {can(ctx, "priceBooks", "export") ? (
+              <Button asChild variant="outline">
+                <a href={`/api/v1/priceBooks/${book.id}/export`}>Export CSV</a>
+              </Button>
+            ) : null}
+          </>
         }
       />
       <div className="space-y-3">
+        <dl className="grid gap-x-6 gap-y-1 rounded-lg border border-border bg-surface p-4 text-[13px] sm:grid-cols-2 lg:grid-cols-4" data-testid="price-book-info">
+          {(
+            [
+              ["Price Book Owner", pageInfo.owner],
+              ["Pricing Model", pageInfo.pricingModel],
+              ["Naira", pageInfo.naira],
+              ["Description", pageInfo.description],
+            ] as Array<[string, string | null]>
+          ).map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-xs text-text-muted">{label}</dt>
+              <dd data-field={label} className="whitespace-pre-wrap">{value ?? "—"}</dd>
+            </div>
+          ))}
+        </dl>
         {canEdit ? (
           <section className="rounded-lg border border-border bg-surface p-4">
             <ActionForm action={updatePriceBookAction} className="flex flex-wrap items-end gap-2 text-[13px]">
