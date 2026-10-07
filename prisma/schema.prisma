@@ -660,6 +660,16 @@ model Product {
   specSheetUrl String?
   description  String?
   active       Boolean         @default(true)
+  // ── Create Product page (Zoho-style fields) ──
+  /// Product Owner (a user with access to the brand)
+  ownerId      String?
+  /// Manufacturer picklist (e.g. Hyundai, Suzuki …)
+  manufacturer String?
+  /// Taxable: when off, no tax is applied to the product
+  taxable      Boolean         @default(true)
+  /// Quantity in Stock / Qty Ordered as entered on the product (items not tracked in Inventory)
+  qtyInStock   Decimal?        @db.Decimal(12, 2)
+  qtyOrdered   Decimal?        @db.Decimal(12, 2)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
@@ -953,6 +963,19 @@ model Quote {
   sourceDocumentId    String?
   status              QuoteStatus @default(DRAFT)
   validUntil          DateTime?   @db.Date
+  // ── Create Quote page ──
+  subject             String?
+  /// the customer organisation (name, address, city, country) shown in Quote Information
+  orgName             String?
+  orgAddress          String?
+  orgCity             String?
+  orgCountry          String?
+  tinNumber           String?
+  phone               String?
+  email               String?
+  /// NGN per unit of the quote currency
+  exchangeRate        Decimal     @default(1) @db.Decimal(14, 6)
+  formViewId          String?
 
   // ── brand-owned base mixin (brand and region are inherited from the deal) ──
   brandId     String

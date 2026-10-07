@@ -63,13 +63,13 @@ export interface InvoiceFormProps {
   templateName?: string | null;
 }
 
-type Hit = { id: string; name: string; type: string; taxId: string | null; phone: string | null; email: string | null; address: string | null; city: string | null; state: string | null };
+export type Hit = { id: string; name: string; type: string; taxId: string | null; phone: string | null; email: string | null; address: string | null; city: string | null; state: string | null };
 const EMPTY: InvoiceValues = { ownerId: "", subject: "", customerPoRef: "", invoiceDate: "", dueDate: "", salesCommission: "", exciseDuty: "", otherCharges: "", tinNumber: "", currency: "NGN", exchangeRate: "1", accountId: "", customerName: "", accountType: "", contactId: "", phone: "", dealId: "", salesOrderId: "", billTo: {}, shipTo: {}, terms: "", description: "", formViewId: "" };
 const money = (n: number) => n.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const plusDays = (iso: string, n: number) => new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86_400_000).toISOString().slice(0, 10);
 
 /** Account Name: pick an existing account, or type a new customer's name (stored as the bill-to snapshot). */
-function AccountField({ value, label, linked, onType, onPick, invalid }: { value: string; label: string; linked: boolean; onType: (name: string) => void; onPick: (a: Hit) => void; invalid?: boolean }) {
+export function AccountField({ value, label, linked, onType, onPick, invalid }: { value: string; label: string; linked: boolean; onType: (name: string) => void; onPick: (a: Hit) => void; invalid?: boolean }) {
   const [hits, setHits] = useState<Hit[]>([]);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState<string | null>(null);

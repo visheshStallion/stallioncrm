@@ -34,6 +34,12 @@ export interface ProductRow {
   specSheetUrl: string | null;
   description: string | null;
   active: boolean;
+  ownerId: string | null;
+  manufacturer: string | null;
+  taxable: boolean;
+  preferredVendorId: string | null;
+  qtyInStock: number | null;
+  qtyOrdered: number | null;
 }
 
 function toProductRow(p: ProductRecord): ProductRow {
@@ -58,6 +64,12 @@ function toProductRow(p: ProductRecord): ProductRow {
     specSheetUrl: p.specSheetUrl,
     description: p.description,
     active: p.active,
+    ownerId: p.ownerId,
+    manufacturer: p.manufacturer,
+    taxable: p.taxable,
+    preferredVendorId: p.preferredVendorId,
+    qtyInStock: num(p.qtyInStock),
+    qtyOrdered: num(p.qtyOrdered),
   };
 }
 
@@ -222,3 +234,27 @@ export async function listStock(ctx: AccessContext, where: Prisma.VehicleUnitWhe
   });
   return rows.map((s) => ({ id: s.id, brandId: s.brandId, productId: s.productId, productName: s.product.name, vin: s.vin, colour: s.colour, location: s.warehouse?.name ?? null, status: s.status, dealId: s.dealId }));
 }
+
+/**
+ * Lookups of the Create Product page for the brands the user manages: owners (users with access to the brand),
+ * vendors, the brand's taxes, and the Manufacturer picklist (brand names, values in use, Other).
+ */
+export async function productFormLookups(ctx: AccessContext, brandIds: string[]) {
+  const db = scopedDb(ctx);
+  const [users, vendors, brands, used] = await Promise.all([
+    db.user.findMany({ where: { active: true, OR: [{ profile: { scope: "ALL" } }, { memberships: { some: { territory: { brandId: { in: brandIds } } } } }] }, select: { id: true, name: true, profile: { select: { scope: true } }, memberships: { select: { territory: { select: { brandId: true } } } } }, orderBy: { name: "asc" } }),
+    db.vendor.findMany({ where: { brandId: { in: brandIds }, active: true }, select: { id: true, name: true, brandId: true }, orderBy: { name: "asc" } }),
+    db.brand.findMany({ where: { status: { not: "INACTIVE" } }, select: { id: true, name: true, documentRules: true } }),
+    db.product.findMany({ where: { brandId: { in: brandIds }, manufacturer: { not: null } }, distinct: ["manufacturer"], select: { manufacturer: true } }),
+  ]);
+  const { parseRules } = await import("@/server/modules/documents/config");
+  const manufacturers = [...new Set([...brands.map((b) => b.name), ...used.map((u) => u.manufacturer!).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
+  return {
+    owners: users.map((u) => ({ id: u.id, name: u.name, brandIds: u.profile.scope === "ALL" ? brandIds : [...new Set(u.memberships.map((m) => m.territory.brandId).filter((b): b is string => !!b))] })),
+    vendors,
+    taxes: Object.fromEntries(brands.filter((b) => brandIds.includes(b.id)).map((b) => [b.id, parseRules(b.documentRules).taxes])) as Record<string, Array<{ name: string; rate: number }>>,
+    brandNames: Object.fromEntries(brands.map((b) => [b.id, b.name])) as Record<string, string>,
+    manufacturers: [...manufacturers.filter((m) => m !== "Other"), "Other"],
+  };
+}
+export type ProductFormLookups = Awaited<ReturnType<typeof productFormLookups>>;

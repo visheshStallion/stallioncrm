@@ -12,9 +12,9 @@ const obj = (fd: FormData) => Object.fromEntries([...fd.entries()].filter(([, v]
 export async function createProductAction(_p: unknown, fd: FormData): Promise<ActionResult<Outcome>> {
   return safeAction(async () => {
     const ctx = await requireContext();
-    const p = await svc.createProduct(ctx, str(fd, "brandId"), { ...obj(fd), active: fd.get("active") === "on" } as never);
+    const p = await svc.createProduct(ctx, str(fd, "brandId"), { ...obj(fd), active: fd.get("active") === "on", taxable: fd.get("taxable") === "on" } as never);
     revalidatePath("/products");
-    return { message: "Product created successfully", redirect: `/products/${p.id}` };
+    return { message: "Product created successfully", redirect: fd.get("_saveAndNew") ? "/products/new" : `/products/${p.id}` };
   });
 }
 
@@ -22,7 +22,7 @@ export async function updateProductAction(_p: unknown, fd: FormData): Promise<Ac
   return safeAction(async () => {
     const ctx = await requireContext();
     const id = str(fd, "id");
-    await svc.updateProduct(ctx, id, { ...obj(fd), active: fd.get("active") === "on" } as never);
+    await svc.updateProduct(ctx, id, { ...obj(fd), active: fd.get("active") === "on", taxable: fd.get("taxable") === "on" } as never);
     revalidatePath(`/products/${id}`);
     return { message: "Product updated successfully", redirect: `/products/${id}` };
   });

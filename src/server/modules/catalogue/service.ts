@@ -17,10 +17,37 @@ const displayName = (model: string, variant: string | null) => [model, variant].
 
 // ───────────────────────────── products ─────────────────────────────
 
+/**
+ * The page fields of a product (Create Product): name / model, owner and vendor of the brand, manufacturer (the
+ * brand's name by default), Taxable (off → no tax).
+ */
+async function productValues(ctx: AccessContext, brandId: string, data: ReturnType<typeof productSchema.parse>, ownerFallback: string | null) {
+  const db = scopedDb(ctx);
+  if (data.preferredVendorId) {
+    const v = await db.vendor.findUnique({ where: { id: data.preferredVendorId }, select: { brandId: true } });
+    if (v?.brandId !== brandId) throw new BadRequestError("The vendor does not belong to this brand");
+  }
+  if (data.ownerId && data.ownerId !== ownerFallback) {
+    const ok = await db.user.findFirst({ where: { id: data.ownerId, active: true, OR: [{ profile: { scope: "ALL" } }, { memberships: { some: { territory: { brandId } } } }] }, select: { id: true } });
+    if (!ok) throw new BadRequestError("The product owner has no access to this brand");
+  }
+  const model = data.model ?? data.name!;
+  const brand = data.manufacturer ? null : await db.brand.findUnique({ where: { id: brandId }, select: { name: true } });
+  return {
+    ...data,
+    model,
+    name: data.name ?? displayName(model, data.variant),
+    ownerId: data.ownerId ?? ownerFallback,
+    manufacturer: data.manufacturer ?? brand?.name ?? null,
+    taxRatePct: data.taxable ? data.taxRatePct : 0,
+    taxCode: data.taxable ? data.taxCode : "NONE",
+  };
+}
+
 export async function createProduct(ctx: AccessContext, brandId: string, input: ProductInput) {
   assertCanManageBrandData(ctx, "products", "create", brandId);
   const data = productSchema.parse(input);
-  const product = await scopedDb(ctx).product.create({ data: { ...data, brandId, name: displayName(data.model, data.variant) } });
+  const product = await scopedDb(ctx).product.create({ data: { ...(await productValues(ctx, brandId, data, ctx.userId || null)), brandId } });
   await audit({ ctx, action: "CREATE", entity: "Product", entityId: product.id, brandId, after: product });
   return { id: product.id };
 }
@@ -32,7 +59,7 @@ export async function updateProduct(ctx: AccessContext, id: string, input: Produ
   if (!before) throw new NotFoundError();
   assertCanManageBrandData(ctx, "products", "edit", before.brandId);
   const data = productSchema.parse(input);
-  const after = await db.product.update({ where: { id }, data: { ...data, name: displayName(data.model, data.variant) } });
+  const after = await db.product.update({ where: { id }, data: await productValues(ctx, before.brandId, data, before.ownerId) });
   await audit({ ctx, action: "UPDATE", entity: "Product", entityId: id, brandId: before.brandId, before, after });
   return { id };
 }

@@ -41,7 +41,10 @@ export const productSchema = z.object({
     .toUpperCase()
     .regex(/^[A-Z0-9][A-Z0-9._-]{1,39}$/, "2–40 letters, digits, dot, dash or underscore"),
   category: z.enum(CATEGORIES).default("VEHICLE"),
-  model: z.string().trim().min(1, "Model is required").max(80),
+  /** Product Name: typed, or model + variant when left empty */
+  name: text(120),
+  /** the model (vehicles); defaults to the product name */
+  model: text(80),
   variant: text(80),
   modelYear: optInt(1990, 2100),
   bodyType: text(40),
@@ -56,7 +59,14 @@ export const productSchema = z.object({
   specSheetUrl: z.preprocess(empty, httpUrl.optional()).transform((v) => v ?? null),
   description: text(2000),
   active: z.preprocess((v) => (v === "on" || v === "true" ? true : v === "false" ? false : v), z.boolean()).default(true),
-});
+  // ── Create Product page ──
+  ownerId: z.preprocess(empty, z.string().max(40).optional()).transform((v) => v ?? null),
+  manufacturer: text(80),
+  taxable: z.preprocess((v) => (v === "on" || v === "true" ? true : v === "false" ? false : v), z.boolean()).default(true),
+  preferredVendorId: z.preprocess(empty, z.string().max(40).optional()).transform((v) => v ?? null),
+  qtyInStock: z.preprocess(empty, z.coerce.number().min(0).max(1e9).optional()).transform((v) => v ?? null),
+  qtyOrdered: z.preprocess(empty, z.coerce.number().min(0).max(1e9).optional()).transform((v) => v ?? null),
+}).refine((d) => !!(d.name || d.model), { message: "Enter the product name", path: ["name"] });
 export type ProductInput = z.input<typeof productSchema>;
 
 const date = z.preprocess(empty, z.coerce.date());

@@ -15,6 +15,7 @@ import { getPrice, getProduct, listStock } from "@/server/modules/catalogue/quer
 import { STATUS_LABELS, type VehicleStatus } from "@/server/modules/inventory/status";
 import { CATEGORY_LABELS, STOCK_LABELS, STOCK_STATUSES } from "@/server/modules/catalogue/schema";
 import { getDirectory } from "@/server/modules/org/queries";
+import { scopedDb } from "@/server/db";
 import { requireContext } from "@/server/request";
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,6 +29,10 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   });
   const [dir, price, stock] = await Promise.all([getDirectory(ctx), getPrice(ctx, id), listStock(ctx, { productId: id })]);
   const brand = dir.brands.find((b) => b.id === product.brandId);
+  const [owner, vendor] = await Promise.all([
+    product.ownerId ? scopedDb(ctx).user.findUnique({ where: { id: product.ownerId }, select: { name: true } }) : null,
+    product.preferredVendorId ? scopedDb(ctx).vendor.findUnique({ where: { id: product.preferredVendorId }, select: { name: true } }) : null,
+  ]);
   const canEdit = canManageBrandData(ctx, "products", "edit", product.brandId);
 
   return (
@@ -63,7 +68,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </div>
         ) : null}
         <FieldSection title="Product Information">
+          <Field label="Product Owner" value={owner?.name ?? null} />
           <Field label="Code / SKU" value={product.code} />
+          <Field label="Manufacturer" value={product.manufacturer} />
+          <Field label="Vendor Name" value={vendor?.name ?? null} />
+          <Field label="Product Active" value={product.active ? "Yes" : "No"} />
+          <Field label="Quantity in Stock" value={product.qtyInStock} />
+          <Field label="Qty Ordered" value={product.qtyOrdered} />
           <Field label="Model" value={product.model} />
           <Field label="Variant" value={product.variant} />
           <Field label="Model year" value={product.modelYear} />
@@ -88,7 +99,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <Field label="List price" value={formatMoney(product.listPrice)} />
           <Field label="Current price" value={<span data-testid="current-price">{formatMoney(price.price)}</span>} />
           <Field label="Price source" value={price.source === "priceBook" ? "Default price book" : price.source === "listPrice" ? "List price (no valid price book entry)" : "—"} />
-          <Field label="Tax" value={`${product.taxCode} ${product.taxRatePct}%`} />
+          <Field label="Taxable" value={product.taxable ? "Yes" : "No"} />
+          <Field label="Tax" value={product.taxable ? `${product.taxCode} ${product.taxRatePct}%` : "None"} />
           <Field label="Price incl. tax" value={formatMoney(price.gross)} />
           <Field label="Max discount" value={price.maxDiscountPct === null ? null : `${price.maxDiscountPct}%`} />
         </FieldSection>

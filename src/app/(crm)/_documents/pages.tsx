@@ -243,6 +243,20 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
                 PDF
               </a>
             </Button>
+            {type === "quote" && doc.status === "DRAFT" && canEdit ? (
+              <Button asChild variant="outline">
+                <Link href={`/quotes/${doc.id}/edit`} data-testid="q-edit">
+                  Edit
+                </Link>
+              </Button>
+            ) : null}
+            {type === "quote" && can(ctx, "quotes", "create", doc) ? (
+              <Button asChild variant="outline">
+                <Link href={`/quotes/new?clone=${doc.id}`} data-testid="q-clone">
+                  Clone
+                </Link>
+              </Button>
+            ) : null}
             {type === "invoice" && doc.status === "DRAFT" && canEdit ? (
               <Button asChild variant="outline">
                 <Link href={`/invoices/${doc.id}/edit`} data-testid="inv-edit">
@@ -313,6 +327,16 @@ export async function DocumentDetailPage({ type, params }: { type: DocType; para
           <Field label="Region" value={<RegionBadge region={region} />} />
           <Field label={type === "invoice" ? "Invoice Date" : "Issue date"} value={formatDate(doc.issueDate, prefs.dateFormat)} />
           <Field label={cfg.dateLabel} value={formatDate(doc.date, prefs.dateFormat)} />
+          {doc.quote ? (
+            <>
+              <Field label="Subject" value={doc.quote.subject ?? "—"} />
+              <Field label="Organization" value={[doc.quote.orgName, doc.quote.orgAddress, doc.quote.orgCity, doc.quote.orgCountry].filter(Boolean).join(", ") || "—"} />
+              <Field label="Phone Number" value={doc.quote.phone ?? "—"} />
+              <Field label="Email Id" value={doc.quote.email ?? "—"} />
+              <Field label="TIN Number" value={doc.quote.tinNumber ?? "—"} />
+              <Field label="Currency" value={doc.currency === "NGN" ? "NGN" : `${doc.currency} · ₦ ${doc.quote.exchangeRate} per ${doc.currency}`} />
+            </>
+          ) : null}
           {inv ? (
             <>
               <Field label="Subject" value={inv.subject ?? "—"} />

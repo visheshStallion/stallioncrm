@@ -82,6 +82,21 @@ export interface DocRow {
   updatedAt: string;
   /** Create Invoice page fields (prompt 26) – invoices only */
   invoice: InvoiceExtra | null;
+  /** Create Quote page fields – quotes only */
+  quote: QuoteExtra | null;
+}
+
+export interface QuoteExtra {
+  subject: string | null;
+  orgName: string | null;
+  orgAddress: string | null;
+  orgCity: string | null;
+  orgCountry: string | null;
+  tinNumber: string | null;
+  phone: string | null;
+  email: string | null;
+  exchangeRate: number;
+  formViewId: string | null;
 }
 
 export interface InvoiceExtra {
@@ -121,6 +136,7 @@ const headerSelect = (cfg: DocConfig) => ({
   discountTotal: true,
   taxTotal: true,
   total: true,
+  ...(cfg.type === "quote" ? { subject: true, orgName: true, orgAddress: true, orgCity: true, orgCountry: true, tinNumber: true, phone: true, email: true, exchangeRate: true, formViewId: true } : {}),
   ...(cfg.type === "invoice" ? { amountPaid: true, subject: true, customerPoRef: true, tinNumber: true, phone: true, exchangeRate: true, exciseDuty: true, otherCharges: true, salesCommission: true, creditedAmount: true, issuedAt: true, voidReason: true, formViewId: true, sentAt: true } : {}),
   terms: true,
   notes: true,
@@ -173,6 +189,10 @@ function toRow(cfg: DocConfig, d: any): DocRow {
     ownerName: d.owner.name,
     createdAt: d.createdAt.toISOString(),
     updatedAt: d.updatedAt.toISOString(),
+    quote:
+      cfg.type === "quote"
+        ? { subject: d.subject ?? null, orgName: d.orgName ?? null, orgAddress: d.orgAddress ?? null, orgCity: d.orgCity ?? null, orgCountry: d.orgCountry ?? null, tinNumber: d.tinNumber ?? null, phone: d.phone ?? null, email: d.email ?? null, exchangeRate: num(d.exchangeRate) ?? 1, formViewId: d.formViewId ?? null }
+        : null,
     invoice:
       cfg.type === "invoice"
         ? {

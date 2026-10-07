@@ -59,13 +59,16 @@ test("Quick Create → Quote opens the standalone form; a product line takes the
   await page.getByTestId("quick-create").click();
   await page.getByRole("menuitem", { name: "Quote", exact: true }).click();
   await expect(page).toHaveURL(/\/quotes\/new$/);
-  const form = page.getByTestId("new-document");
-  await form.getByLabel("Customer name").fill(`Quote Buyer ${stamp}`);
+  // the Create Quote page: a typed customer, the required phone and e-mail
+  const form = page.getByTestId("quote-form");
+  await page.locator("#inv-account").fill(`Quote Buyer ${stamp}`);
+  await page.locator("#q-phone").fill("+2348031234567");
+  await page.locator("#q-email").fill(`buyer${stamp}@example.test`);
   // the product search of row 1 lists the brand's products; picking one takes its price-book price
   await form.getByLabel("Row 1, Product Name").click();
   await page.getByTestId("product-options").getByRole("option").first().click();
   await expect(form.getByLabel("Row 1, List Price")).not.toHaveValue("");
-  await page.getByTestId("new-document-save").click();
+  await page.getByTestId("q-save").click();
   await expect(page).toHaveURL(/\/quotes\/(?!new$)[a-z0-9]+$/);
   await expect(page.getByTestId("grand-total")).not.toHaveText("0.00");
 });
